@@ -160,7 +160,47 @@ CREATE TABLE member_action_history (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================
--- 6. 일정 / 정산
+-- 6. 투표
+-- =========================
+CREATE TABLE votes (
+  vote_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  post_id BIGINT NOT NULL COMMENT '연결된 게시글 (posts.category = VOTE)',
+  creator_id BIGINT NOT NULL COMMENT '투표 생성자',
+  title VARCHAR(200) NOT NULL,
+  description TEXT,
+  is_anonymous TINYINT(1) DEFAULT 0 COMMENT '익명 투표 여부',
+  allow_multiple TINYINT(1) DEFAULT 0 COMMENT '복수 선택 허용 여부',
+  status VARCHAR(20) DEFAULT 'OPEN' COMMENT 'OPEN, CLOSED',
+  closed_at DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (post_id) REFERENCES posts(post_id),
+  FOREIGN KEY (creator_id) REFERENCES users(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE vote_options (
+  option_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  vote_id BIGINT NOT NULL,
+  option_text VARCHAR(200) NOT NULL COMMENT '표시용 텍스트',
+  option_order INT DEFAULT 1,
+  event_date DATETIME COMMENT '확정 시 생성될 일정 날짜/시간',
+  location VARCHAR(255) COMMENT '장소',
+  FOREIGN KEY (vote_id) REFERENCES votes(vote_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE vote_records (
+  record_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  vote_id BIGINT NOT NULL,
+  option_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  voted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_vote_user_option (vote_id, option_id, user_id),
+  FOREIGN KEY (vote_id) REFERENCES votes(vote_id),
+  FOREIGN KEY (option_id) REFERENCES vote_options(option_id),
+  FOREIGN KEY (user_id) REFERENCES users(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =========================
+-- 7. 일정 / 정산
 -- =========================
 CREATE TABLE schedules (
   post_id BIGINT PRIMARY KEY,
@@ -205,7 +245,7 @@ CREATE TABLE settlement_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================
--- 7. 회계 / 감사
+-- 8. 회계 / 감사
 -- =========================
 CREATE TABLE bank_transaction_history (
   history_id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -247,7 +287,7 @@ CREATE TABLE audit_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =========================
--- 8. 회비 / 알림 / 메시지
+-- 9. 회비 / 알림 / 메시지
 -- =========================
 CREATE TABLE monthly_fee_log (
   fee_log_id BIGINT AUTO_INCREMENT PRIMARY KEY,
