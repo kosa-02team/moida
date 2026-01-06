@@ -4,13 +4,19 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class TransactionLog extends BaseEntity {
+public class TransactionLog {
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -52,7 +58,6 @@ public class TransactionLog extends BaseEntity {
     }
 
     // 도메인 메서드
-    public void updateDescription(String description) {
-        this.description = description;
-    }
+    // 회계 원장은 불변이므로 수정 메서드 제거
+    // 오류 수정이 필요한 경우 상계 거래(compensating entry)를 추가해야 함
 }

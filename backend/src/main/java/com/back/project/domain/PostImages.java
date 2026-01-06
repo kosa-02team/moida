@@ -4,11 +4,18 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class PostImages extends BaseEntity {
+public class PostImages {
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -28,8 +35,7 @@ public class PostImages extends BaseEntity {
     }
 
     // 도메인 메서드
-    public void updateImageUrl(String imageUrl) {
-        this.imageUrl = imageUrl;
-    }
+    // 이미지는 불변이므로 수정 메서드 제거
+    // 이미지 변경이 필요한 경우 기존 이미지 삭제 후 새로 추가해야 함
 }
 

@@ -110,7 +110,6 @@ CREATE TABLE post_likes (
   post_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_post_like (post_id, user_id),
   FOREIGN KEY (post_id) REFERENCES posts(post_id),
   FOREIGN KEY (user_id) REFERENCES users(user_id)
@@ -131,7 +130,6 @@ CREATE TABLE post_images (
   post_id BIGINT NOT NULL,
   image_url VARCHAR(255) NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (post_id) REFERENCES posts(post_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -268,7 +266,6 @@ CREATE TABLE bank_transaction_history (
   is_matched TINYINT(1) DEFAULT 0,
   unique_tx_key VARCHAR(255) UNIQUE,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (club_id) REFERENCES clubs(club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -282,7 +279,6 @@ CREATE TABLE transaction_log (
   description TEXT,
   editor_id BIGINT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (club_id) REFERENCES clubs(club_id),
   FOREIGN KEY (account_id) REFERENCES bank_accounts(account_id),
   FOREIGN KEY (editor_id) REFERENCES users(user_id)
@@ -295,7 +291,6 @@ CREATE TABLE audit_logs (
   before_description TEXT,
   after_description TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (transaction_id) REFERENCES transaction_log(transaction_id),
   FOREIGN KEY (actor_id) REFERENCES users(user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -323,7 +318,6 @@ CREATE TABLE notifications (
   ref_type VARCHAR(30),
   is_read TINYINT(1) DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -334,7 +328,6 @@ CREATE TABLE messages (
   content TEXT NOT NULL,
   is_read TINYINT(1) DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted_at DATETIME,
   FOREIGN KEY (sender_id) REFERENCES users(user_id),
   FOREIGN KEY (receiver_id) REFERENCES users(user_id)
