@@ -1,19 +1,17 @@
 package com.back.project.domain;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "post_read_logs")
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class PostReadLog {
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class PostReadLogs {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -29,5 +27,11 @@ public class PostReadLog {
     @CreationTimestamp
     @Column(name = "read_at", updatable = false)
     private LocalDateTime readAt;
+
+    // 생성자
+    public PostReadLogs(Long postId, Long userId) {
+        this.postId = postId;
+        this.userId = userId;
+    }
 }
 

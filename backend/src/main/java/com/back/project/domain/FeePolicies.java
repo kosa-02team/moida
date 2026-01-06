@@ -1,20 +1,18 @@
 package com.back.project.domain;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "fee_policies")
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class FeePolicy {
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class FeePolicies {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,19 +23,37 @@ public class FeePolicy {
     private Long clubId;
 
     @Column(precision = 19, scale = 2)
-    @Builder.Default
     private BigDecimal amount = BigDecimal.ZERO;
 
     @Column(name = "due_day")
-    @Builder.Default
     private Integer dueDay = 1;
 
     @Column(name = "is_active")
-    @Builder.Default
     private Boolean isActive = true;
 
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    // 생성자
+    public FeePolicies(Long clubId, BigDecimal amount, Integer dueDay) {
+        this.clubId = clubId;
+        this.amount = amount;
+        this.dueDay = dueDay;
+    }
+
+    // 도메인 메서드
+    public void updatePolicy(BigDecimal amount, Integer dueDay) {
+        this.amount = amount;
+        this.dueDay = dueDay;
+    }
+
+    public void activate() {
+        this.isActive = true;
+    }
+
+    public void deactivate() {
+        this.isActive = false;
+    }
 }
 

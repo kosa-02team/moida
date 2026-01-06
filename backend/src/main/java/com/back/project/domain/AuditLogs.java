@@ -1,19 +1,14 @@
 package com.back.project.domain;
 
 import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-
-import java.time.LocalDateTime;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "audit_logs")
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class AuditLog {
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class AuditLogs extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -32,8 +27,12 @@ public class AuditLog {
     @Column(name = "after_description", columnDefinition = "TEXT")
     private String afterDescription;
 
-    @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
+    // 생성자
+    public AuditLogs(Long transactionId, Long actorId, String beforeDescription, String afterDescription) {
+        this.transactionId = transactionId;
+        this.actorId = actorId;
+        this.beforeDescription = beforeDescription;
+        this.afterDescription = afterDescription;
+    }
 }
 

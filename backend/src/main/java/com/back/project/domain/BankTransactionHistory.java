@@ -1,20 +1,17 @@
 package com.back.project.domain;
 
 import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "bank_transaction_history")
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class BankTransactionHistory {
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class BankTransactionHistory extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -37,14 +34,29 @@ public class BankTransactionHistory {
     private BigDecimal amount;
 
     @Column(name = "is_matched")
-    @Builder.Default
     private Boolean isMatched = false;
 
     @Column(name = "unique_tx_key", unique = true, length = 255)
     private String uniqueTxKey;
 
-    @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
-}
+    // 생성자
+    public BankTransactionHistory(Long clubId, LocalDateTime bankTransactionAt, 
+                                   String senderAccountNumber, String senderName,
+                                   BigDecimal amount, String uniqueTxKey) {
+        this.clubId = clubId;
+        this.bankTransactionAt = bankTransactionAt;
+        this.senderAccountNumber = senderAccountNumber;
+        this.senderName = senderName;
+        this.amount = amount;
+        this.uniqueTxKey = uniqueTxKey;
+    }
 
+    // 도메인 메서드
+    public void markAsMatched() {
+        this.isMatched = true;
+    }
+
+    public void unmarkAsMatched() {
+        this.isMatched = false;
+    }
+}

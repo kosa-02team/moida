@@ -1,19 +1,17 @@
 package com.back.project.domain;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "vote_records")
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class VoteRecord {
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class VoteRecords {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -32,5 +30,17 @@ public class VoteRecord {
     @CreationTimestamp
     @Column(name = "voted_at", updatable = false)
     private LocalDateTime votedAt;
+
+    // 생성자
+    public VoteRecords(Long voteId, Long optionId, Long userId) {
+        this.voteId = voteId;
+        this.optionId = optionId;
+        this.userId = userId;
+    }
+
+    // 도메인 메서드
+    public void changeOption(Long newOptionId) {
+        this.optionId = newOptionId;
+    }
 }
 

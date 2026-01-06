@@ -1,20 +1,16 @@
 package com.back.project.domain;
 
 import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "transaction_log")
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class TransactionLog {
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class TransactionLog extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -42,8 +38,21 @@ public class TransactionLog {
     @Column(name = "editor_id")
     private Long editorId;
 
-    @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
-}
+    // 생성자
+    public TransactionLog(Long clubId, Long accountId, String type, 
+                          BigDecimal amount, BigDecimal balanceAfter,
+                          String description, Long editorId) {
+        this.clubId = clubId;
+        this.accountId = accountId;
+        this.type = type;
+        this.amount = amount;
+        this.balanceAfter = balanceAfter;
+        this.description = description;
+        this.editorId = editorId;
+    }
 
+    // 도메인 메서드
+    public void updateDescription(String description) {
+        this.description = description;
+    }
+}

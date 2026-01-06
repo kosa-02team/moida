@@ -1,18 +1,16 @@
 package com.back.project.domain;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "member_action_history")
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MemberActionHistory {
 
     @Id
@@ -41,5 +39,15 @@ public class MemberActionHistory {
     @CreationTimestamp
     @Column(name = "action_at", updatable = false)
     private LocalDateTime actionAt;
-}
 
+    // 생성자
+    public MemberActionHistory(Long clubId, Long userId, Long reportId, 
+                               String actionType, Long actorId, String reason) {
+        this.clubId = clubId;
+        this.userId = userId;
+        this.reportId = reportId;
+        this.actionType = actionType;
+        this.actorId = actorId;
+        this.reason = reason;
+    }
+}

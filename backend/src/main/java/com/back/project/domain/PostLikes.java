@@ -1,19 +1,14 @@
 package com.back.project.domain;
 
 import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-
-import java.time.LocalDateTime;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "post_likes")
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class PostLike {
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class PostLikes extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,8 +21,10 @@ public class PostLike {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
+    // 생성자
+    public PostLikes(Long postId, Long userId) {
+        this.postId = postId;
+        this.userId = userId;
+    }
 }
 

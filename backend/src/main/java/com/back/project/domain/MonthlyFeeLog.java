@@ -1,18 +1,16 @@
 package com.back.project.domain;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "monthly_fee_log")
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MonthlyFeeLog {
 
     @Id
@@ -30,10 +28,26 @@ public class MonthlyFeeLog {
     private LocalDate feeMonth;
 
     @Column(name = "is_paid")
-    @Builder.Default
     private Boolean isPaid = false;
 
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
-}
 
+    // 생성자
+    public MonthlyFeeLog(Long clubId, Long userId, LocalDate feeMonth) {
+        this.clubId = clubId;
+        this.userId = userId;
+        this.feeMonth = feeMonth;
+    }
+
+    // 도메인 메서드
+    public void markAsPaid() {
+        this.isPaid = true;
+        this.paidAt = LocalDateTime.now();
+    }
+
+    public void markAsUnpaid() {
+        this.isPaid = false;
+        this.paidAt = null;
+    }
+}
