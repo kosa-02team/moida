@@ -9,6 +9,9 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(uniqueConstraints = {
+    @UniqueConstraint(name = "uk_club_user", columnNames = {"club_id", "user_id"})
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ClubMembers {

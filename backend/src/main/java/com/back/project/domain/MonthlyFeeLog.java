@@ -9,6 +9,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(uniqueConstraints = {
+    @UniqueConstraint(name = "uk_fee", columnNames = {"club_id", "user_id", "fee_month"})
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MonthlyFeeLog {

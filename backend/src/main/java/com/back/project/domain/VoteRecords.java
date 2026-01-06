@@ -9,6 +9,9 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(uniqueConstraints = {
+    @UniqueConstraint(name = "uk_vote_user_option", columnNames = {"vote_id", "option_id", "user_id"})
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class VoteRecords {
@@ -36,11 +39,6 @@ public class VoteRecords {
         this.voteId = voteId;
         this.optionId = optionId;
         this.userId = userId;
-    }
-
-    // 도메인 메서드
-    public void changeOption(Long newOptionId) {
-        this.optionId = newOptionId;
     }
 }
 

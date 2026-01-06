@@ -9,6 +9,9 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(uniqueConstraints = {
+    @UniqueConstraint(name = "uk_post_read", columnNames = {"post_id", "user_id"})
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PostReadLogs {

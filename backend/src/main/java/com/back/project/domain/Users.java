@@ -74,6 +74,7 @@ public class Users extends BaseEntity {
     public void activate() {
         this.status = "ACTIVE";
         this.bannedAt = null;
+        this.deletedAt = null;
     }
 
     public void changeSystemRole(String role) {
