@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -29,11 +30,11 @@ public class TransactionLog {
     @Column(nullable = false, length = 30)
     private String type;
 
-    @Column(nullable = false)
-    private Long amount;
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal amount;
 
-    @Column(name = "balance_after", nullable = false)
-    private Long balanceAfter;
+    @Column(name = "balance_after", nullable = false, precision = 19, scale = 2)
+    private BigDecimal balanceAfter;
 
     @Column(columnDefinition = "TEXT")
     private String description;

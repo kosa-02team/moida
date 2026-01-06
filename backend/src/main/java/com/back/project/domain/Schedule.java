@@ -3,6 +3,7 @@ package com.back.project.domain;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -18,23 +19,28 @@ public class Schedule {
     @Column(name = "post_id")
     private Long postId;
 
+    @OneToOne
+    @MapsId
+    @JoinColumn(name = "post_id")
+    private Post post;
+
     @Column(name = "event_date", nullable = false)
     private LocalDateTime eventDate;
 
     @Column(length = 255)
     private String location;
 
-    @Column(name = "entry_fee")
+    @Column(name = "entry_fee", precision = 19, scale = 2)
     @Builder.Default
-    private Long entryFee = 0L;
+    private BigDecimal entryFee = BigDecimal.ZERO;
 
-    @Column(name = "total_spent")
+    @Column(name = "total_spent", precision = 19, scale = 2)
     @Builder.Default
-    private Long totalSpent = 0L;
+    private BigDecimal totalSpent = BigDecimal.ZERO;
 
-    @Column(name = "refund_per_person")
+    @Column(name = "refund_per_person", precision = 19, scale = 2)
     @Builder.Default
-    private Long refundPerPerson = 0L;
+    private BigDecimal refundPerPerson = BigDecimal.ZERO;
 
     @Column(length = 20)
     @Builder.Default

@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -32,8 +33,8 @@ public class BankTransactionHistory {
     @Column(name = "sender_name", nullable = false, length = 50)
     private String senderName;
 
-    @Column(nullable = false)
-    private Long amount;
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal amount;
 
     @Column(name = "is_matched")
     @Builder.Default

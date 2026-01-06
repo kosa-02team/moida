@@ -41,5 +41,8 @@ public class Post {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    @OneToOne(mappedBy = "post", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Schedule schedule;
 }
 

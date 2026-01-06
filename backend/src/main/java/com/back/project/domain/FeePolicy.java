@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -23,9 +24,9 @@ public class FeePolicy {
     @Column(name = "club_id", nullable = false)
     private Long clubId;
 
-    @Column
+    @Column(precision = 19, scale = 2)
     @Builder.Default
-    private Long amount = 0L;
+    private BigDecimal amount = BigDecimal.ZERO;
 
     @Column(name = "due_day")
     @Builder.Default
@@ -36,7 +37,7 @@ public class FeePolicy {
     private Boolean isActive = true;
 
     @UpdateTimestamp
-    @Column(name = "updated_at", updatable = false)
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 }
 
