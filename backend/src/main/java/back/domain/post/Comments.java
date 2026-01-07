@@ -1,4 +1,4 @@
-package back.domain;
+package back.domain.post;
 
 import back.domain.BaseEntity;
 import jakarta.persistence.*;

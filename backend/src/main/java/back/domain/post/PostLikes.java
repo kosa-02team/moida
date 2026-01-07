@@ -1,4 +1,4 @@
-package back.domain;
+package back.domain.post;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -9,9 +9,12 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(uniqueConstraints = {
+    @UniqueConstraint(name = "uk_post_like", columnNames = {"post_id", "user_id"})
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class PostImages {
+public class PostLikes {
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -19,23 +22,19 @@ public class PostImages {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "image_id")
-    private Long imageId;
+    @Column(name = "like_id")
+    private Long likeId;
 
     @Column(name = "post_id", nullable = false)
     private Long postId;
 
-    @Column(name = "image_url", nullable = false, length = 255)
-    private String imageUrl;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
     // 생성자
-    public PostImages(Long postId, String imageUrl) {
+    public PostLikes(Long postId, Long userId) {
         this.postId = postId;
-        this.imageUrl = imageUrl;
+        this.userId = userId;
     }
-
-    // 도메인 메서드
-    // 이미지는 불변이므로 수정 메서드 제거
-    // 이미지 변경이 필요한 경우 기존 이미지 삭제 후 새로 추가해야 함
 }
 

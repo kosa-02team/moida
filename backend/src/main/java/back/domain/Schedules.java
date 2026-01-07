@@ -1,6 +1,6 @@
 package back.domain;
 
-import back.domain.Posts;
+import back.domain.post.Posts;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;

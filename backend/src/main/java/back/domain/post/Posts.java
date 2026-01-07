@@ -1,6 +1,7 @@
-package back.domain;
+package back.domain.post;
 
 import back.domain.BaseEntity;
+import back.domain.Schedules;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
