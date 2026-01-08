@@ -1,7 +1,8 @@
 package back.controller.post;
 
-import back.dto.post.request.PostCreateRequest;
+import back.dto.post.request.GeneralPostCreateRequest;
 import back.dto.post.request.PostUpdateRequest;
+import back.dto.post.request.StoryCreateRequest;
 import back.dto.post.response.PostResponse;
 import back.service.post.PostService;
 import lombok.RequiredArgsConstructor;
@@ -19,9 +20,17 @@ public class PostController {
     private final PostService postService;
 
     @PostMapping
-    public ResponseEntity<Void> createPost(@RequestBody PostCreateRequest request) {
-        Long postId = postService.createPost(request);
-        return ResponseEntity.created(URI.create("/api/club/{clubId}/posts/" + postId)).build();
+    public ResponseEntity<Void> createStory(
+            /* todo : security있으면
+                RequestHeader말고 AuthenticationPrincipal로 변경예정
+                @AuthenticationPrincipal UserPrincipal principal,
+                principal.userId()로 접근
+            */
+            @RequestHeader(value = "X-DEV-USER-ID", required = false) Long devUserId,
+            @PathVariable Long clubId,
+            @RequestBody StoryCreateRequest request) {
+        Long storyId = postService.createStory(devUserId, clubId, request);
+        return ResponseEntity.created(URI.create("/api/club/{clubId}/posts/" + storyId)).build();
     }
 
     @GetMapping("/{postId}")

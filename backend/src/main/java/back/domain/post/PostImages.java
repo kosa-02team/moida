@@ -22,20 +22,23 @@ public class PostImages {
     @Column(name = "image_id")
     private Long imageId;
 
-    @Column(name = "post_id", nullable = false)
-    private Long postId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "post_id", nullable = false)
+    private Posts post;
 
     @Column(name = "image_url", nullable = false, length = 255)
     private String imageUrl;
 
     // 생성자
-    public PostImages(Long postId, String imageUrl) {
-        this.postId = postId;
+    private PostImages(Posts post, String imageUrl) {
+        this.post = post;
         this.imageUrl = imageUrl;
     }
 
-    // 도메인 메서드
-    // 이미지는 불변이므로 수정 메서드 제거
-    // 이미지 변경이 필요한 경우 기존 이미지 삭제 후 새로 추가해야 함
+    public static PostImages of(Posts post, String imageUrl) {
+        return new PostImages(post, imageUrl);
+    }
+
+
 }
 

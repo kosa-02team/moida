@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Getter
@@ -25,8 +27,9 @@ public class Posts extends BaseEntity {
     @Column(name = "writer_id", nullable = false)
     private Long writerId;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
-    private String category;
+    private PostCategory  category;
 
     @Column(nullable = false, length = 200)
     private String title;
@@ -34,19 +37,55 @@ public class Posts extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String content;
 
+    @Column(length = 30)
+    private String place;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    @OneToOne(mappedBy = "post", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Schedules schedule;
+    @Column(name = "schedule_id")
+    private Long scheduleId; // nullable
+
+    //title 자동 생성
+    private static String makeTitleFromContent(String content) {
+        String trimmed = content == null ? "" : content.trim();
+
+        // 첫 줄 추출 (\r\n, \n 모두 대응)
+        String firstLine = trimmed.split("\\R", 2)[0].trim();
+
+        // 첫 줄이 너무 짧거나 비어있으면 전체에서 생성
+        String base = firstLine.isEmpty() ? trimmed : firstLine;
+
+        // 길이 제한
+        if (base.length() > 200) {
+            base = base.substring(0, 20).trim();
+        }
+
+        return base;
+    }
 
     // 생성자
-    public Posts(Long clubId, Long writerId, String category, String title, String content) {
+    public Posts(Long clubId, Long writerId, PostCategory category, String title, String content ) {
         this.clubId = clubId;
         this.writerId = writerId;
         this.category = category;
         this.title = title;
         this.content = content;
+    }
+
+    public static Posts story(
+            Long writerId,
+            Long clubId,
+            Long scheduleId,
+            String content
+    ) {
+
+        String title = makeTitleFromContent(content);
+        PostCategory category = (scheduleId == null) ? PostCategory.GENERAL : PostCategory.SCHEDULE;
+
+        Posts post = new Posts(clubId, writerId, category, title, content);
+
+        return post;
     }
 
     // 도메인 메서드
@@ -63,8 +102,9 @@ public class Posts extends BaseEntity {
         this.deletedAt = null;
     }
 
-    public void setSchedule(Schedules schedule) {
-        this.schedule = schedule;
+    public void updatePlace(String place){
+        this.place = place.trim();
     }
+
 }
 

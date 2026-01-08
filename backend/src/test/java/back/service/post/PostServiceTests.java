@@ -1,7 +1,6 @@
 package back.service.post;
 
 import back.domain.post.Posts;
-import back.dto.post.request.PostCreateRequest;
 import back.dto.post.request.PostUpdateRequest;
 import back.dto.post.response.PostResponse;
 import back.repository.post.PostRepository;
@@ -20,7 +19,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.times;
@@ -132,7 +130,7 @@ public class PostServiceTests {
         @DisplayName("[MEMBER] 모임 게시글 생성 성공")
         void create_post_member() {
             // given
-            PostCreateRequest request = new PostCreateRequest(1L, 1L, "NOTICE", "New Title", "New Content");
+            GeneralPostCreateRequest request = new GeneralPostCreateRequest(1L, 1L, "NOTICE", "New Title", "New Content");
             Posts savedPost = new Posts(1L, 1L, "NOTICE", "New Title", "New Content");
             ReflectionTestUtils.setField(savedPost, "postId", 1L);
 
