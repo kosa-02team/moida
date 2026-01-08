@@ -9,6 +9,8 @@ import back.dto.post.response.PostResponse;
 import back.exception.PostException;
 import back.repository.post.PostImagesRepository;
 import back.repository.post.PostMemberTagRepository;
+import back.repository.post.PostImagesRepository;
+import back.repository.post.PostMemberTagRepository;
 import back.repository.post.PostRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
