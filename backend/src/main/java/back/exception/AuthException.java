@@ -22,4 +22,15 @@ public class AuthException extends CustomGlobalException{
             super(ErrorCode.LOGIN_FAILED, message);
         }
     }
+
+    public static class UserNotFound extends AuthException {
+
+        public UserNotFound() {
+            super(ErrorCode.USER_NOT_FOUND);
+        }
+
+        public UserNotFound(String message) {
+            super(ErrorCode.USER_NOT_FOUND, message);
+        }
+    }
 }
