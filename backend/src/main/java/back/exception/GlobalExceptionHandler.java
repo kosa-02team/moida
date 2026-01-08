@@ -31,4 +31,11 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.error(errorCode));
     }
 
+    @ExceptionHandler(PostException.class)
+    public ResponseEntity<ErrorResponse<Void>> handlePostException(final PostException e) {
+        log.warn("PostException : {}", e.getMessage());
+        return ResponseEntity
+                .status(e.getErrorCode().getHttpStatus())
+                .body(ErrorResponse.error(e.getErrorCode()));
+    }
 }

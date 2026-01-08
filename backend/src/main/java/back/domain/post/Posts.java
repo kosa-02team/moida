@@ -43,6 +43,9 @@ public class Posts extends BaseEntity {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @Column(name = "deleted_by")
+    private Long deletedBy;
+
     @Column(name = "schedule_id")
     private Long scheduleId; // nullable
 

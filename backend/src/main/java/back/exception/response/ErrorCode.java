@@ -14,9 +14,15 @@ public enum ErrorCode {
     SERVER_ERROR(INTERNAL_SERVER_ERROR,"S01", "예상치 못한 서버 에러가 발생하였습니다"),
 
     //Global Error
-    RESOURCE_NOT_FOUND(NOT_FOUND,"G01", "요청한 자원을 찾을 수 없습니다")
-    ;
+    RESOURCE_NOT_FOUND(NOT_FOUND,"G01", "요청한 자원을 찾을 수 없습니다"),
 
+
+
+    //Post Error
+    POST_NOT_FOUND(NOT_FOUND,"P01", "게시글을 찾을 수 없습니다"),
+    POST_DELETED(GONE, "P02", "삭제된 게시글입니다"),
+    POST_FORBIDDEN(FORBIDDEN,"P03", "비공개 또는 제한된 게시글입니다.")
+    ;
     private final HttpStatus httpStatus;
     private final String code;
     private final String message;

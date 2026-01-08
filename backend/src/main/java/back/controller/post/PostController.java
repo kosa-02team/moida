@@ -1,6 +1,5 @@
 package back.controller.post;
 
-import back.dto.post.request.GeneralPostCreateRequest;
 import back.dto.post.request.PostUpdateRequest;
 import back.dto.post.request.StoryCreateRequest;
 import back.dto.post.response.PostResponse;

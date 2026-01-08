@@ -1,5 +1,6 @@
 package back.dto.post.response;
 
+import back.domain.post.PostCategory;
 import back.domain.post.Posts;
 import java.time.LocalDateTime;
 
@@ -7,7 +8,7 @@ public record PostResponse(
         Long postId,
         Long clubId,
         Long writerId,
-        String category,
+        PostCategory category,
         String title,
         String content,
         LocalDateTime createdAt,
