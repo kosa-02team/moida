@@ -33,11 +33,11 @@ public class Posts extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String content;
 
+    @Column(name = "schedule_id")
+    private Long scheduleId;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
-
-    @OneToOne(mappedBy = "post", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Schedules schedule;
 
     // 생성자
     public Posts(Long clubId, Long writerId, String category, String title, String content) {
@@ -60,10 +60,6 @@ public class Posts extends BaseEntity {
 
     public void restore() {
         this.deletedAt = null;
-    }
-
-    public void setSchedule(Schedules schedule) {
-        this.schedule = schedule;
     }
 }
 

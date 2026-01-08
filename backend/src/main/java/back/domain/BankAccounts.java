@@ -1,5 +1,7 @@
 package back.domain;
 
+import back.domain.BaseEntity;
+import back.domain.Banks;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -20,8 +22,9 @@ public class BankAccounts extends BaseEntity {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(name = "bank_name", nullable = false, length = 50)
-    private String bankName;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "bank_id", nullable = false)
+    private Banks bank;
 
     @Column(name = "account_number", nullable = false, unique = true, length = 255)
     private String accountNumber;
@@ -33,9 +36,9 @@ public class BankAccounts extends BaseEntity {
     private LocalDateTime deletedAt;
 
     // 생성자
-    public BankAccounts(Long userId, String bankName, String accountNumber, String depositorName) {
+    public BankAccounts(Long userId, Banks bank, String accountNumber, String depositorName) {
         this.userId = userId;
-        this.bankName = bankName;
+        this.bank = bank;
         this.accountNumber = accountNumber;
         this.depositorName = depositorName;
     }
@@ -45,8 +48,8 @@ public class BankAccounts extends BaseEntity {
         this.deletedAt = LocalDateTime.now();
     }
 
-    public void updateAccountInfo(String bankName, String accountNumber, String depositorName) {
-        this.bankName = bankName;
+    public void updateAccountInfo(Banks bank, String accountNumber, String depositorName) {
+        this.bank = bank;
         this.accountNumber = accountNumber;
         this.depositorName = depositorName;
     }

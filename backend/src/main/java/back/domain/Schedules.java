@@ -1,6 +1,6 @@
 package back.domain;
 
-import back.domain.Posts;
+import back.domain.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -12,22 +12,28 @@ import java.time.LocalDateTime;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Schedules {
+@Table(name = "schedules")
+public class Schedules extends BaseEntity {
 
     @Id
-    @Column(name = "post_id")
-    private Long postId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "schedule_id")
+    private Long scheduleId;
 
-    @OneToOne
-    @MapsId
-    @JoinColumn(name = "post_id")
-    private Posts post;
+    @Column(name = "schedule_name", nullable = false, length = 200)
+    private String scheduleName;
 
     @Column(name = "event_date", nullable = false)
     private LocalDateTime eventDate;
 
+    @Column(name = "end_date", nullable = false)
+    private LocalDateTime endDate;
+
     @Column(length = 255)
     private String location;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
 
     @Column(name = "entry_fee", precision = 19, scale = 2)
     private BigDecimal entryFee = BigDecimal.ZERO;
@@ -45,17 +51,22 @@ public class Schedules {
     private LocalDateTime closedAt;
 
     // 생성자
-    public Schedules(Posts post, LocalDateTime eventDate, String location, BigDecimal entryFee) {
-        this.post = post;
+    public Schedules(String scheduleName, LocalDateTime eventDate, LocalDateTime endDate, String location, String description, BigDecimal entryFee) {
+        this.scheduleName = scheduleName;
         this.eventDate = eventDate;
+        this.endDate = endDate;
         this.location = location;
+        this.description = description;
         this.entryFee = entryFee != null ? entryFee : BigDecimal.ZERO;
     }
 
     // 도메인 메서드
-    public void updateSchedule(LocalDateTime eventDate, String location, BigDecimal entryFee) {
+    public void updateSchedule(String scheduleName, LocalDateTime eventDate, LocalDateTime endDate, String location, String description, BigDecimal entryFee) {
+        this.scheduleName = scheduleName;
         this.eventDate = eventDate;
+        this.endDate = endDate;
         this.location = location;
+        this.description = description;
         this.entryFee = entryFee;
     }
 

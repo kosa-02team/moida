@@ -11,43 +11,43 @@ import java.math.BigDecimal;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class SettlementRequests extends BaseEntity {
+@Table(name = "fee_collection_requests")
+public class FeeCollectionRequests extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "settlement_id")
     private Long settlementId;
 
-    @Column(name = "post_id", nullable = false)
-    private Long postId;
+    @Column(name = "schedule_id", nullable = false)
+    private Long scheduleId;
 
     @Column(name = "total_amount", nullable = false, precision = 19, scale = 2)
     private BigDecimal totalAmount;
 
     @Column(length = 20)
-    private String status = "PENDING";
+    private String status = "OPEN";
 
     // 생성자
-    public SettlementRequests(Long postId, BigDecimal totalAmount) {
-        this.postId = postId;
+    public FeeCollectionRequests(Long scheduleId, BigDecimal totalAmount) {
+        this.scheduleId = scheduleId;
         this.totalAmount = totalAmount;
     }
 
     // 도메인 메서드
-    public void approve() {
-        this.status = "APPROVED";
+    public void open() {
+        this.status = "OPEN";
     }
 
-    public void reject() {
-        this.status = "REJECTED";
+    public void close() {
+        this.status = "CLOSED";
     }
 
-    public void complete() {
-        this.status = "COMPLETED";
+    public void pending() {
+        this.status = "PENDING";
     }
 
     public void updateTotalAmount(BigDecimal totalAmount) {
         this.totalAmount = totalAmount;
     }
 }
-
