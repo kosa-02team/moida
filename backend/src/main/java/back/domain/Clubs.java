@@ -33,6 +33,9 @@ public class Clubs extends BaseEntity {
     @Column(length = 20)
     private String status = "ACTIVE";
 
+    @Column(length = 20)
+    private String visibility = "PUBLIC";
+
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
 
@@ -68,6 +71,10 @@ public class Clubs extends BaseEntity {
     public void activate() {
         this.status = "ACTIVE";
         this.closedAt = null;
+    }
+
+    public void setVisibility(String visibility) {
+        this.visibility = visibility;
     }
 }
 
