@@ -1,4 +1,4 @@
-package back.service.post;
+package back.service.posts;
 
 import back.domain.posts.PostImages;
 import back.domain.posts.PostMemberTag;
@@ -6,7 +6,7 @@ import back.domain.posts.Posts;
 import back.dto.posts.request.StoryCreateRequest;
 import back.repository.posts.PostImagesRepository;
 import back.repository.posts.PostMemberTagRepository;
-import back.repository.posts.PostRepository;
+import back.repository.posts.PostsRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -17,7 +17,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -30,13 +29,13 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
-public class PostServiceTests {
+public class PostsServiceTests {
 
     @InjectMocks
-    private PostService postService;
+    private PostsService postsService;
 
     @Mock
-    private PostRepository postRepository;
+    private PostsRepository postsRepository;
 
     @Mock
     private PostImagesRepository postImagesRepository;
@@ -156,14 +155,14 @@ public class PostServiceTests {
             Posts savedPost = Posts.story(writerId, clubId, request.scheduleId(), request.content());
             ReflectionTestUtils.setField(savedPost, "postId", 10L);
 
-            given(postRepository.save(any(Posts.class))).willReturn(savedPost);
+            given(postsRepository.save(any(Posts.class))).willReturn(savedPost);
 
             // when
-            Long postId = postService.createStory(clubId, writerId, request);
+            Long postId = postsService.createStory(clubId, writerId, request);
 
             // then
             assertThat(postId).isEqualTo(10L);
-            then(postRepository).should(times(1)).save(any(Posts.class));
+            then(postsRepository).should(times(1)).save(any(Posts.class));
             then(postImagesRepository).shouldHaveNoInteractions();
             then(postMemberTagRepository).shouldHaveNoInteractions();
         }
@@ -186,15 +185,15 @@ public class PostServiceTests {
             Posts savedPost = Posts.story(writerId, clubId, request.scheduleId(), request.content());
             ReflectionTestUtils.setField(savedPost, "postId", 1L);
 
-            given(postRepository.save(any(Posts.class))).willReturn(savedPost);
+            given(postsRepository.save(any(Posts.class))).willReturn(savedPost);
 
             // when
-            Long postId = postService.createStory(clubId, writerId, request);
+            Long postId = postsService.createStory(clubId, writerId, request);
 
             // then
             assertThat(postId).isEqualTo(1L);
 
-            then(postRepository).should(times(1)).save(any(Posts.class));
+            then(postsRepository).should(times(1)).save(any(Posts.class));
 
             then(postImagesRepository).should(times(1)).saveAll(argThat((Iterable<PostImages> it) -> {
                 List<PostImages> list = StreamSupport.stream(it.spliterator(), false)

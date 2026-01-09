@@ -1,6 +1,6 @@
-package back.service.post;
+package back.service.posts;
 
-import back.service.club.ClubsAuthorizationService;
+import back.service.clubs.ClubsAuthorizationService;
 import back.domain.posts.PostImages;
 import back.domain.posts.PostMemberTag;
 import back.domain.posts.Posts;
@@ -15,7 +15,7 @@ import back.repository.post.PostMemberTagRepository;
 import back.repository.post.PostRepository;
 import back.repository.posts.PostImagesRepository;
 import back.repository.posts.PostMemberTagRepository;
-import back.repository.posts.PostRepository;
+import back.repository.posts.PostsRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,10 +26,10 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class PostService {
+public class PostsService {
 
     private final ClubsAuthorizationService clubAuthorizationService;
-    private final PostRepository postRepository;
+    private final PostsRepository postsRepository;
     private final PostImagesRepository postImagesRepository;
     private final PostMemberTagRepository postMemberTagRepository;
 
@@ -43,7 +43,7 @@ public class PostService {
                 request.content()
         );
 
-        Posts savedPost = postRepository.save(post);
+        Posts savedPost = postsRepository.save(post);
         post.updatePlace(request.place());
 
         saveImages(savedPost, request.imagesUrl());
@@ -55,7 +55,7 @@ public class PostService {
     public PostResponse getPost(Long clubId, Long postId) {
         //todo : 모임 공개 방식 확인 필요
 
-        Posts post = postRepository.findById(postId)
+        Posts post = postsRepository.findById(postId)
                 .orElseThrow(PostException.NotFound::new);
 
         return PostResponse.from(post);
@@ -63,7 +63,7 @@ public class PostService {
 
     public List<PostResponse> getAllPosts(Long clubId) {
         //todo : 모임 공개 방식 확인 필요
-        return postRepository.findAll().stream()
+        return postsRepository.findAll().stream()
                 .filter(post -> post.getDeletedAt() == null) // Filter soft-deleted posts
                 .map(PostResponse::from)
                 .collect(Collectors.toList());
@@ -78,7 +78,7 @@ public class PostService {
 
         clubAuthorizationService.assertAtLeastManager(clubId, actorId);
 
-        Posts post = postRepository.findById(postId)
+        Posts post = postsRepository.findById(postId)
                 .orElseThrow(PostException.NotFound::new);
 
         //이미 삭제되거나 블라인드처리된 게시글은 수정 불가
@@ -99,7 +99,7 @@ public class PostService {
     public void blindPost(Long postId) {
         //todo : 1. 수정 권한 확인
         Long adminId  = 1L; //todo : 요청한 사람 필요
-        Posts post = postRepository.findById(postId)
+        Posts post = postsRepository.findById(postId)
                 .orElseThrow(PostException.NotFound::new);
 
         // 이미 블라인드면 그냥 종료(권장: idempotent)
@@ -115,14 +115,14 @@ public class PostService {
     public void deletePost(Long postId) {
         Long actorId=1L; // todo : 요청한 사람 누구인지 확인 필요, 현재는 상수로 저장
         //작성자가 아니면 삭제 불가
-        Posts post = postRepository.findById(postId)
+        Posts post = postsRepository.findById(postId)
                 .orElseThrow(PostException.NotFound::new);
         post.delete();
     }
 
     @Transactional
     public void replaceImages(Long postId, List<String> urls) {
-        Posts post = postRepository.findById(postId)
+        Posts post = postsRepository.findById(postId)
                 .orElseThrow(PostException.NotFound::new);
 
         postImagesRepository.deleteByPost_PostId(postId);

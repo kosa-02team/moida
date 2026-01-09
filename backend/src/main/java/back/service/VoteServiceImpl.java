@@ -2,7 +2,7 @@ package back.service;
 
 import back.dto.VoteCreateRequest;
 import back.dto.VoteResponse;
-import back.repository.PostsRepository;
+import back.repository.posts.PostsRepository;
 import back.repository.VotesRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

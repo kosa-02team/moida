@@ -1,4 +1,4 @@
-package back.service.club;
+package back.service.clubs;
 
 import back.exception.ClubAuthException;
 import back.repository.clubs.ClubMembersRepository;
