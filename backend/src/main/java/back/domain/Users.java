@@ -1,6 +1,5 @@
 package back.domain;
 
-import back.domain.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;

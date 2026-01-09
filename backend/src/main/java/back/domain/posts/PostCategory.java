@@ -1,5 +1,5 @@
 package back.domain.posts;
 
 public enum PostCategory {
-    GENERAL, SCHEDULE, SETTLEMENT
+    GENERAL, SCHEDULE, SETTLEMENT, VOTE
 }

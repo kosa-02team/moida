@@ -4,7 +4,6 @@ import back.config.security.JwtTokenProvider;
 import back.domain.Users;
 import back.dto.LoginRequest;
 import back.exception.AuthException;
-import back.exception.ResourceException;
 import back.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;

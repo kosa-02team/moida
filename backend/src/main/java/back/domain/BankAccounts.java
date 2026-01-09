@@ -1,7 +1,5 @@
 package back.domain;
 
-import back.domain.BaseEntity;
-import back.domain.Banks;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;

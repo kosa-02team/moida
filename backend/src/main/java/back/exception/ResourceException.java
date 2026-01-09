@@ -1,6 +1,5 @@
 package back.exception;
 
-import back.exception.CustomGlobalException;
 import back.exception.response.ErrorCode;
 
 public class ResourceException extends CustomGlobalException {

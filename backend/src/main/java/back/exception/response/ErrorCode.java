@@ -22,7 +22,6 @@ public enum ErrorCode {
     //Club Authorization Error
     CLUB_NOT_ACTIVE(UNAUTHORIZED,"CA01","클럽에 접근할 수 없습니다."),
     CLUB_STAFF_REQUIRED(FORBIDDEN, "CA02","운영진 권한이 필요합니다"),
-    RESOURCE_NOT_FOUND(NOT_FOUND,"G01", "요청한 자원을 찾을 수 없습니다"),
 
     //Vote Error
     VOTE_NOT_FOUND(NOT_FOUND,"V01", "투표를 찾을 수 없습니다"),

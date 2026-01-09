@@ -1,6 +1,7 @@
 package back.service;
 
-import back.domain.Posts;
+import back.domain.posts.PostCategory;
+import back.domain.posts.Posts;
 import back.domain.Schedules;
 import back.domain.VoteOptions;
 import back.domain.VoteRecords;
@@ -10,8 +11,8 @@ import back.dto.VoteCreateRequest;
 import back.dto.VoteResponse;
 import back.exception.ResourceException;
 import back.exception.VoteException;
-import back.repository.ClubMembersRepository;
-import back.repository.PostsRepository;
+import back.repository.clubs.ClubMembersRepository;
+import back.repository.posts.PostsRepository;
 import back.repository.SchedulesRepository;
 import back.repository.VoteOptionsRepository;
 import back.repository.VoteRecordsRepository;
@@ -65,7 +66,7 @@ public class VoteService {
         Posts post = new Posts(
                 clubId,
                 userId,
-                "VOTE",  // category
+                PostCategory.VOTE,  // category
                 request.title(),
                 request.description()
         );
