@@ -1,7 +1,7 @@
-package back.dto.post.response;
+package back.dto.posts.response;
 
-import back.domain.post.PostCategory;
-import back.domain.post.Posts;
+import back.domain.posts.PostCategory;
+import back.domain.posts.Posts;
 import java.time.LocalDateTime;
 
 public record PostResponse(

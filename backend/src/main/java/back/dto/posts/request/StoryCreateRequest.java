@@ -1,4 +1,4 @@
-package back.dto.post.request;
+package back.dto.posts.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

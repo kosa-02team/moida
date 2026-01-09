@@ -19,6 +19,10 @@ public enum ErrorCode {
     LOGIN_FAILED(UNAUTHORIZED, "A01", "아이디 또는 비밀번호가 일치하지 않습니다."),
     USER_NOT_FOUND(NOT_FOUND, "A02", "존재하지 않는 사용자입니다."),
 
+    //Club Authorization Error
+    CLUB_NOT_ACTIVE(UNAUTHORIZED,"CA01","클럽에 접근할 수 없습니다."),
+    CLUB_STAFF_REQUIRED(FORBIDDEN, "CA02","운영진 권한이 필요합니다"),
+
     //Post Error
     POST_NOT_FOUND(NOT_FOUND,"P01", "게시글을 찾을 수 없습니다"),
     POST_DELETED(GONE, "P02", "삭제된 게시글입니다"),

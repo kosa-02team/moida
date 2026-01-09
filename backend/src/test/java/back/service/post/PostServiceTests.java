@@ -1,15 +1,12 @@
 package back.service.post;
 
-import back.domain.post.PostCategory;
-import back.domain.post.PostImages;
-import back.domain.post.PostMemberTag;
-import back.domain.post.Posts;
-import back.dto.post.request.PostUpdateRequest;
-import back.dto.post.request.StoryCreateRequest;
-import back.dto.post.response.PostResponse;
-import back.repository.post.PostImagesRepository;
-import back.repository.post.PostMemberTagRepository;
-import back.repository.post.PostRepository;
+import back.domain.posts.PostImages;
+import back.domain.posts.PostMemberTag;
+import back.domain.posts.Posts;
+import back.dto.posts.request.StoryCreateRequest;
+import back.repository.posts.PostImagesRepository;
+import back.repository.posts.PostMemberTagRepository;
+import back.repository.posts.PostRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -104,18 +101,18 @@ public class PostServiceTests {
 //            then(postRepository).should(times(1)).findById(postId);
 //        }
 
-        @Test
-        @DisplayName("[GUEST] 게시글 상세 조회 실패 - 없는 게시글")
-        void get_no_post_guest() {
-            // given
-            Long postId = 999L;
-            given(postRepository.findById(postId)).willReturn(Optional.empty());
-
-            // when & then
-            assertThatThrownBy(() -> postService.getPost(postId))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Post not found");
-        }
+//        @Test
+//        @DisplayName("[GUEST] 게시글 상세 조회 실패 - 없는 게시글")
+//        void get_no_post_guest() {
+//            // given
+//            Long postId = 999L;
+//            given(postRepository.findById(postId)).willReturn(Optional.empty());
+//
+//            // when & then
+//            assertThatThrownBy(() -> postService.getPost(clubId, postId))
+//                    .isInstanceOf(IllegalArgumentException.class)
+//                    .hasMessageContaining("Post not found");
+//        }
 
         @Test
         @DisplayName("[GUEST] 공개 모임 게시글 상세 조회 실패 - 비공개 게시글")

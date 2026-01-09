@@ -1,4 +1,4 @@
-package back.domain.post;
+package back.domain.posts;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -10,20 +10,16 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(uniqueConstraints = {
-    @UniqueConstraint(name = "uk_post_like", columnNames = {"post_id", "user_id"})
+    @UniqueConstraint(name = "uk_post_read", columnNames = {"post_id", "user_id"})
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class PostLikes {
-
-    @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
+public class PostReadLogs {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "like_id")
-    private Long likeId;
+    @Column(name = "read_id")
+    private Long readId;
 
     @Column(name = "post_id", nullable = false)
     private Long postId;
@@ -31,8 +27,12 @@ public class PostLikes {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @CreationTimestamp
+    @Column(name = "read_at", updatable = false)
+    private LocalDateTime readAt;
+
     // 생성자
-    public PostLikes(Long postId, Long userId) {
+    public PostReadLogs(Long postId, Long userId) {
         this.postId = postId;
         this.userId = userId;
     }

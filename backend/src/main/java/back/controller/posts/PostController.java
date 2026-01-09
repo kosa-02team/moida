@@ -1,8 +1,8 @@
-package back.controller.post;
+package back.controller.posts;
 
-import back.dto.post.request.PostUpdateRequest;
-import back.dto.post.request.StoryCreateRequest;
-import back.dto.post.response.PostResponse;
+import back.dto.posts.request.PostUpdateRequest;
+import back.dto.posts.request.StoryCreateRequest;
+import back.dto.posts.response.PostResponse;
 import back.service.post.PostService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -13,7 +13,7 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/club/{clubId}/posts")
+@RequestMapping("/api/clubs/{clubId}/posts")
 public class PostController {
 
     private final PostService postService;
@@ -29,28 +29,42 @@ public class PostController {
             @PathVariable Long clubId,
             @RequestBody StoryCreateRequest request) {
         Long storyId = postService.createStory(devUserId, clubId, request);
-        return ResponseEntity.created(URI.create("/api/club/{clubId}/posts/" + storyId)).build();
+        return ResponseEntity.created(URI.create("/api/clubs/{clubId}/posts/" + storyId)).build();
     }
 
     @GetMapping("/{postId}")
-    public ResponseEntity<PostResponse> getPost(@PathVariable Long postId) {
-        return ResponseEntity.ok(postService.getPost(postId));
+    public ResponseEntity<PostResponse> getPost(
+            @PathVariable Long clubId,
+            @PathVariable Long postId) {
+        return ResponseEntity.ok(postService.getPost(clubId, postId));
     }
 
     @GetMapping
-    public ResponseEntity<List<PostResponse>> getAllPosts() {
-        return ResponseEntity.ok(postService.getAllPosts());
+    public ResponseEntity<List<PostResponse>> getAllPosts(
+            @PathVariable Long clubId
+    ) {
+        return ResponseEntity.ok(postService.getAllPosts(clubId));
     }
 
     @PutMapping("/{postId}")
-    public ResponseEntity<Void> updatePost(@PathVariable Long postId, @RequestBody PostUpdateRequest request) {
-        postService.updatePost(postId, request);
+    public ResponseEntity<Void> updatePost(
+            @PathVariable Long clubId,
+            @PathVariable Long postId,
+            @RequestBody PostUpdateRequest request) {
+
+        postService.updatePost(clubId, postId, request);
         return ResponseEntity.ok().build();
     }
 
+    @PutMapping("/{postId}/blind")
+    public ResponseEntity<Void> updatePostByAuthor(@PathVariable Long postId) {
+        postService.blindPost(postId);
+        return ResponseEntity.ok().build();
+    }
     @DeleteMapping("/{postId}")
     public ResponseEntity<Void> deletePost(@PathVariable Long postId) {
         postService.deletePost(postId);
         return ResponseEntity.noContent().build();
     }
+
 }

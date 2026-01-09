@@ -1,15 +1,12 @@
-package back.domain.post;
+package back.domain.posts;
 
 import back.domain.BaseEntity;
-import back.domain.Schedules;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Getter
@@ -97,13 +94,16 @@ public class Posts extends BaseEntity {
         this.content = content;
     }
 
+    // 도메인 메서드
+    public void blindPost(Long actorId) {
+        this.deletedBy = actorId;
+        this.deletedAt = LocalDateTime.now();
+    }
+
     public void delete() {
         this.deletedAt = LocalDateTime.now();
     }
 
-    public void restore() {
-        this.deletedAt = null;
-    }
 
     public void updatePlace(String place){
         this.place = place.trim();

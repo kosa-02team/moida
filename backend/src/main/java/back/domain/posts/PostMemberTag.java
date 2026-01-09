@@ -1,4 +1,4 @@
-package back.domain.post;
+package back.domain.posts;
 
 
 import jakarta.persistence.*;
