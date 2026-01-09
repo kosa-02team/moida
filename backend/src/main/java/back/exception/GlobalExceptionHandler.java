@@ -21,6 +21,16 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.error(errorCode));
     }
 
+    @ExceptionHandler(back.exception.CustomGlobalException.class)
+    public ResponseEntity<ErrorResponse<Void>> handleCustomGlobalException(final back.exception.CustomGlobalException e) {
+        log.warn("CustomGlobalException : {}", e.getMessage());
+
+        final ErrorCode errorCode = e.getErrorCode();
+        return ResponseEntity
+                .status(errorCode.getHttpStatus())
+                .body(ErrorResponse.error(errorCode));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse<Void>> handleException(final Exception e) {
         log.error("Unhandled Exception : {}", e.getMessage(), e);
@@ -38,4 +48,6 @@ public class GlobalExceptionHandler {
                 .status(e.getErrorCode().getHttpStatus())
                 .body(ErrorResponse.error(e.getErrorCode()));
     }
+
+
 }

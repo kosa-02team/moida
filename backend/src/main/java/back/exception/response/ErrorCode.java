@@ -16,7 +16,8 @@ public enum ErrorCode {
     //Global Error
     RESOURCE_NOT_FOUND(NOT_FOUND,"G01", "요청한 자원을 찾을 수 없습니다"),
 
-
+    LOGIN_FAILED(UNAUTHORIZED, "A01", "아이디 또는 비밀번호가 일치하지 않습니다."),
+    USER_NOT_FOUND(NOT_FOUND, "A02", "존재하지 않는 사용자입니다."),
 
     //Post Error
     POST_NOT_FOUND(NOT_FOUND,"P01", "게시글을 찾을 수 없습니다"),
