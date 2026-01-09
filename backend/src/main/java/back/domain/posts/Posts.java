@@ -46,9 +46,6 @@ public class Posts extends BaseEntity {
     @Column(name = "deleted_by")
     private Long deletedBy;
 
-    @Column(name = "schedule_id")
-    private Long scheduleId; // nullable
-
     //title 자동 생성
     private static String makeTitleFromContent(String content) {
         String trimmed = content == null ? "" : content.trim();

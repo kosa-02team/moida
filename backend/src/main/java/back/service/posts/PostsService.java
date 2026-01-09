@@ -1,5 +1,6 @@
 package back.service.posts;
 
+import back.repository.posts.*;
 import back.service.clubs.ClubsAuthorizationService;
 import back.domain.posts.PostImages;
 import back.domain.posts.PostMemberTags;
@@ -8,13 +9,7 @@ import back.dto.posts.request.PostUpdateRequest;
 import back.dto.posts.request.StoryCreateRequest;
 import back.dto.posts.response.PostResponse;
 import back.exception.PostException;
-import back.repository.post.PostImagesRepository;
-import back.repository.post.PostMemberTagRepository;
-import back.repository.post.PostImagesRepository;
-import back.repository.post.PostMemberTagRepository;
-import back.repository.post.PostRepository;
-import back.repository.posts.PostImagesRepository;
-import back.repository.posts.PostMemberTagRepository;
+import back.repository.posts.PostMemberTagsRepository;
 import back.repository.posts.PostsRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -31,7 +26,7 @@ public class PostsService {
     private final ClubsAuthorizationService clubAuthorizationService;
     private final PostsRepository postsRepository;
     private final PostImagesRepository postImagesRepository;
-    private final PostMemberTagRepository postMemberTagRepository;
+    private final PostMemberTagsRepository postMemberTagsRepository;
 
     @Transactional
     public Long createStory(Long clubId, Long writerId, StoryCreateRequest request) {
@@ -150,6 +145,6 @@ public class PostsService {
         List<PostMemberTags> tags = memberIds.stream()
                 .map(memberId -> PostMemberTags.of(postId, memberId))
                 .toList();
-        postMemberTagRepository.saveAll(tags);
+        postMemberTagsRepository.saveAll(tags);
     }
 }

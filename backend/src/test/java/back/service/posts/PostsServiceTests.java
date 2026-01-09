@@ -5,7 +5,7 @@ import back.domain.posts.PostMemberTags;
 import back.domain.posts.Posts;
 import back.dto.posts.request.StoryCreateRequest;
 import back.repository.posts.PostImagesRepository;
-import back.repository.posts.PostMemberTagRepository;
+import back.repository.posts.PostMemberTagsRepository;
 import back.repository.posts.PostsRepository;
 import back.service.clubs.ClubsAuthorizationService;
 import org.junit.jupiter.api.DisplayName;
@@ -43,7 +43,7 @@ public class PostsServiceTests {
     private PostImagesRepository postImagesRepository;
 
     @Mock
-    private PostMemberTagRepository postMemberTagRepository;
+    private PostMemberTagsRepository postMemberTagsRepository;
 
     @Nested
     @DisplayName("모임 게시글 전체 조회")
@@ -166,7 +166,7 @@ public class PostsServiceTests {
             assertThat(postId).isEqualTo(10L);
             then(postsRepository).should(times(1)).save(any(Posts.class));
             then(postImagesRepository).shouldHaveNoInteractions();
-            then(postMemberTagRepository).shouldHaveNoInteractions();
+            then(postMemberTagsRepository).shouldHaveNoInteractions();
         }
 
         @Test
@@ -206,7 +206,7 @@ public class PostsServiceTests {
                         && list.get(1).getImageUrl().equals("https://example.com/2.png");
             }));
 
-            then(postMemberTagRepository).should(times(1)).saveAll(argThat((Iterable<PostMemberTags> it) -> {
+            then(postMemberTagsRepository).should(times(1)).saveAll(argThat((Iterable<PostMemberTags> it) -> {
                 List<PostMemberTags> list = StreamSupport.stream(it.spliterator(), false)
                         .toList();
 
