@@ -1,0 +1,27 @@
+name: Flyway Version Duplicate Check
+
+on:
+  pull_request:
+    paths:
+      - 'backend/src/main/resources/db/migration/**'
+
+jobs:
+  check-duplicate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for duplicate Flyway versions
+        run: |
+          versions=$(ls backend/src/main/resources/db/migration/V*__*.sql | sed -re 's/.*\/V([0-9.]+)__.*/\1/' | sort)
+          
+          duplicates=$(echo "$versions" | uniq -d)
+          
+          if [ -n "$duplicates" ]; then
+            echo "❌: Flyway 버전이 중복되었습니다."
+            echo "$duplicates"
+            exit 1 # 에러를 발생시켜 CI 중단
+          else
+            echo "✅: 모든 버전 번호가 고유합니다."
+          fi
