@@ -5,6 +5,7 @@ import back.domain.VoteOptions;
 import back.domain.Votes;
 import back.dto.ScheduleCreateRequest;
 import back.dto.ScheduleResponse;
+import back.exception.ScheduleException;
 import back.repository.SchedulesRepository;
 import back.repository.VoteOptionsRepository;
 import back.repository.VotesRepository;
@@ -56,10 +57,11 @@ public class ScheduleService {
         // TODO: ClubMembers를 통해 userId가 해당 clubId의 STAFF인지 확인
         // TODO: ATTENDANCE 투표 생성은 모임장/운영진만 가능
 
-        // 날짜 검증: endDate는 eventDate보다 이후여야 함 (같은 날짜여도 시간 차이가 있으면 가능)
+        // 날짜 검증: endDate는 eventDate보다 이후여야 함
+        // (DTO 레벨에서 @AssertTrue로 검증하지만, 방어적 프로그래밍을 위해 서비스 레벨에서도 검증)
         if (request.endDate().isBefore(request.eventDate()) ||
             request.endDate().isEqual(request.eventDate())) {
-            throw new IllegalArgumentException("종료일시는 시작일시보다 이후여야 합니다");
+            throw new ScheduleException.InvalidDateRange();
         }
 
         // 1. 일정 생성

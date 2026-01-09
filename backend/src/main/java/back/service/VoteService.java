@@ -11,7 +11,9 @@ import back.dto.VoteCreateRequest;
 import back.dto.VoteResponse;
 import back.exception.ResourceException;
 import back.exception.VoteException;
+import back.domain.Clubs;
 import back.repository.clubs.ClubMembersRepository;
+import back.repository.clubs.ClubsRepository;
 import back.repository.posts.PostsRepository;
 import back.repository.SchedulesRepository;
 import back.repository.VoteOptionsRepository;
@@ -34,6 +36,7 @@ public class VoteService {
     private final VoteOptionsRepository voteOptionsRepository;
     private final VoteRecordsRepository voteRecordsRepository;
     private final ClubMembersRepository clubMembersRepository;
+    private final ClubsRepository clubsRepository;
 
     /**
      * 모임에 속한 일정/참석 투표를 생성합니다.
@@ -160,8 +163,24 @@ public class VoteService {
             if (!vote.getCreatorId().equals(userId)) {
                 throw new VoteException.CreatorOnly();
             }
+        } else if ("ATTENDANCE".equals(vote.getVoteType())) {
+            // ATTENDANCE 투표: 모임장 또는 운영진만 종료 가능
+            
+            // 1. 모임장 확인 (Clubs.ownerId)
+            Clubs club = clubsRepository.findById(clubId)
+                    .orElseThrow(ResourceException.NotFound::new);
+            boolean isOwner = club.getOwnerId().equals(userId);
+            
+            // 2. 운영진 확인 (ClubMembers.role = "STAFF")
+            String role = clubMembersRepository.findActiveRole(clubId, userId)
+                    .orElseThrow(() -> new VoteException.MemberOnly());
+            boolean isStaff = "STAFF".equals(role);
+            
+            // 3. 모임장 또는 운영진만 허용
+            if (!isOwner && !isStaff) {
+                throw new VoteException.StaffOnly();
+            }
         }
-        // ATTENDANCE 타입 투표 종료 권한은 프론트엔드에서 버튼 표시 여부로 처리
 
         // 투표 종료
         vote.close();

@@ -1,5 +1,6 @@
 package back.dto;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
@@ -20,4 +21,11 @@ public record ScheduleCreateRequest(
         String description,
         BigDecimal entryFee
 ) {
+    @AssertTrue(message = "종료일시는 시작일시보다 이후여야 합니다")
+    public boolean isValidDateRange() {
+        if (eventDate == null || endDate == null) {
+            return true; // @NotNull이 처리하므로 여기서는 true 반환
+        }
+        return endDate.isAfter(eventDate);
+    }
 }

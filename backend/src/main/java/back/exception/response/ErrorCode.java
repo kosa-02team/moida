@@ -39,11 +39,17 @@ public enum ErrorCode {
     VOTE_OPTION_ALREADY_SELECTED(HttpStatus.CONFLICT,"V13", "이미 선택한 옵션입니다"),
     VOTE_CREATOR_ONLY(HttpStatus.FORBIDDEN,"V14", "일반 투표는 생성자만 종료할 수 있습니다"),
     VOTE_MEMBER_ONLY(HttpStatus.FORBIDDEN,"V15", "해당 모임의 멤버만 투표에 참여할 수 있습니다"),
+    VOTE_STAFF_ONLY(HttpStatus.FORBIDDEN,"V16", "ATTENDANCE 투표 종료는 모임장 또는 운영진만 가능합니다"),
 
     //Post Error
     POST_NOT_FOUND(NOT_FOUND,"P01", "게시글을 찾을 수 없습니다"),
     POST_DELETED(GONE, "P02", "삭제된 게시글입니다"),
-    POST_FORBIDDEN(FORBIDDEN,"P03", "비공개 또는 제한된 게시글입니다.")
+    POST_FORBIDDEN(FORBIDDEN,"P03", "비공개 또는 제한된 게시글입니다"),
+
+    //Schedule Error
+    SCHEDULE_NOT_FOUND(NOT_FOUND,"SC01", "일정을 찾을 수 없습니다"),
+    SCHEDULE_INVALID_DATE_RANGE(HttpStatus.BAD_REQUEST,"SC02", "종료일시는 시작일시보다 이후여야 합니다"),
+    SCHEDULE_STAFF_ONLY(HttpStatus.FORBIDDEN,"SC03", "일정 종료는 모임장 또는 운영진만 가능합니다")
     ;
     private final HttpStatus httpStatus;
     private final String code;

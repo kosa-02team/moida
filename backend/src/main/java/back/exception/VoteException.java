@@ -101,4 +101,10 @@ public class VoteException extends CustomGlobalException {
             super(ErrorCode.VOTE_MEMBER_ONLY);
         }
     }
+
+    public static class StaffOnly extends VoteException {
+        public StaffOnly() {
+            super(ErrorCode.VOTE_STAFF_ONLY);
+        }
+    }
 }
