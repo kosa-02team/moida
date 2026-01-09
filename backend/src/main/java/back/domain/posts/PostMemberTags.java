@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class PostMemberTag {
+public class PostMemberTags {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -22,13 +22,13 @@ public class PostMemberTag {
     @Column(name="member_id")
     private Long memberId;
 
-    private PostMemberTag(Long postId, Long memberId) {
+    private PostMemberTags(Long postId, Long memberId) {
         this.postId = postId;
         this.memberId = memberId;
     }
 
-    public static PostMemberTag of(Long postId, Long memberId) {
-        return new PostMemberTag(postId, memberId);
+    public static PostMemberTags of(Long postId, Long memberId) {
+        return new PostMemberTags(postId, memberId);
     }
 
 }

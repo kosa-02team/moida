@@ -34,6 +34,9 @@ public class Posts extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String content;
 
+    @Column(name = "schedule_id")
+    private Long scheduleId; // nullable
+
     @Column(length = 30)
     private String place;
 

@@ -2,7 +2,7 @@ package back.service.posts;
 
 import back.service.clubs.ClubsAuthorizationService;
 import back.domain.posts.PostImages;
-import back.domain.posts.PostMemberTag;
+import back.domain.posts.PostMemberTags;
 import back.domain.posts.Posts;
 import back.dto.posts.request.PostUpdateRequest;
 import back.dto.posts.request.StoryCreateRequest;
@@ -147,8 +147,8 @@ public class PostsService {
     private void saveTaggedMembers(Long postId, List<Long> memberIds) {
         if (memberIds == null || memberIds.isEmpty()) return;
 
-        List<PostMemberTag> tags = memberIds.stream()
-                .map(memberId -> PostMemberTag.of(postId, memberId))
+        List<PostMemberTags> tags = memberIds.stream()
+                .map(memberId -> PostMemberTags.of(postId, memberId))
                 .toList();
         postMemberTagRepository.saveAll(tags);
     }

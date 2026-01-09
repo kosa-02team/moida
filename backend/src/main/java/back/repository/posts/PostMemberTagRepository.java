@@ -1,7 +1,7 @@
 package back.repository.posts;
 
-import back.domain.posts.PostMemberTag;
+import back.domain.posts.PostMemberTags;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface PostMemberTagRepository extends JpaRepository<PostMemberTag, Long> {
+public interface PostMemberTagRepository extends JpaRepository<PostMemberTags, Long> {
 }

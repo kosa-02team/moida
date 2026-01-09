@@ -1,12 +1,13 @@
 package back.service.posts;
 
 import back.domain.posts.PostImages;
-import back.domain.posts.PostMemberTag;
+import back.domain.posts.PostMemberTags;
 import back.domain.posts.Posts;
 import back.dto.posts.request.StoryCreateRequest;
 import back.repository.posts.PostImagesRepository;
 import back.repository.posts.PostMemberTagRepository;
 import back.repository.posts.PostsRepository;
+import back.service.clubs.ClubsAuthorizationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,7 @@ import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 public class PostsServiceTests {
+    @Mock private ClubsAuthorizationService clubAuthorizationService;
 
     @InjectMocks
     private PostsService postsService;
@@ -204,13 +206,13 @@ public class PostsServiceTests {
                         && list.get(1).getImageUrl().equals("https://example.com/2.png");
             }));
 
-            then(postMemberTagRepository).should(times(1)).saveAll(argThat((Iterable<PostMemberTag> it) -> {
-                List<PostMemberTag> list = StreamSupport.stream(it.spliterator(), false)
+            then(postMemberTagRepository).should(times(1)).saveAll(argThat((Iterable<PostMemberTags> it) -> {
+                List<PostMemberTags> list = StreamSupport.stream(it.spliterator(), false)
                         .toList();
 
                 return list.size() == 2
                         && list.stream().allMatch(tag -> tag.getPostId().equals(1L))
-                        && list.stream().map(PostMemberTag::getMemberId).collect(Collectors.toSet())
+                        && list.stream().map(PostMemberTags::getMemberId).collect(Collectors.toSet())
                         .containsAll(java.util.Set.of(2L, 3L));
             }));
         }
