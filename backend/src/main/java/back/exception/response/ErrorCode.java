@@ -22,6 +22,24 @@ public enum ErrorCode {
     //Club Authorization Error
     CLUB_NOT_ACTIVE(UNAUTHORIZED,"CA01","클럽에 접근할 수 없습니다."),
     CLUB_STAFF_REQUIRED(FORBIDDEN, "CA02","운영진 권한이 필요합니다"),
+    RESOURCE_NOT_FOUND(NOT_FOUND,"G01", "요청한 자원을 찾을 수 없습니다"),
+
+    //Vote Error
+    VOTE_NOT_FOUND(NOT_FOUND,"V01", "투표를 찾을 수 없습니다"),
+    VOTE_SCHEDULE_ID_REQUIRED(HttpStatus.BAD_REQUEST,"V02", "참석/불참 투표는 일정 ID가 필수입니다"),
+    VOTE_CLUB_MISMATCH(HttpStatus.BAD_REQUEST,"V03", "해당 모임의 투표가 아닙니다"),
+    VOTE_ALREADY_CLOSED(HttpStatus.BAD_REQUEST,"V04", "이미 종료된 투표입니다"),
+    VOTE_DEADLINE_PASSED(HttpStatus.BAD_REQUEST,"V05", "투표 기한이 지났습니다"),
+    VOTE_SCHEDULE_ID_MISSING(HttpStatus.BAD_REQUEST,"V06", "일정 투표는 scheduleId가 필수입니다"),
+    VOTE_OPTION_REQUIRED(HttpStatus.BAD_REQUEST,"V07", "최소 하나의 옵션을 선택해야 합니다"),
+    VOTE_ATTENDANCE_SINGLE_OPTION(HttpStatus.BAD_REQUEST,"V08", "참석/불참 투표는 하나의 옵션만 선택할 수 있습니다"),
+    VOTE_OPTION_DUPLICATE(HttpStatus.BAD_REQUEST,"V09", "중복된 옵션 ID가 포함되어 있습니다"),
+    VOTE_OPTION_INVALID(HttpStatus.BAD_REQUEST,"V10", "유효하지 않은 옵션 ID가 포함되어 있습니다"),
+    VOTE_MULTIPLE_NOT_ALLOWED(HttpStatus.BAD_REQUEST,"V11", "복수 선택이 허용되지 않는 투표입니다"),
+    VOTE_ALREADY_PARTICIPATED(HttpStatus.CONFLICT,"V12", "이미 투표에 참여했습니다"),
+    VOTE_OPTION_ALREADY_SELECTED(HttpStatus.CONFLICT,"V13", "이미 선택한 옵션입니다"),
+    VOTE_CREATOR_ONLY(HttpStatus.FORBIDDEN,"V14", "일반 투표는 생성자만 종료할 수 있습니다"),
+    VOTE_MEMBER_ONLY(HttpStatus.FORBIDDEN,"V15", "해당 모임의 멤버만 투표에 참여할 수 있습니다"),
 
     //Post Error
     POST_NOT_FOUND(NOT_FOUND,"P01", "게시글을 찾을 수 없습니다"),

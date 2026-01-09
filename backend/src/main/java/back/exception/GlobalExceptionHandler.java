@@ -31,6 +31,16 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.error(errorCode));
     }
 
+    @ExceptionHandler(back.exception.VoteException.class)
+    public ResponseEntity<ErrorResponse<Void>> handleVoteException(final back.exception.VoteException e) {
+        log.warn("VoteException : {}", e.getMessage());
+
+        final ErrorCode errorCode = e.getErrorCode();
+        return ResponseEntity
+                .status(errorCode.getHttpStatus())
+                .body(ErrorResponse.error(errorCode));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse<Void>> handleException(final Exception e) {
         log.error("Unhandled Exception : {}", e.getMessage(), e);

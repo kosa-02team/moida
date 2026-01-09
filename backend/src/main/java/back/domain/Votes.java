@@ -18,8 +18,14 @@ public class Votes extends BaseEntity {
     @Column(name = "vote_id")
     private Long voteId;
 
-    @Column(name = "post_id", nullable = false)
+    @Column(name = "post_id")
     private Long postId;
+
+    @Column(name = "vote_type", length = 20, nullable = false)
+    private String voteType = "GENERAL"; // "GENERAL" 또는 "ATTENDANCE"
+
+    @Column(name = "schedule_id")
+    private Long scheduleId;
 
     @Column(name = "creator_id", nullable = false)
     private Long creatorId;
@@ -36,21 +42,27 @@ public class Votes extends BaseEntity {
     @Column(name = "allow_multiple")
     private Boolean allowMultiple = false;
 
-    @Column(length = 20)
+    @Column(length = 20, nullable = false)
     private String status = "OPEN";
 
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
 
+    @Column(name = "deadline")
+    private LocalDateTime deadline; // 투표 종료 기한 (일반 투표용)
+
     // 생성자
-    public Votes(Long postId, Long creatorId, String title, String description, 
-                 Boolean isAnonymous, Boolean allowMultiple) {
+    public Votes(Long postId, String voteType, Long scheduleId, Long creatorId, String title, String description, 
+                 Boolean isAnonymous, Boolean allowMultiple, LocalDateTime deadline) {
         this.postId = postId;
+        this.voteType = voteType != null ? voteType : "GENERAL";
+        this.scheduleId = scheduleId;
         this.creatorId = creatorId;
         this.title = title;
         this.description = description;
         this.isAnonymous = isAnonymous != null ? isAnonymous : false;
         this.allowMultiple = allowMultiple != null ? allowMultiple : false;
+        this.deadline = deadline;
     }
 
     // 도메인 메서드
