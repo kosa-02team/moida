@@ -30,6 +30,6 @@ public class AuthService {
             throw new AuthException.LoginFailed();
         }
         // 3. 토큰 생성 및 반환
-        return jwtTokenProvider.createAccessToken(user.getLoginId());
+        return jwtTokenProvider.createAccessToken(user.getLoginId(), user.getSystemRole());
     }
 }

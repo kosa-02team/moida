@@ -29,9 +29,10 @@ public class JwtTokenProvider {
     }
 
     // Access Token 생성
-    public String createAccessToken(String loginId) {
+    public String createAccessToken(String loginId, String role) {
         Claims claims = Jwts.claims()
                 .subject(loginId)
+                .add("ROLE", role)
                 .build();
 
         Date now = new Date();
@@ -53,6 +54,17 @@ public class JwtTokenProvider {
                 .parseSignedClaims(token)
                 .getPayload()
                 .getSubject();
+    }
+
+    // 토큰에서 Role 추출
+    public String getRole(String token) {
+        return Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .get("ROLE", String.class);
+
     }
 
     // 토큰 유효성 및 만료 확인
