@@ -16,6 +16,11 @@ public class ClubsAuthorizationService {
     private final ClubsRepository clubsRepository;
     private final ClubMembersRepository clubMembersRepository;
 
+    private Clubs getClubOrThrow(Long clubId) {
+        return clubsRepository.findById(clubId)
+                .orElseThrow(ClubAuthException.NotFound::new);
+    }
+
     //모임 활성화 멤버인지
     public void assertActiveMember(Long clubId, Long userId) {
         if (!clubMembersRepository.existsByClubIdAndUserIdAndStatus(clubId, userId, "ACTIVE")) {
@@ -24,11 +29,10 @@ public class ClubsAuthorizationService {
     }
 
     public void assertAtLeastManager(Long clubId, Long userId) {
+
+        Clubs club = getClubOrThrow(clubId);
+
         // 모임장 또는 운영진 권한 확인
-        
-        // 1. 모임장 확인 (Clubs.ownerId)
-        Clubs club = clubsRepository.findById(clubId)
-                .orElseThrow(ClubAuthException.NotActive::new);
         boolean isOwner = club.getOwnerId().equals(userId);
         
         // 2. 운영진 확인 (ClubMembers.role = "STAFF")
@@ -41,4 +45,21 @@ public class ClubsAuthorizationService {
             throw new ClubAuthException.RoleInsufficient();
         }
     }
+
+    public void validateAndGetClubForReadPosts(Long clubId, Long viewerId) {
+        Clubs club = getClubOrThrow(clubId);
+
+        if ("PUBLIC".equals(club.getVisibility())) {
+            return;
+        }
+
+        if (viewerId == null) {
+            throw new ClubAuthException.LoginRequired();
+        }
+
+        assertActiveMember(clubId, viewerId); // 비공개면 멤버만 허용
+    }
+
+
+
 }

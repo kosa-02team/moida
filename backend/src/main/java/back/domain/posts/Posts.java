@@ -89,8 +89,7 @@ public class Posts extends BaseEntity {
     }
 
     // 도메인 메서드
-    public void updatePost(String title, String content) {
-        this.title = title;
+    public void updateStory(String content) {
         this.content = content;
     }
 

@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Comments extends BaseEntity {
+public class PostComments extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -31,7 +31,7 @@ public class Comments extends BaseEntity {
     private LocalDateTime deletedAt;
 
     // 생성자
-    public Comments(Long postId, Long writerId, String content) {
+    public PostComments(Long postId, Long writerId, String content) {
         this.postId = postId;
         this.writerId = writerId;
         this.content = content;

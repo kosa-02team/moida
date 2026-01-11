@@ -7,6 +7,13 @@ public class ClubAuthException extends CustomGlobalException {
         super(errorCode);
     }
 
+    public static class NotFound extends ClubAuthException{
+        public NotFound() {
+            super(ErrorCode.CLUB_NOT_FOUND);
+        }
+
+    }
+
     public static class NotActive extends ClubAuthException{
         public NotActive() {
             super(ErrorCode.CLUB_MEMBER_NOT_FOUND);
@@ -20,4 +27,13 @@ public class ClubAuthException extends CustomGlobalException {
         }
 
     }
+
+    public static class LoginRequired extends ClubAuthException{
+        public LoginRequired() {
+            super(ErrorCode.CLUB_LOGIN_REQUIRED);
+        }
+
+    }
+
+
 }

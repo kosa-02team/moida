@@ -40,5 +40,9 @@ public class PostImages {
     }
 
 
+    public Long getPostId() {
+        return post.getPostId();
+    }
+
 }
 

@@ -4,6 +4,8 @@ import back.domain.posts.PostImages;
 import back.domain.posts.PostMemberTags;
 import back.domain.posts.Posts;
 import back.dto.posts.request.StoryCreateRequest;
+import back.dto.posts.response.PostDetailResponse;
+import back.dto.posts.response.PostIdResponse;
 import back.repository.posts.PostImagesRepository;
 import back.repository.posts.PostMemberTagsRepository;
 import back.repository.posts.PostsRepository;
@@ -127,7 +129,7 @@ public class PostsServiceTests {
 
         @Nested
         @DisplayName("게시글 내 댓글 전체 조회")
-        class getComments {
+        class getPostComments {
         }
 
         @Nested
@@ -160,10 +162,9 @@ public class PostsServiceTests {
             given(postsRepository.save(any(Posts.class))).willReturn(savedPost);
 
             // when
-            Long postId = postsService.createStory(clubId, writerId, request);
-
+            PostIdResponse ps = postsService.createStory(clubId, writerId, request);
             // then
-            assertThat(postId).isEqualTo(10L);
+            assertThat(ps.postId()).isEqualTo(10L);
             then(postsRepository).should(times(1)).save(any(Posts.class));
             then(postImagesRepository).shouldHaveNoInteractions();
             then(postMemberTagsRepository).shouldHaveNoInteractions();
@@ -190,10 +191,9 @@ public class PostsServiceTests {
             given(postsRepository.save(any(Posts.class))).willReturn(savedPost);
 
             // when
-            Long postId = postsService.createStory(clubId, writerId, request);
-
+            PostIdResponse ps = postsService.createStory(clubId, writerId, request);
             // then
-            assertThat(postId).isEqualTo(1L);
+            assertThat(ps.postId()).isEqualTo(1L);
 
             then(postsRepository).should(times(1)).save(any(Posts.class));
 
