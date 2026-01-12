@@ -1,4 +1,5 @@
 -- 1. 모임 멤버 테이블
+DROP TABLE club_members;
 CREATE TABLE club_members (
                               member_id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '멤버 식별자',
                               club_id BIGINT NOT NULL COMMENT '소속 모임 식별자',
