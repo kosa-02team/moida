@@ -9,6 +9,7 @@ import back.repository.ClubMemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClient;
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -22,53 +23,53 @@ public class ClubMemberService {
     private final ClubMemberRepository clubMemberRepository;
 
     @Transactional
-    public ClubMemberResponse joinClub(ClubMemberRequest request) {
+    public ClubMemberResponse joinClub(Long clubId, ClubMemberRequest request) {
 
-        clubMemberRepository.findByClubIdAndUserId(request.getClubId(), request.getUserId())
-                .ifPresent(member -> {
-            if("PENDING".equals(member.getStatus()) || "ACTIVE".equals(member.getStatus())){
-                throw new ClubMemberException(ErrorCode.CLUB_MEMBER_ALREADY_APPLIED_OR_ACTIVE);
-            }
-            if("KICKED".equals(member.getStatus())){
-                throw new ClubMemberException(ErrorCode.CLUB_MEMBER_KICKED_OUT_USER);
-            }
-        });
-
-        ClubMembers clubMember = new ClubMembers(
-                request.getClubId(),
-                request.getUserId(),
-                request.getClubNickname()
-        );
-
-        return ClubMemberResponse.from(clubMemberRepository.save(clubMember));
+        return clubMemberRepository.findByClubIdAndUserId(clubId, request.getUserId())
+                .map(existingMember -> {
+                    existingMember.reApply();
+                    return ClubMemberResponse.from(existingMember);
+                })
+                .orElseGet(() -> {
+                    ClubMembers newMember = ClubMembers.builder()
+                            .clubId(clubId)
+                            .userId(request.getUserId())
+                            .clubNickname(request.getClubNickname())
+                            .build();
+                    return ClubMemberResponse.from(clubMemberRepository.save(newMember));
+                });
     }
 
     @Transactional
-    public ClubMemberResponse approveClubMember(Long memberId) {
-        ClubMembers targetMember = clubMemberRepository.findById(memberId)
+    public ClubMemberResponse approveClubMember(Long clubId, Long memberId) {
+        ClubMembers targetMember = clubMemberRepository.findByClubIdAndUserId(clubId, memberId)
                 .orElseThrow(() -> new ClubMemberException(ErrorCode.CLUB_MEMBER_NOT_FOUND));
 
-        if(!"PENDING".equals(targetMember.getStatus())){
+        if (targetMember.getStatus() != ClubMembers.Status.PENDING) {
             throw new ClubMemberException(ErrorCode.CLUB_MEMBER_NOT_PENDING_STATUS);
         }
 
-        targetMember.activate();
+        targetMember.approve();
         return ClubMemberResponse.from(targetMember);
     }
 
     @Transactional
-    public void rejectClubMember(Long memberId) {
+    public void rejectClubMember(Long clubId, Long memberId) {
         ClubMembers member = clubMemberRepository.findById(memberId)
                 .orElseThrow(() -> new ClubMemberException(ErrorCode.CLUB_MEMBER_NOT_FOUND));
+
+        if (!member.getClubId().equals(clubId)) {
+            throw new ClubMemberException(ErrorCode.CLUB_MEMBER_NOT_FOUND);
+        }
 
         member.reject();
     }
 
     @Transactional
-    public void kickMember(Long memberId) {
-        ClubMembers member = clubMemberRepository.findById(memberId)
+    public void kickMember(Long clubId, Long memberId) {
+        ClubMembers targetMember = clubMemberRepository.findByClubIdAndUserId(clubId, memberId)
                 .orElseThrow(() -> new ClubMemberException(ErrorCode.CLUB_MEMBER_NOT_FOUND));
 
-        member.kick();
+        targetMember.kick();
     }
 }

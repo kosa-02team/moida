@@ -5,9 +5,7 @@ import back.exception.ClubMemberException;
 import back.exception.response.ErrorCode;
 import jakarta.persistence.*;
 import jdk.jfr.Timestamp;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.springframework.data.jpa.convert.threeten.Jsr310JpaConverters;
@@ -43,9 +41,9 @@ public class ClubMembers {
     @Column(name= "role", length = 100)
     private List<String> roles = new ArrayList<>(List.of("MEMBER"));
 
+    @Enumerated(EnumType.STRING)
     @Column(length = 20)
-    private String status = "PENDING";
-
+    private Status status;
 
     @Column(name = "joined_at", updatable = false)
     private LocalDateTime joinedAt;
@@ -58,33 +56,60 @@ public class ClubMembers {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // 생성자
+    public enum Status {
+        PENDING, ACTIVE, REJECTED, LEFT, KICKED
+    }
+
+    @Builder
     public ClubMembers(Long clubId, Long userId, String clubNickname) {
         this.clubId = clubId;
         this.userId = userId;
         this.clubNickname = clubNickname;
+
         this.roles = new ArrayList<>(List.of("MEMBER")) ;
-        this.status = "PENDING";
+        this.status = Status.PENDING;
     }
 
     // 도메인 메서드
-    public void activate(){
-        this.status = "ACTIVE";
+    public void approve(){
+        if (this.status != Status.PENDING) {
+            throw new ClubMemberException(ErrorCode.CLUB_MEMBER_NOT_PENDING_STATUS);
+        }
+
+        this.status = Status.ACTIVE;
+        this.roles = new ArrayList<>(List.of("MEMBER")) ;
         this.joinedAt = LocalDateTime.now();
     }
 
-    public void leave() {
-        this.status = "LEFT";
+    public void left() {
+        this.status = Status.LEFT;
     }
 
     public void kick() {
-        this.status = "KICKED";
+        if(this.status != Status.ACTIVE){
+            throw new ClubMemberException(ErrorCode.CLUB_MEMBER_NOT_ACTIVE);
+        };
+        this.status = Status.KICKED;
+
+        if (this.roles != null) {
+            this.roles.clear();
+        }
     }
     public void reject() {
-        if (!"PENDING".equals(status)) {
+        if (this.status != Status.PENDING) {
             throw new ClubMemberException(ErrorCode.CLUB_MEMBER_NOT_PENDING_STATUS);
         }
-        this.status = "REJECTED";
+        this.status = Status.REJECTED;
+    }
+    public void reApply(){
+        if(this.status == Status.KICKED){
+            throw  new ClubMemberException(ErrorCode.CLUB_MEMBER_KICKED_OUT_USER);
+        }
+        if (this.status == Status.REJECTED || this.status == Status.LEFT) {
+            this.status = Status.PENDING;
+        }else {
+            throw new ClubMemberException(ErrorCode.CLUB_MEMBER_ALREADY_APPLIED_OR_ACTIVE);
+        }
     }
 
     public boolean hasRole(String targetRole){

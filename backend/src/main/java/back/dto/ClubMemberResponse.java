@@ -28,7 +28,7 @@ public class ClubMemberResponse {
                 .userId(entity.getUserId())
                 .clubNickname(entity.getClubNickname())
                 .roles(entity.getRoles())
-                .status(entity.getStatus())
+                .status(entity.getStatus().name())
                 .createdAt(entity.getCreatedAt())
                 .joinedAt(entity.getJoinedAt())
                 .build();
