@@ -6,6 +6,7 @@ import back.repository.clubs.ClubMembersRepository;
 import back.repository.notifications.NotificationsRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -18,6 +19,7 @@ public class NotificationEventListener {
     private final ClubMembersRepository clubMembersRepository;
     private final NotificationsRepository notificationsRepository;
 
+    @Async
     @EventListener
     public void handleScheduleRegisteredEvent(ScheduleRegisteredEvent scheduleRegisteredEvent) {
         //TODO : 활성화 상태인 멤버 리스트를 조회하는 로직으로 교체 필요
