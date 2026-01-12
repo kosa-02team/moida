@@ -176,9 +176,9 @@ public class VoteService {
             boolean isOwner = club.getOwnerId().equals(userId);
             
             // 2. 운영진 확인 (ClubMembers.role = "STAFF")
-            String role = clubMembersRepository.findActiveRole(clubId, userId)
+            List<String> roles = clubMembersRepository.findActiveRoles(clubId, userId)
                     .orElseThrow(() -> new VoteException.MemberOnly());
-            boolean isStaff = "STAFF".equals(role);
+            boolean isStaff = roles.contains("STAFF");
             
             // 3. 모임장 또는 운영진만 허용
             if (!isOwner && !isStaff) {
@@ -203,7 +203,7 @@ public class VoteService {
     public void answerVote(Long clubId, Long voteId, Long userId, VoteAnswerRequest request) {
         // 0. 권한 체크: userId가 해당 clubId의 활성 멤버인지 확인
         boolean isActiveMember = clubMembersRepository.existsByClubIdAndUserIdAndStatus(
-                clubId, userId, "ACTIVE");
+                clubId, userId, ClubMembers.Status.ACTIVE);
         if (!isActiveMember) {
             throw new VoteException.MemberOnly();
         }

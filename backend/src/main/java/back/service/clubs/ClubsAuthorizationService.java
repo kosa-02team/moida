@@ -1,5 +1,6 @@
 package back.service.clubs;
 
+import back.domain.ClubMembers;
 import back.domain.Clubs;
 import back.exception.ClubAuthException;
 import back.repository.clubs.ClubMembersRepository;
@@ -7,6 +8,8 @@ import back.repository.clubs.ClubsRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -23,7 +26,7 @@ public class ClubsAuthorizationService {
 
     //모임 활성화 멤버인지
     public void assertActiveMember(Long clubId, Long userId) {
-        if (!clubMembersRepository.existsByClubIdAndUserIdAndStatus(clubId, userId, "ACTIVE")) {
+        if (!clubMembersRepository.existsByClubIdAndUserIdAndStatus(clubId, userId, ClubMembers.Status.ACTIVE)) {
             throw new ClubAuthException.NotActive(); // 또는 NotActive로 통일
         }
     }
@@ -36,9 +39,9 @@ public class ClubsAuthorizationService {
         boolean isOwner = club.getOwnerId().equals(userId);
         
         // 2. 운영진 확인 (ClubMembers.role = "STAFF")
-        String role = clubMembersRepository.findActiveRole(clubId, userId)
+        List<String> roles = clubMembersRepository.findActiveRoles(clubId, userId)
                 .orElseThrow(ClubAuthException.NotActive::new);
-        boolean isStaff = "STAFF".equals(role);
+        boolean isStaff = roles.contains("STAFF");
         
         // 3. 모임장 또는 운영진만 허용
         if (!isOwner && !isStaff) {

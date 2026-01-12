@@ -50,8 +50,8 @@ public class PostsService {
 
     @Transactional
     public PostIdResponse createStory(Long clubId, Long writerId, StoryCreateRequest request) {
-        // TODO 권한 정책 확정 후 적용
-        // clubAuthorizationService.assertActiveMember(clubId, writerId);
+
+         clubAuthorizationService.assertActiveMember(clubId, writerId);
 
         Posts saved = postsRepository.save(buildStoryPost(clubId, writerId, request));
 
@@ -115,7 +115,7 @@ public class PostsService {
             List<PostImages> list = imageMap.getOrDefault(r.getScheduleId(), List.of());
             if (list.isEmpty()) continue;
 
-            PostImages cover = list.get(0); // createdAt desc 기준 1장
+            PostImages cover = list.getFirst(); // createdAt desc 기준 1장
 
             result.add(new AlbumCardResponse(
                     clubId,
