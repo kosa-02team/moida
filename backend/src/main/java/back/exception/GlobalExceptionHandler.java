@@ -61,8 +61,8 @@ public class GlobalExceptionHandler {
 
 
 
-    @ExceptionHandler(PostException.class)
-    public ResponseEntity<ErrorResponse<Void>> handlePostException(final PostException e) {
+    @ExceptionHandler(PostsException.class)
+    public ResponseEntity<ErrorResponse<Void>> handlePostException(final PostsException e) {
         log.warn("PostException : {}", e.getMessage());
         return ResponseEntity
                 .status(e.getErrorCode().getHttpStatus())

@@ -14,7 +14,7 @@ public class PostMemberTags {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "post_member_tag_id")
-    private Long id;
+    private Long postMemberTagId;
 
     @Column(name = "post_id", nullable = false)
     private Long postId;

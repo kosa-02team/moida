@@ -1,17 +1,13 @@
 package back.service;
 
+import back.domain.*;
 import back.domain.posts.PostCategory;
 import back.domain.posts.Posts;
-import back.domain.Schedules;
-import back.domain.VoteOptions;
-import back.domain.VoteRecords;
-import back.domain.Votes;
 import back.dto.VoteAnswerRequest;
 import back.dto.VoteCreateRequest;
 import back.dto.VoteResponse;
 import back.exception.ResourceException;
 import back.exception.VoteException;
-import back.domain.Clubs;
 import back.repository.clubs.ClubMembersRepository;
 import back.repository.clubs.ClubsRepository;
 import back.repository.posts.PostsRepository;
@@ -19,6 +15,7 @@ import back.repository.SchedulesRepository;
 import back.repository.VoteOptionsRepository;
 import back.repository.VoteRecordsRepository;
 import back.repository.VotesRepository;
+import back.repository.users.UsersRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +34,7 @@ public class VoteService {
     private final VoteRecordsRepository voteRecordsRepository;
     private final ClubMembersRepository clubMembersRepository;
     private final ClubsRepository clubsRepository;
+    private final UsersRepository usersRepository;
 
     /**
      * 모임에 속한 일정/참석 투표를 생성합니다.
@@ -65,11 +63,17 @@ public class VoteService {
             }
         }
 
+        Clubs clubRef = clubsRepository.getReferenceById(clubId);
+        Users writerRef = usersRepository.getReferenceById(userId);
+        Schedules scheduleRef = (request.scheduleId() == null)
+                ? null
+                : schedulesRepository.getReferenceById(request.scheduleId());
+
         // 1. Posts 엔티티 생성 (투표 게시글)
-        Posts post = new Posts(
-                clubId,
-                userId,
-                PostCategory.VOTE,  // category
+        Posts post = Posts.vote(
+                clubRef,
+                writerRef,
+                scheduleRef,
                 request.title(),
                 request.description()
         );
@@ -145,7 +149,7 @@ public class VoteService {
         } else if ("GENERAL".equals(vote.getVoteType()) && vote.getPostId() != null) {
             Posts post = postsRepository.findById(vote.getPostId())
                     .orElseThrow(ResourceException.NotFound::new);
-            voteClubId = post.getClubId();
+            voteClubId = post.getClub().getClubId();
         }
 
         if (voteClubId == null || !voteClubId.equals(clubId)) {
@@ -217,7 +221,7 @@ public class VoteService {
         } else if ("GENERAL".equals(vote.getVoteType()) && vote.getPostId() != null) {
             Posts post = postsRepository.findById(vote.getPostId())
                     .orElseThrow(ResourceException.NotFound::new);
-            voteClubId = post.getClubId();
+            voteClubId = post.getClub().getClubId();
         }
 
         if (voteClubId == null || !voteClubId.equals(clubId)) {

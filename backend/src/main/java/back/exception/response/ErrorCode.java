@@ -57,6 +57,9 @@ public enum ErrorCode {
     POST_DELETED(GONE, "P02", "삭제된 게시글입니다"),
     POST_FORBIDDEN(FORBIDDEN,"P03", "비공개 또는 제한된 게시글입니다"),
 
+    POST_COMMENT_NOT_FOUND(NOT_FOUND, "PC01","댓글을 찾을 수 없습니다"),
+    POST_COMMENT_DELETED(GONE, "PC02","삭제된 댓글 입니다"),
+
     //Schedule Error
     SCHEDULE_NOT_FOUND(NOT_FOUND,"SC01", "일정을 찾을 수 없습니다"),
     SCHEDULE_INVALID_DATE_RANGE(HttpStatus.BAD_REQUEST,"SC02", "종료일시는 시작일시보다 이후여야 합니다"),

@@ -1,7 +1,20 @@
 package back.repository.posts;
 
-import back.domain.posts.PostComments;
+import back.domain.posts.Comments;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface PostCommentsRepository extends JpaRepository<PostComments, Long> {
+import java.util.Optional;
+
+public interface PostCommentsRepository extends JpaRepository<Comments, Long> {
+    Page<Comments> findAllByPost_PostIdAndPost_Club_ClubIdAndDeletedAtIsNull(
+            Long postId,
+            Long clubId,
+            Pageable pageable
+    );
+
+    Optional<Comments> findByCommentIdAndPost_PostIdAndPost_Club_ClubIdAndDeletedAtIsNull(
+            Long commentId, Long postId, Long clubId
+    );
 }

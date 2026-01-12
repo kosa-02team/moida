@@ -1,4 +1,4 @@
-package back.dto.posts.response;
+package back.dto.posts.story.response;
 
 import back.domain.posts.PostCategory;
 import back.domain.posts.Posts;
@@ -11,19 +11,21 @@ public record PostDetailResponse(
         PostCategory category,
         String title,
         String content,
-        Long schedule_id,
+        Long scheduleId,
         String place,
         LocalDateTime createdAt,
         LocalDateTime updatedAt){
     public static PostDetailResponse from(Posts post) {
+        Long scheduleId = (post.getSchedule() == null) ? null : post.getSchedule().getScheduleId();
+
         return new PostDetailResponse(
                 post.getPostId(),
-                post.getClubId(),
-                post.getWriterId(),
+                post.getClub().getClubId(),
+                post.getWriter().getUserId(),
                 post.getCategory(),
                 post.getTitle(),
                 post.getContent(),
-                post.getScheduleId(),
+                scheduleId,
                 post.getPlace(),
                 post.getCreatedAt(),
                 post.getUpdatedAt());

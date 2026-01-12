@@ -1,4 +1,4 @@
-package back.dto.posts.request;
+package back.dto.posts.story.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

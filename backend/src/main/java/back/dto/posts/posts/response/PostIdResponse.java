@@ -1,4 +1,4 @@
-package back.dto.posts.response;
+package back.dto.posts.posts.response;
 
 import back.domain.posts.Posts;
 

@@ -1,4 +1,4 @@
-package back.dto.posts.response;
+package back.dto.posts.posts.response;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -7,6 +7,7 @@ public record PostCardResponse(
         Long clubId,
         Long postId,
         Long writerId,
+        String writerName,
         String title,
         String content,
         List<String> imagesUrl,
@@ -19,6 +20,7 @@ public record PostCardResponse(
                 p.clubId(),
                 p.postId(),
                 p.writerId(),
+                p.writerName(),
                 p.title(),
                 p.content(),
                 imagesUrl,

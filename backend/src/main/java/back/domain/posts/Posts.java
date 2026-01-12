@@ -1,6 +1,6 @@
 package back.domain.posts;
 
-import back.domain.BaseEntity;
+import back.domain.*;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -18,11 +18,13 @@ public class Posts extends BaseEntity {
     @Column(name = "post_id")
     private Long postId;
 
-    @Column(name = "club_id", nullable = false)
-    private Long clubId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "club_id", nullable = false)
+    private Clubs club;
 
-    @Column(name = "writer_id", nullable = false)
-    private Long writerId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "writer_id", nullable = false)
+    private Users writer;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
@@ -34,8 +36,9 @@ public class Posts extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String content;
 
-    @Column(name = "schedule_id")
-    private Long scheduleId; // nullable
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "schedule_id")
+    private Schedules schedule;
 
     @Column(length = 30)
     private String place;
@@ -65,27 +68,31 @@ public class Posts extends BaseEntity {
     }
 
     // 생성자
-    public Posts(Long clubId, Long writerId, PostCategory category, String title, String content ) {
-        this.clubId = clubId;
-        this.writerId = writerId;
+    private Posts(Clubs club, Users writer, Schedules schedule,
+                  PostCategory category, String title, String content) {
+        this.club = club;
+        this.writer = writer;
+        this.schedule = schedule;
         this.category = category;
         this.title = title;
         this.content = content;
     }
 
-    public static Posts story(
-            Long writerId,
-            Long clubId,
-            Long scheduleId,
-            String content
-    ) {
-
+    public static Posts story(Clubs club, Users writer, Schedules schedule, String content) {
         String title = makeTitleFromContent(content);
-        PostCategory category = (scheduleId == null) ? PostCategory.GENERAL : PostCategory.SCHEDULE;
+        PostCategory category = (schedule == null) ? PostCategory.GENERAL : PostCategory.SCHEDULE;
+        return new Posts(club, writer, schedule, category, title, content);
+    }
 
-        Posts post = new Posts(clubId, writerId, category, title, content);
-
-        return post;
+    public static Posts vote(Clubs club, Users writer, Schedules schedule, String title, String description) {
+        return new Posts(
+                club,
+                writer,
+                schedule,
+                PostCategory.VOTE,
+                title,
+                description
+        );
     }
 
     // 도메인 메서드

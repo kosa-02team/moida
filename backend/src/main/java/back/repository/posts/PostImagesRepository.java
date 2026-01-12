@@ -17,24 +17,13 @@ public interface PostImagesRepository extends JpaRepository<PostImages, Long> {
     @Query("""
     select pi
     from PostImages pi
-    join fetch pi.post p
-    where p.clubId = :clubId
-      and p.scheduleId in :scheduleIds
+    join pi.post p
+    where p.club.clubId = :clubId
+      and p.schedule.scheduleId in :scheduleIds
       and p.deletedAt is null
-    order by pi.createdAt desc
-    """)
+    order by p.schedule.scheduleId asc, pi.createdAt asc
+""")
     List<PostImages> findImagesForSchedules(@Param("clubId") Long clubId,
                                             @Param("scheduleIds") List<Long> scheduleIds);
 
-    @Query("""
-    select pi.imageUrl
-    from PostImages pi
-    join pi.post p
-    where p.clubId = :clubId
-      and p.scheduleId = :scheduleId
-      and p.deletedAt is null
-    order by pi.createdAt desc
-    """)
-    List<String> findAlbumImageUrls(@Param("clubId") Long clubId,
-                                    @Param("scheduleId") Long scheduleId);
 }
