@@ -27,7 +27,7 @@ public enum ErrorCode {
     CLUB_STAFF_REQUIRED(FORBIDDEN, "CA03","운영진 권한이 필요합니다"),
     CLUB_LOGIN_REQUIRED(UNAUTHORIZED, "CA04","로그인이 필요합니다"),
 
-    //Club member Error
+    //Club Member Error
     CLUB_MEMBER_NOT_FOUND(NOT_FOUND, "CM01", "존재하지 않는 가입 신청입니다."),
     CLUB_MEMBER_NOT_PENDING_STATUS(BAD_REQUEST, "CM02", "대기 상태인 회원만 승인할 수 있습니다."),
     CLUB_MEMBER_FORBIDDEN(FORBIDDEN, "CM03", "해당 모임의 관리자 권한이 없습니다."),
