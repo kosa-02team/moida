@@ -16,8 +16,10 @@ public enum ErrorCode {
     //Global Error
     RESOURCE_NOT_FOUND(NOT_FOUND,"G01", "요청한 자원을 찾을 수 없습니다"),
 
+    //로그인 회원가입 관련 에러
     LOGIN_FAILED(UNAUTHORIZED, "A01", "아이디 또는 비밀번호가 일치하지 않습니다."),
     USER_NOT_FOUND(NOT_FOUND, "A02", "존재하지 않는 사용자입니다."),
+    LOGINID_DUPLICATED(CONFLICT, "A03", "이미 존재하는 회원입니다."),
 
     //Club Authorization Error
     CLUB_NOT_ACTIVE(UNAUTHORIZED,"CA01","클럽에 접근할 수 없습니다."),

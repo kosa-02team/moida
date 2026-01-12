@@ -33,4 +33,15 @@ public class AuthException extends CustomGlobalException{
             super(ErrorCode.USER_NOT_FOUND, message);
         }
     }
+
+    public static class LoginIdDuplicated extends AuthException {
+
+        public LoginIdDuplicated() {
+            super(ErrorCode.LOGINID_DUPLICATED);
+        }
+
+        public LoginIdDuplicated(String message) {
+            super(ErrorCode.LOGINID_DUPLICATED, message);
+        }
+    }
 }
