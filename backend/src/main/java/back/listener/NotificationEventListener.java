@@ -1,0 +1,38 @@
+package back.listener;
+
+import back.domain.Notifications;
+import back.event.ScheduleRegisteredEvent;
+import back.repository.clubs.ClubMembersRepository;
+import back.repository.notifications.NotificationsRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Component
+@RequiredArgsConstructor
+public class NotificationEventListener {
+
+    private final ClubMembersRepository clubMembersRepository;
+    private final NotificationsRepository notificationsRepository;
+
+    @EventListener
+    public void handleScheduleRegisteredEvent(ScheduleRegisteredEvent scheduleRegisteredEvent) {
+        //TODO : 활성화 상태인 멤버 리스트를 조회하는 로직으로 교체 필요
+        //더미 데이터
+        List<Long> memberIds = List.of(1L, 2L, 3L);
+
+        List<Notifications> list = new ArrayList<>();
+        for (int i = 0; i < memberIds.size(); i++) {
+            list.add(new Notifications(
+                    memberIds.get(i),
+                    "새로운 일정 '" + scheduleRegisteredEvent.getScheduleName() + "'이 등록 되었습니다.",
+                    scheduleRegisteredEvent.getScheduleId(),
+                    "SCHEDULE"
+                    ));
+        }
+        notificationsRepository.saveAll(list);
+    }
+}

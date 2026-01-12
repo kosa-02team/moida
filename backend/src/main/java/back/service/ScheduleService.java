@@ -5,11 +5,13 @@ import back.domain.VoteOptions;
 import back.domain.Votes;
 import back.dto.ScheduleCreateRequest;
 import back.dto.ScheduleResponse;
+import back.event.ScheduleRegisteredEvent;
 import back.exception.ScheduleException;
 import back.repository.SchedulesRepository;
 import back.repository.VoteOptionsRepository;
 import back.repository.VotesRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,9 @@ public class ScheduleService {
     private final SchedulesRepository schedulesRepository;
     private final VotesRepository votesRepository;
     private final VoteOptionsRepository voteOptionsRepository;
+
+    // 알림 전송을 위해 의존성 추가
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 모임에 속한 전체 일정 목록을 조회합니다.
@@ -107,6 +112,13 @@ public class ScheduleService {
         );
         voteOptionsRepository.save(attendOption);
         voteOptionsRepository.save(notAttendOption);
+
+        //일정 생성 이벤트 발행
+        eventPublisher.publishEvent(new ScheduleRegisteredEvent(
+                clubId,
+                savedSchedule.getScheduleId(),
+                savedSchedule.getScheduleName()
+        ));
 
         return toResponse(savedSchedule);
     }
