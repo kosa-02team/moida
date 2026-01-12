@@ -19,9 +19,11 @@ public enum ErrorCode {
     LOGIN_FAILED(UNAUTHORIZED, "A01", "아이디 또는 비밀번호가 일치하지 않습니다."),
     USER_NOT_FOUND(NOT_FOUND, "A02", "존재하지 않는 사용자입니다."),
 
-    //Club Authorization Error
-    CLUB_NOT_ACTIVE(UNAUTHORIZED,"CA01","클럽에 접근할 수 없습니다."),
-    CLUB_STAFF_REQUIRED(FORBIDDEN, "CA02","운영진 권한이 필요합니다"),
+    CLUB_MEMBER_NOT_FOUND(NOT_FOUND, "CM01", "존재하지 않는 가입 신청입니다."),
+    CLUB_MEMBER_NOT_PENDING_STATUS(BAD_REQUEST, "CM02", "대기 상태인 회원만 승인할 수 있습니다."),
+    CLUB_MEMBER_FORBIDDEN(FORBIDDEN, "CM03", "해당 모임의 관리자 권한이 없습니다."),
+    CLUB_MEMBER_ALREADY_APPLIED_OR_ACTIVE(BAD_REQUEST, "CM04", "가입 신청 중이거나 활동 중인 회원입니다."),
+    CLUB_MEMBER_KICKED_OUT_USER(FORBIDDEN, "CM05", "해당 모임에서 강퇴된 사용자는 재가입이 불가합니다."),
 
     //Vote Error
     VOTE_NOT_FOUND(NOT_FOUND,"V01", "투표를 찾을 수 없습니다"),
