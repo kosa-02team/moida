@@ -3,6 +3,7 @@ package back.service;
 import back.config.security.JwtTokenProvider;
 import back.domain.Users;
 import back.dto.LoginRequest;
+import back.dto.SignupRequest;
 import back.exception.AuthException;
 import back.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,5 +32,22 @@ public class AuthService {
         }
         // 3. 토큰 생성 및 반환
         return jwtTokenProvider.createAccessToken(user.getLoginId(), user.getSystemRole());
+    }
+
+    @Transactional
+    public Long signup(SignupRequest signupRequest) {
+
+        //이미 가입된 사용자가 있을 경우
+        if (userRepository.existsByLoginId(signupRequest.loginId())) {
+            throw new AuthException.LoginIdDuplicated();
+        }
+
+        String encodedPassword = passwordEncoder.encode(signupRequest.password());
+
+        Users users = new Users(signupRequest.loginId(), encodedPassword, signupRequest.realName());
+
+        Users savedUser = userRepository.save(users);
+
+        return savedUser.getUserId();
     }
 }
