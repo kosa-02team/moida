@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,7 +21,7 @@ public class NotificationEventListener {
     private final NotificationsRepository notificationsRepository;
 
     @Async
-    @EventListener
+    @TransactionalEventListener
     public void handleScheduleRegisteredEvent(ScheduleRegisteredEvent scheduleRegisteredEvent) {
         //TODO : 활성화 상태인 멤버 리스트를 조회하는 로직으로 교체 필요
         //더미 데이터
