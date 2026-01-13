@@ -24,7 +24,7 @@ public class VoteController {
             @RequestBody VoteCreateRequest request
     ) {
         // 임시로 하드코딩, 나중에 인증 연동 시 교체
-        Long currentUserId = 1L;
+        Long currentUserId = 2L;
         VoteResponse response = voteService.createVote(clubId, currentUserId, request);
         return SuccessResponse.success(HttpStatus.OK, response);
     }

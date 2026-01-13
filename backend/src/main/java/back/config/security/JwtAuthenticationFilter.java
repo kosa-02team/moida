@@ -35,8 +35,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token)) {
             // 토큰이 유효하면 토큰으로부터 유저 정보를 받아옵니다.
             String loginId = jwtTokenProvider.getLoginId(token);
+            System.out.println("****************");
 
-            Long userId = Long.parseLong(loginId);
+            System.out.println(jwtTokenProvider.getUserId(token));
+            Long userId = jwtTokenProvider.getUserId(token);
             UserPrincipal principal = new UserPrincipal(userId, loginId);
 
             // 토큰으로 부터 권한 정보를 받아옵니다.

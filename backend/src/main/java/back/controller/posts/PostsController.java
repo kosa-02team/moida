@@ -34,7 +34,6 @@ public class PostsController {
             @RequestBody StoryCreateRequest request) {
 
         Long userId = requireUserId(principal);
-
         PostIdResponse response = postsService.createStory(clubId, userId, request);
 
         return ResponseEntity.ok(response);

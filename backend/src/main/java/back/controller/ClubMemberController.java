@@ -1,5 +1,6 @@
 package back.controller;
 
+import back.config.security.UserPrincipal;
 import back.domain.ClubMembers;
 import back.dto.ClubMemberRequest;
 import back.dto.ClubMemberResponse;
@@ -8,6 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.parameters.P;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,6 +33,7 @@ public class ClubMemberController {
     public ResponseEntity<ClubMemberResponse> approve(
             @PathVariable Long clubId,
             @PathVariable Long memberId) {
+        
         return ResponseEntity.ok(clubMemberService.approveClubMember(clubId, memberId));
     }
 
