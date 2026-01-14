@@ -4,8 +4,14 @@ import back.exception.response.ErrorCode;
 import back.exception.response.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
+import org.springframework.validation.ObjectError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.util.List;
 
 @RestControllerAdvice
 @Slf4j
@@ -67,5 +73,20 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(e.getErrorCode().getHttpStatus())
                 .body(ErrorResponse.error(e.getErrorCode()));
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ErrorResponse<ErrorResponse.ValidationError>> handleMethodArgumentNotValidException(final MethodArgumentNotValidException e) {
+        BindingResult bindingResult = e.getBindingResult();
+        List<FieldError> errors = bindingResult.getFieldErrors();
+
+        List<ErrorResponse.ValidationError> validationErrors = errors.stream()
+                .map(ErrorResponse.ValidationError::of)
+                .toList();
+
+
+        return ResponseEntity
+                .status(ErrorCode.INVALID_INPUT.getHttpStatus())
+                .body(ErrorResponse.validation(ErrorCode.INVALID_INPUT, validationErrors));
     }
 }
