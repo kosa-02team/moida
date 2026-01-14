@@ -1,39 +1,46 @@
 package back.controller.posts;
 
+import back.config.security.UserPrincipal;
 import back.dto.posts.comments.request.PostCommentRequest;
 import back.dto.posts.comments.response.PostCommentsIdResponse;
 import back.dto.posts.comments.response.PostCommentsResponse;
-import back.service.posts.PostCommentsService;
+import back.exception.ClubAuthException;
+import back.service.posts.PostCommentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/club/{clubId}/posts/{postId}/comments")
-public class PostCommentsController {
+public class PostCommentController {
 
-    private final PostCommentsService postCommentsService;
+    private final PostCommentService postCommentService;
 
     @PostMapping
     public ResponseEntity<PostCommentsIdResponse> createComment(
-            @RequestHeader(value = "X-DEV-USER-ID", required = false) Long devWriterId,
+            @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable Long clubId,
             @PathVariable Long postId,
             @RequestBody PostCommentRequest request) {
-        PostCommentsIdResponse response = postCommentsService.createComment(devWriterId, clubId, postId, request);
+
+        Long userId = requireUserId(principal);
+
+        PostCommentsIdResponse response = postCommentService.createComment(userId, clubId, postId, request);
         return ResponseEntity.ok(response);
     }
 
     @PatchMapping("/{commentId}")
     public ResponseEntity<PostCommentsIdResponse> updateComment(
-            @RequestHeader(value = "X-DEV-USER-ID", required = false) Long devWriterId,
+            @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable Long clubId,
             @PathVariable Long postId,
             @PathVariable Long commentId,
             @RequestBody PostCommentRequest request) {
-        PostCommentsIdResponse response = postCommentsService.updateComment(devWriterId, clubId, postId, commentId,
+        Long userId = requireUserId(principal);
+        PostCommentsIdResponse response = postCommentService.updateComment(userId, clubId, postId, commentId,
                 request);
 
         return ResponseEntity.ok(response);
@@ -41,22 +48,30 @@ public class PostCommentsController {
 
     @GetMapping
     public ResponseEntity<PostCommentsResponse> getPostComments(
-            @RequestHeader(value = "X-DEV-USER-ID", required = false) Long viewerId,
+            @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable Long clubId,
             @PathVariable Long postId,
             Pageable pageable) {
-        PostCommentsResponse response = postCommentsService.getPostComments(viewerId, clubId, postId, pageable);
+        Long viewerId = (principal == null) ? null : principal.getUserId();
+
+        PostCommentsResponse response = postCommentService.getPostComments(viewerId, clubId, postId, pageable);
         return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{commentId}")
     public ResponseEntity<PostCommentsIdResponse> deleteComment(
-            @RequestHeader(value = "X-DEV-USER-ID", required = false) Long actorId,
+            @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable Long clubId,
             @PathVariable Long postId,
             @PathVariable Long commentId) {
+        Long userId = requireUserId(principal);
 
-        PostCommentsIdResponse response = postCommentsService.deleteComment(actorId, clubId, postId, commentId);
+        PostCommentsIdResponse response = postCommentService.deleteComment(userId, clubId, postId, commentId);
         return ResponseEntity.ok(response);
+    }
+
+    private Long requireUserId(UserPrincipal principal) {
+        if (principal == null) throw new ClubAuthException.LoginRequired();
+        return principal.getUserId();
     }
 }

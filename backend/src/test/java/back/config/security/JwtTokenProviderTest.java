@@ -23,9 +23,9 @@ class JwtTokenProviderTest {
         //Given loginId와 role 변수 만들기
         String loginId = "testUser";
         String role = "USER";
-
+        Long userId = 1L;
         //When jwtTokenProvider를 사용해 토큰 만들기
-        String token = jwtTokenProvider.createAccessToken(loginId, role);
+        String token = jwtTokenProvider.createAccessToken(loginId, role, userId);
 
         //Then 만든 토큰에서 다시 정보를 꺼내서 원래 값과 같은지 확인
         String extractedLoginId = jwtTokenProvider.getLoginId(token);
