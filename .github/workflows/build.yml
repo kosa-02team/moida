@@ -11,7 +11,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    # 1. CI 환경 내 MySQL 서비스 컨테이너 가동 (기술적 원리: Docker 기반 격리 환경 제공)
     services:
       mysql:
         image: mysql:8.4.0
@@ -26,7 +25,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # 2. 프라이빗 서브모듈 접근을 위한 토큰 주입 (반드시 Secret에 SUBMODULE_TOKEN 등록 필요)
           token: ${{ secrets.SUBMODULE_TOKEN }}
           submodules: recursive
 
@@ -43,12 +41,9 @@ jobs:
 
       - name: Build with Gradle
         working-directory: ./backend
-        # 3. 테스트 시 필요한 환경 변수 주입 (DB 연결 정보 전달)
         env:
           SPRING_PROFILES_ACTIVE: dev
           SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/moida
           SPRING_DATASOURCE_USERNAME: root
           SPRING_DATASOURCE_PASSWORD: root
-          # 이전에 에러가 났던 JWT 시크릿 키 등도 필요한 경우 여기에 추가
-          CUSTOM_JWT_SECRETKEY: ${{ secrets.JWT_SECRET_KEY }}
         run: ./gradlew build
