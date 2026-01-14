@@ -1,7 +1,7 @@
 package back.service;
 
 import back.domain.*;
-import back.domain.posts.Posts;
+import back.domain.post.Posts;
 import back.dto.VoteAnswerRequest;
 import back.dto.VoteCreateRequest;
 import back.dto.VoteResponse;
@@ -9,7 +9,7 @@ import back.exception.ResourceException;
 import back.exception.VoteException;
 import back.repository.clubs.ClubMembersRepository;
 import back.repository.clubs.ClubsRepository;
-import back.repository.posts.PostRepository;
+import back.repository.post.PostRepository;
 import back.repository.SchedulesRepository;
 import back.repository.VoteOptionsRepository;
 import back.repository.VoteRecordsRepository;
