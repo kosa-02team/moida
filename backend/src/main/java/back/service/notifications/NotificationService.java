@@ -22,6 +22,12 @@ public class NotificationService {
         emitter.onCompletion(() -> emitterRepository.deleteById(key));
         emitter.onTimeout(() -> emitterRepository.deleteById(key));
 
+        try {
+            emitter.send(SseEmitter.event().name("test").data("success"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
         return emitterRepository.save(key, emitter);
     }
 

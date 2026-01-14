@@ -1,10 +1,12 @@
 package back.repository.notifications;
 
+import org.springframework.stereotype.Repository;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Repository
 public class EmitterRepository {
 
     Map<String, SseEmitter> connection = new ConcurrentHashMap<>();
