@@ -1,6 +1,6 @@
-package back.repository;
+package back.repository.vote;
 
-import back.domain.Votes;
+import back.domain.vote.Votes;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -8,7 +8,7 @@ import org.springframework.data.repository.query.Param;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public interface VotesRepository extends JpaRepository<Votes, Long> {
+public interface VoteRepository extends JpaRepository<Votes, Long> {
 
     /**
      * 기한이 지났지만 아직 종료되지 않은 일반 투표들을 조회합니다.

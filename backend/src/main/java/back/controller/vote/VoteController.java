@@ -1,13 +1,16 @@
-package back.controller;
+package back.controller.vote;
 
 import back.common.response.SuccessResponse;
-import back.dto.VoteAnswerRequest;
-import back.dto.VoteCreateRequest;
-import back.dto.VoteResponse;
-import back.service.VoteService;
+import back.config.security.UserPrincipal;
+import back.dto.vote.VoteAnswerRequest;
+import back.dto.vote.VoteCreateRequest;
+import back.dto.vote.VoteResponse;
+import back.exception.ClubAuthException;
+import back.service.vote.VoteService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -19,39 +22,41 @@ public class VoteController {
 
     @PostMapping("/{clubId}/votes")
     public SuccessResponse<VoteResponse> createVote(
+            @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable("clubId") Long clubId,
-            // TODO: 실제 구현 시 @AuthenticationPrincipal 등으로 현재 로그인 유저 ID 주입
             @RequestBody VoteCreateRequest request
     ) {
-        // 임시로 하드코딩, 나중에 인증 연동 시 교체
-        Long currentUserId = 1L;
+        Long currentUserId = requireUserId(principal);
         VoteResponse response = voteService.createVote(clubId, currentUserId, request);
         return SuccessResponse.success(HttpStatus.OK, response);
     }
 
     @PostMapping("/{clubId}/votes/{voteId}/close")
     public SuccessResponse<Void> closeVote(
+            @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable("clubId") Long clubId,
             @PathVariable("voteId") Long voteId
-            // TODO: 실제 구현 시 @AuthenticationPrincipal 등으로 현재 로그인 유저 ID 주입
     ) {
-        // 임시로 하드코딩, 나중에 인증 연동 시 교체
-        Long currentUserId = 1L;
+        Long currentUserId = requireUserId(principal);
         voteService.closeVote(clubId, voteId, currentUserId);
         return SuccessResponse.success(HttpStatus.OK);
     }
 
     @PostMapping("/{clubId}/votes/{voteId}/answers")
     public SuccessResponse<Void> answerVote(
+            @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable("clubId") Long clubId,
             @PathVariable("voteId") Long voteId,
             @RequestBody @Valid VoteAnswerRequest request
-            // TODO: 실제 구현 시 @AuthenticationPrincipal 등으로 현재 로그인 유저 ID 주입
     ) {
-        // 임시로 하드코딩, 나중에 인증 연동 시 교체
-        Long currentUserId = 1L;
+        Long currentUserId = requireUserId(principal);
         voteService.answerVote(clubId, voteId, currentUserId, request);
         return SuccessResponse.success(HttpStatus.OK);
+    }
+
+    private Long requireUserId(UserPrincipal principal) {
+        if (principal == null) throw new ClubAuthException.LoginRequired();
+        return principal.getUserId();
     }
 }
 

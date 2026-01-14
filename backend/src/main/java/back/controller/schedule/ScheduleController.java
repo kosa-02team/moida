@@ -1,11 +1,14 @@
-package back.controller;
+package back.controller.schedule;
 
 import back.common.response.SuccessResponse;
-import back.dto.ScheduleCreateRequest;
-import back.dto.ScheduleResponse;
-import back.service.ScheduleService;
+import back.config.security.UserPrincipal;
+import back.dto.schedule.ScheduleCreateRequest;
+import back.dto.schedule.ScheduleResponse;
+import back.exception.ClubAuthException;
+import back.service.schedule.ScheduleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,24 +22,27 @@ public class ScheduleController {
 
     @GetMapping("/{clubId}/schedules")
     public SuccessResponse<List<ScheduleResponse>> getSchedules(
+            @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable("clubId") Long clubId
-            // TODO: 실제 구현 시 @AuthenticationPrincipal 등으로 현재 로그인 유저 ID 주입
     ) {
-        // 임시로 하드코딩, 나중에 인증 연동 시 교체
-        Long currentUserId = 1L;
+        Long currentUserId = requireUserId(principal);
         List<ScheduleResponse> schedules = scheduleService.getSchedulesByClubId(clubId, currentUserId);
         return SuccessResponse.success(HttpStatus.OK, schedules);
     }
 
     @PostMapping("/{clubId}/schedules")
     public SuccessResponse<ScheduleResponse> createSchedule(
+            @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable("clubId") Long clubId,
             @RequestBody @jakarta.validation.Valid ScheduleCreateRequest request
-            // TODO: 실제 구현 시 @AuthenticationPrincipal 등으로 현재 로그인 유저 ID 주입
     ) {
-        // 임시로 하드코딩, 나중에 인증 연동 시 교체
-        Long currentUserId = 1L;
+        Long currentUserId = requireUserId(principal);
         ScheduleResponse response = scheduleService.createSchedule(clubId, currentUserId, request);
         return SuccessResponse.success(HttpStatus.CREATED, response);
+    }
+
+    private Long requireUserId(UserPrincipal principal) {
+        if (principal == null) throw new ClubAuthException.LoginRequired();
+        return principal.getUserId();
     }
 }

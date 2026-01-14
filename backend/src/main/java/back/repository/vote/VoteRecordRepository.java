@@ -1,11 +1,11 @@
-package back.repository;
+package back.repository.vote;
 
-import back.domain.VoteRecords;
+import back.domain.vote.VoteRecords;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 
-public interface VoteRecordsRepository extends JpaRepository<VoteRecords, Long> {
+public interface VoteRecordRepository extends JpaRepository<VoteRecords, Long> {
 
     /**
      * 특정 투표에서 사용자가 선택한 옵션들을 조회합니다.

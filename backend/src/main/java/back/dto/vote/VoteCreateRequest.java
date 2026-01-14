@@ -1,4 +1,4 @@
-package back.dto;
+package back.dto.vote;
 
 public record VoteCreateRequest(
         String voteType,      // "GENERAL" 또는 "ATTENDANCE"

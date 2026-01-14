@@ -1,4 +1,4 @@
-package back.dto;
+package back.dto.schedule;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;

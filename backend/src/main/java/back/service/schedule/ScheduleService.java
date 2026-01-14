@@ -1,15 +1,15 @@
-package back.service;
+package back.service.schedule;
 
-import back.domain.Schedules;
-import back.domain.VoteOptions;
-import back.domain.Votes;
-import back.dto.ScheduleCreateRequest;
-import back.dto.ScheduleResponse;
+import back.domain.schedule.Schedules;
+import back.domain.vote.VoteOptions;
+import back.domain.vote.Votes;
+import back.dto.schedule.ScheduleCreateRequest;
+import back.dto.schedule.ScheduleResponse;
 import back.event.ScheduleRegisteredEvent;
 import back.exception.ScheduleException;
-import back.repository.SchedulesRepository;
-import back.repository.VoteOptionsRepository;
-import back.repository.VotesRepository;
+import back.repository.schedule.ScheduleRepository;
+import back.repository.vote.VoteOptionRepository;
+import back.repository.vote.VoteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -22,9 +22,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ScheduleService {
 
-    private final SchedulesRepository schedulesRepository;
-    private final VotesRepository votesRepository;
-    private final VoteOptionsRepository voteOptionsRepository;
+    private final ScheduleRepository scheduleRepository;
+    private final VoteRepository voteRepository;
+    private final VoteOptionRepository voteOptionRepository;
 
     // 알림 전송을 위해 의존성 추가
     private final ApplicationEventPublisher eventPublisher;
@@ -41,7 +41,7 @@ public class ScheduleService {
         // TODO: 권한 체크 (MEMBER 이상만 조회 가능)
         // TODO: ClubMembers를 통해 userId가 해당 clubId의 멤버인지 확인
 
-        List<Schedules> schedules = schedulesRepository.findByClubId(clubId);
+        List<Schedules> schedules = scheduleRepository.findByClubId(clubId);
 
         return schedules.stream()
                 .map(this::toResponse)
@@ -82,7 +82,7 @@ public class ScheduleService {
         if (request.voteDeadline() != null) {
             schedule.setVoteDeadline(request.voteDeadline());
         }
-        Schedules savedSchedule = schedulesRepository.save(schedule);
+        Schedules savedSchedule = scheduleRepository.save(schedule);
 
         // 2. 일정 생성과 동시에 ATTENDANCE 타입 투표 자동 생성
         Votes vote = new Votes(
@@ -96,7 +96,7 @@ public class ScheduleService {
                 false, // allowMultiple
                 null   // deadline은 null (ATTENDANCE 타입은 일정 시작 5분 전 자동 종료)
         );
-        Votes savedVote = votesRepository.save(vote);
+        Votes savedVote = voteRepository.save(vote);
 
         // 3. 투표 옵션 자동 생성 (참석/불참)
         VoteOptions attendOption = new VoteOptions(
@@ -113,8 +113,8 @@ public class ScheduleService {
                 null,
                 null
         );
-        voteOptionsRepository.save(attendOption);
-        voteOptionsRepository.save(notAttendOption);
+        voteOptionRepository.save(attendOption);
+        voteOptionRepository.save(notAttendOption);
 
         //일정 생성 이벤트 발행
         eventPublisher.publishEvent(new ScheduleRegisteredEvent(

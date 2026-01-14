@@ -1,19 +1,23 @@
-package back.service;
+package back.service.vote;
 
 import back.domain.*;
 import back.domain.posts.Posts;
-import back.dto.VoteAnswerRequest;
-import back.dto.VoteCreateRequest;
-import back.dto.VoteResponse;
+import back.domain.schedule.Schedules;
+import back.domain.vote.VoteOptions;
+import back.domain.vote.VoteRecords;
+import back.domain.vote.Votes;
+import back.dto.vote.VoteAnswerRequest;
+import back.dto.vote.VoteCreateRequest;
+import back.dto.vote.VoteResponse;
 import back.exception.ResourceException;
 import back.exception.VoteException;
 import back.repository.clubs.ClubMembersRepository;
 import back.repository.clubs.ClubsRepository;
 import back.repository.posts.PostRepository;
-import back.repository.SchedulesRepository;
-import back.repository.VoteOptionsRepository;
-import back.repository.VoteRecordsRepository;
-import back.repository.VotesRepository;
+import back.repository.schedule.ScheduleRepository;
+import back.repository.vote.VoteOptionRepository;
+import back.repository.vote.VoteRecordRepository;
+import back.repository.vote.VoteRepository;
 import back.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,10 +31,10 @@ import java.util.stream.Collectors;
 public class VoteService {
 
     private final PostRepository postRepository;
-    private final SchedulesRepository schedulesRepository;
-    private final VotesRepository votesRepository;
-    private final VoteOptionsRepository voteOptionsRepository;
-    private final VoteRecordsRepository voteRecordsRepository;
+    private final ScheduleRepository scheduleRepository;
+    private final VoteRepository voteRepository;
+    private final VoteOptionRepository voteOptionRepository;
+    private final VoteRecordRepository voteRecordRepository;
     private final ClubMembersRepository clubMembersRepository;
     private final ClubsRepository clubsRepository;
     private final UserRepository userRepository;
@@ -53,7 +57,7 @@ public class VoteService {
         // ATTENDANCE 타입이고 scheduleId가 있으면 일정 존재 여부 및 모임 소속 확인
         Schedules schedule = null;
         if ("ATTENDANCE".equals(request.voteType()) && request.scheduleId() != null) {
-            schedule = schedulesRepository.findById(request.scheduleId())
+            schedule = scheduleRepository.findById(request.scheduleId())
                     .orElseThrow(ResourceException.NotFound::new);
 
             // 일정이 해당 모임에 속하는지 확인
@@ -66,7 +70,7 @@ public class VoteService {
         Users writerRef = userRepository.getReferenceById(userId);
         Schedules scheduleRef = (request.scheduleId() == null)
                 ? null
-                : schedulesRepository.getReferenceById(request.scheduleId());
+                : scheduleRepository.getReferenceById(request.scheduleId());
 
         // 1. Posts 엔티티 생성 (투표 게시글)
         Posts post = Posts.vote(
@@ -90,7 +94,7 @@ public class VoteService {
                 request.allowMultiple(),
                 null  // deadline은 일반 투표에서만 사용
         );
-        vote = votesRepository.save(vote);
+        vote = voteRepository.save(vote);
 
         // 3. ATTENDANCE 타입이면 VoteOptions 자동 생성 (참석/불참)
         if ("ATTENDANCE".equals(request.voteType()) && schedule != null) {
@@ -102,7 +106,7 @@ public class VoteService {
                     schedule.getEventDate(),
                     schedule.getLocation()
             );
-            voteOptionsRepository.save(attendOption);
+            voteOptionRepository.save(attendOption);
 
             // "불참" 옵션 생성
             VoteOptions absentOption = new VoteOptions(
@@ -112,7 +116,7 @@ public class VoteService {
                     null,
                     null
             );
-            voteOptionsRepository.save(absentOption);
+            voteOptionRepository.save(absentOption);
         }
 
         // 4. VoteResponse로 변환해서 리턴
@@ -136,13 +140,13 @@ public class VoteService {
      */
     @Transactional
     public void closeVote(Long clubId, Long voteId, Long userId) {
-        Votes vote = votesRepository.findById(voteId)
+        Votes vote = voteRepository.findById(voteId)
                 .orElseThrow(VoteException.NotFound::new);
 
         // clubId 검증: 투표가 해당 모임에 속하는지 확인
         Long voteClubId = null;
         if ("ATTENDANCE".equals(vote.getVoteType()) && vote.getScheduleId() != null) {
-            Schedules schedule = schedulesRepository.findById(vote.getScheduleId())
+            Schedules schedule = scheduleRepository.findById(vote.getScheduleId())
                     .orElseThrow(ResourceException.NotFound::new);
             voteClubId = schedule.getClubId();
         } else if ("GENERAL".equals(vote.getVoteType()) && vote.getPostId() != null) {
@@ -187,7 +191,7 @@ public class VoteService {
 
         // 투표 종료
         vote.close();
-        votesRepository.save(vote);
+        voteRepository.save(vote);
     }
 
     /**
@@ -208,13 +212,13 @@ public class VoteService {
         }
 
         // 1. 투표 존재 확인
-        Votes vote = votesRepository.findById(voteId)
+        Votes vote = voteRepository.findById(voteId)
                 .orElseThrow(VoteException.NotFound::new);
 
         // clubId 검증: 투표가 해당 모임에 속하는지 확인
         Long voteClubId = null;
         if ("ATTENDANCE".equals(vote.getVoteType()) && vote.getScheduleId() != null) {
-            Schedules schedule = schedulesRepository.findById(vote.getScheduleId())
+            Schedules schedule = scheduleRepository.findById(vote.getScheduleId())
                     .orElseThrow(ResourceException.NotFound::new);
             voteClubId = schedule.getClubId();
         } else if ("GENERAL".equals(vote.getVoteType()) && vote.getPostId() != null) {
@@ -267,7 +271,7 @@ public class VoteService {
         optionIds = uniqueOptionIds;
 
         // 옵션이 해당 투표에 속하는지 확인
-        List<VoteOptions> validOptions = voteOptionsRepository.findAllById(optionIds);
+        List<VoteOptions> validOptions = voteOptionRepository.findAllById(optionIds);
         boolean allOptionsBelongToVote = validOptions.stream()
                 .allMatch(option -> option.getVoteId().equals(voteId));
 
@@ -281,20 +285,20 @@ public class VoteService {
         }
 
         // 6. 기존 투표 기록 확인 (중복 투표 체크)
-        List<VoteRecords> existingRecords = voteRecordsRepository.findByVoteIdAndUserId(voteId, userId);
+        List<VoteRecords> existingRecords = voteRecordRepository.findByVoteIdAndUserId(voteId, userId);
 
         // ATTENDANCE 타입은 기존 기록이 있으면 업데이트 (참석 → 불참 변경 가능)
         if ("ATTENDANCE".equals(vote.getVoteType())) {
             if (!existingRecords.isEmpty()) {
                 // 기존 기록 삭제 (참석 → 불참 변경)
-                voteRecordsRepository.deleteAll(existingRecords);
+                voteRecordRepository.deleteAll(existingRecords);
             }
         } else {
             // GENERAL 타입
             if (!vote.getAllowMultiple()) {
                 // allowMultiple이 false면 기존 기록이 있으면 삭제 (투표 변경 허용)
                 if (!existingRecords.isEmpty()) {
-                    voteRecordsRepository.deleteAll(existingRecords);
+                    voteRecordRepository.deleteAll(existingRecords);
                 }
             } else {
                 // allowMultiple이 true면 같은 옵션 중복 선택 방지
@@ -315,6 +319,6 @@ public class VoteService {
                 .map(optionId -> new VoteRecords(voteId, optionId, userId))
                 .collect(Collectors.toList());
 
-        voteRecordsRepository.saveAll(newRecords);
+        voteRecordRepository.saveAll(newRecords);
     }
 }

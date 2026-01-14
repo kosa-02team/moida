@@ -1,6 +1,7 @@
 package back.domain.posts;
 
 import back.domain.*;
+import back.domain.schedule.Schedules;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
