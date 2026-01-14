@@ -1,8 +1,8 @@
 package back.service.vote;
 
 import back.domain.*;
-import back.domain.posts.PostCategory;
-import back.domain.posts.Posts;
+import back.domain.post.PostCategory;
+import back.domain.post.Posts;
 import back.domain.schedule.Schedules;
 import back.domain.vote.VoteOptions;
 import back.domain.vote.VoteRecords;
@@ -12,7 +12,7 @@ import back.exception.ResourceException;
 import back.exception.VoteException;
 import back.repository.clubs.ClubMembersRepository;
 import back.repository.clubs.ClubsRepository;
-import back.repository.posts.PostRepository;
+import back.repository.post.PostRepository;
 import back.repository.schedule.ScheduleRepository;
 import back.repository.vote.VoteOptionRepository;
 import back.repository.vote.VoteRecordRepository;
@@ -403,13 +403,13 @@ public class VoteService {
                 .collect(Collectors.toList());
 
         // GENERAL 타입 투표 (postId 기반)
-        List<Votes> generalVotes = postIds.isEmpty() 
-                ? new ArrayList<>() 
+        List<Votes> generalVotes = postIds.isEmpty()
+                ? new ArrayList<>()
                 : voteRepository.findByPostIdIn(postIds);
 
         // ATTENDANCE 타입 투표 (scheduleId 기반)
-        List<Votes> attendanceVotes = scheduleIds.isEmpty() 
-                ? new ArrayList<>() 
+        List<Votes> attendanceVotes = scheduleIds.isEmpty()
+                ? new ArrayList<>()
                 : voteRepository.findByScheduleIdIn(scheduleIds);
 
         // 모든 투표 합치기 (중복 제거)
