@@ -26,6 +26,9 @@ public class TransactionLog {
     @Column(name = "club_id", nullable = false)
     private Long clubId;
 
+    @Column(name = "schedule_id")
+    private Long scheduleId;
+
     @Column(name = "account_id", nullable = false)
     private Long accountId;
 
@@ -49,6 +52,20 @@ public class TransactionLog {
                           BigDecimal amount, BigDecimal balanceAfter,
                           String description, Long editorId) {
         this.clubId = clubId;
+        this.scheduleId = null;
+        this.accountId = accountId;
+        this.type = type;
+        this.amount = amount;
+        this.balanceAfter = balanceAfter;
+        this.description = description;
+        this.editorId = editorId;
+    }
+
+    public TransactionLog(Long clubId, Long scheduleId, Long accountId, String type, 
+                          BigDecimal amount, BigDecimal balanceAfter,
+                          String description, Long editorId) {
+        this.clubId = clubId;
+        this.scheduleId = scheduleId;
         this.accountId = accountId;
         this.type = type;
         this.amount = amount;

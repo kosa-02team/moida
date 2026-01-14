@@ -1,4 +1,4 @@
-package back.dto.posts.response;
+package back.dto.posts.story.response;
 
 import java.util.List;
 

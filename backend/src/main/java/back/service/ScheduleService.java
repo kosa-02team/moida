@@ -79,6 +79,9 @@ public class ScheduleService {
                 request.description(),
                 request.entryFee()
         );
+        if (request.voteDeadline() != null) {
+            schedule.setVoteDeadline(request.voteDeadline());
+        }
         Schedules savedSchedule = schedulesRepository.save(schedule);
 
         // 2. 일정 생성과 동시에 ATTENDANCE 타입 투표 자동 생성
@@ -136,6 +139,8 @@ public class ScheduleService {
                 schedule.getRefundPerPerson(),
                 schedule.getStatus(),
                 schedule.getClosedAt(),
+                schedule.getCancelReason(),
+                schedule.getVoteDeadline(),
                 schedule.getCreatedAt(),
                 schedule.getUpdatedAt()
         );

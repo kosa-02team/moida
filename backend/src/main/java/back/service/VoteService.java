@@ -290,19 +290,22 @@ public class VoteService {
                 voteRecordsRepository.deleteAll(existingRecords);
             }
         } else {
-            // GENERAL 타입은 allowMultiple이 false면 기존 기록이 있으면 에러
-            if (!vote.getAllowMultiple() && !existingRecords.isEmpty()) {
-                throw new VoteException.AlreadyParticipated();
-            }
+            // GENERAL 타입
+            if (!vote.getAllowMultiple()) {
+                // allowMultiple이 false면 기존 기록이 있으면 삭제 (투표 변경 허용)
+                if (!existingRecords.isEmpty()) {
+                    voteRecordsRepository.deleteAll(existingRecords);
+                }
+            } else {
+                // allowMultiple이 true면 같은 옵션 중복 선택 방지
+                List<Long> existingOptionIds = existingRecords.stream()
+                        .map(VoteRecords::getOptionId)
+                        .collect(Collectors.toList());
 
-            // allowMultiple이 true면 같은 옵션 중복 선택 방지
-            List<Long> existingOptionIds = existingRecords.stream()
-                    .map(VoteRecords::getOptionId)
-                    .collect(Collectors.toList());
-
-            for (Long optionId : optionIds) {
-                if (existingOptionIds.contains(optionId)) {
-                    throw new VoteException.OptionAlreadySelected();
+                for (Long optionId : optionIds) {
+                    if (existingOptionIds.contains(optionId)) {
+                        throw new VoteException.OptionAlreadySelected();
+                    }
                 }
             }
         }

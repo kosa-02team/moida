@@ -15,6 +15,8 @@ public record ScheduleResponse(
         BigDecimal refundPerPerson,
         String status,
         LocalDateTime closedAt,
+        String cancelReason,
+        LocalDateTime voteDeadline,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
