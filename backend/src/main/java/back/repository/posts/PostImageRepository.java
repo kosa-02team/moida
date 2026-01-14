@@ -7,7 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
-public interface PostImagesRepository extends JpaRepository<PostImages, Long> {
+public interface PostImageRepository extends JpaRepository<PostImages, Long> {
 
     void deleteByPost_PostId(Long postId);
 

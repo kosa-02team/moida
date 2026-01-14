@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
 
-public interface PostCommentsRepository extends JpaRepository<Comments, Long> {
+public interface PostCommentRepository extends JpaRepository<Comments, Long> {
     Page<Comments> findAllByPost_PostIdAndPost_Club_ClubIdAndDeletedAtIsNull(
             Long postId,
             Long clubId,

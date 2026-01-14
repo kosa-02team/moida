@@ -1,7 +1,6 @@
 package back.service;
 
 import back.domain.*;
-import back.domain.posts.PostCategory;
 import back.domain.posts.Posts;
 import back.dto.VoteAnswerRequest;
 import back.dto.VoteCreateRequest;
@@ -10,12 +9,12 @@ import back.exception.ResourceException;
 import back.exception.VoteException;
 import back.repository.clubs.ClubMembersRepository;
 import back.repository.clubs.ClubsRepository;
-import back.repository.posts.PostsRepository;
+import back.repository.posts.PostRepository;
 import back.repository.SchedulesRepository;
 import back.repository.VoteOptionsRepository;
 import back.repository.VoteRecordsRepository;
 import back.repository.VotesRepository;
-import back.repository.users.UsersRepository;
+import back.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,14 +26,14 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class VoteService {
 
-    private final PostsRepository postsRepository;
+    private final PostRepository postRepository;
     private final SchedulesRepository schedulesRepository;
     private final VotesRepository votesRepository;
     private final VoteOptionsRepository voteOptionsRepository;
     private final VoteRecordsRepository voteRecordsRepository;
     private final ClubMembersRepository clubMembersRepository;
     private final ClubsRepository clubsRepository;
-    private final UsersRepository usersRepository;
+    private final UserRepository userRepository;
 
     /**
      * 모임에 속한 일정/참석 투표를 생성합니다.
@@ -64,7 +63,7 @@ public class VoteService {
         }
 
         Clubs clubRef = clubsRepository.getReferenceById(clubId);
-        Users writerRef = usersRepository.getReferenceById(userId);
+        Users writerRef = userRepository.getReferenceById(userId);
         Schedules scheduleRef = (request.scheduleId() == null)
                 ? null
                 : schedulesRepository.getReferenceById(request.scheduleId());
@@ -77,7 +76,7 @@ public class VoteService {
                 request.title(),
                 request.description()
         );
-        post = postsRepository.save(post);
+        post = postRepository.save(post);
 
         // 2. Votes 엔티티 생성
         Votes vote = new Votes(
@@ -147,7 +146,7 @@ public class VoteService {
                     .orElseThrow(ResourceException.NotFound::new);
             voteClubId = schedule.getClubId();
         } else if ("GENERAL".equals(vote.getVoteType()) && vote.getPostId() != null) {
-            Posts post = postsRepository.findById(vote.getPostId())
+            Posts post = postRepository.findById(vote.getPostId())
                     .orElseThrow(ResourceException.NotFound::new);
             voteClubId = post.getClub().getClubId();
         }
@@ -219,7 +218,7 @@ public class VoteService {
                     .orElseThrow(ResourceException.NotFound::new);
             voteClubId = schedule.getClubId();
         } else if ("GENERAL".equals(vote.getVoteType()) && vote.getPostId() != null) {
-            Posts post = postsRepository.findById(vote.getPostId())
+            Posts post = postRepository.findById(vote.getPostId())
                     .orElseThrow(ResourceException.NotFound::new);
             voteClubId = post.getClub().getClubId();
         }

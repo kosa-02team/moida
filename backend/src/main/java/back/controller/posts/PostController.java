@@ -8,7 +8,8 @@ import back.dto.posts.posts.response.PostCardResponse;
 import back.dto.posts.story.response.PostDetailResponse;
 import back.dto.posts.posts.response.PostIdResponse;
 import back.exception.ClubAuthException;
-import back.service.posts.PostsService;
+import back.service.posts.PostLikeService;
+import back.service.posts.PostService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -22,10 +23,10 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/clubs/{clubId}/posts")
-public class PostsController {
+public class PostController {
 
-    private final PostsService postsService;
-    private final back.service.posts.PostLikesService postLikesService;
+    private final PostService postService;
+    private final PostLikeService postLikeService;
 
     @PostMapping
     public ResponseEntity<PostIdResponse> createStory(
@@ -34,7 +35,7 @@ public class PostsController {
             @RequestBody StoryCreateRequest request) {
 
         Long userId = requireUserId(principal);
-        PostIdResponse response = postsService.createStory(clubId, userId, request);
+        PostIdResponse response = postService.createStory(clubId, userId, request);
 
         return ResponseEntity.ok(response);
     }
@@ -47,7 +48,7 @@ public class PostsController {
 
         Long viewerId = (principal == null) ? null : principal.getUserId();
 
-        return ResponseEntity.ok(postsService.getPost(clubId, postId, viewerId));
+        return ResponseEntity.ok(postService.getPost(clubId, postId, viewerId));
     }
 
     @GetMapping("/albums/recent")
@@ -58,7 +59,7 @@ public class PostsController {
 
         Long viewerId = (principal == null) ? null : principal.getUserId();
 
-        return ResponseEntity.ok(postsService.getRecentAlbums(clubId,viewerId, limit));
+        return ResponseEntity.ok(postService.getRecentAlbums(clubId,viewerId, limit));
     }
 
     @GetMapping("/recent")
@@ -69,7 +70,7 @@ public class PostsController {
 
         Long viewerId = (principal == null) ? null : principal.getUserId();
 
-        return ResponseEntity.ok(postsService.getRecentPosts(clubId, viewerId, pageable));
+        return ResponseEntity.ok(postService.getRecentPosts(clubId, viewerId, pageable));
     }
 
     @PutMapping("/{postId}")
@@ -81,7 +82,7 @@ public class PostsController {
 
         Long userId = requireUserId(principal);
 
-        PostIdResponse response = postsService.updatePost(clubId, postId, userId, request);
+        PostIdResponse response = postService.updatePost(clubId, postId, userId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -92,7 +93,7 @@ public class PostsController {
             @PathVariable Long postId){
 
         Long userId = requireUserId(principal);
-        postsService.blindPost(clubId, postId, userId);
+        postService.blindPost(clubId, postId, userId);
         return ResponseEntity.ok().build();
     }
 
@@ -104,7 +105,7 @@ public class PostsController {
 
         Long userId = requireUserId(principal);
 
-        postsService.deletePost(clubId, postId, userId);
+        postService.deletePost(clubId, postId, userId);
         return ResponseEntity.noContent().build();
     }
 
@@ -116,7 +117,7 @@ public class PostsController {
 
         Long userId = requireUserId(principal);
 
-        postLikesService.likePost(postId, userId);
+        postLikeService.likePost(postId, userId);
         return ResponseEntity.ok().build();
     }
 
@@ -128,7 +129,7 @@ public class PostsController {
 
         Long userId = requireUserId(principal);
 
-        postLikesService.unlikePost(postId, userId);
+        postLikeService.unlikePost(postId, userId);
         return ResponseEntity.ok().build();
     }
 

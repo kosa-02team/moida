@@ -15,11 +15,11 @@ import back.dto.posts.story.response.*;
 import back.exception.PostsException;
 import back.repository.SchedulesRepository;
 import back.repository.clubs.ClubsRepository;
-import back.repository.posts.PostImagesRepository;
-import back.repository.posts.PostMemberTagsRepository;
-import back.repository.posts.PostsRepository;
+import back.repository.posts.PostImageRepository;
+import back.repository.posts.PostMemberTagRepository;
+import back.repository.posts.PostRepository;
 import back.repository.posts.projection.RecentAlbumRow;
-import back.repository.users.UsersRepository;
+import back.repository.UserRepository;
 import back.service.clubs.ClubsAuthorizationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -36,24 +36,24 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class PostsService {
+public class PostService {
 
     private final ClubsAuthorizationService clubAuthorizationService;
 
     private final ClubsRepository clubsRepository;
-    private final UsersRepository usersRepository;
+    private final UserRepository userRepository;
     private final SchedulesRepository schedulesRepository;
 
-    private final PostsRepository postsRepository;
-    private final PostImagesRepository postImagesRepository;
-    private final PostMemberTagsRepository postMemberTagsRepository;
+    private final PostRepository postRepository;
+    private final PostImageRepository postImageRepository;
+    private final PostMemberTagRepository postMemberTagRepository;
 
     @Transactional
     public PostIdResponse createStory(Long clubId, Long writerId, StoryCreateRequest request) {
 
          clubAuthorizationService.assertActiveMember(clubId, writerId);
 
-        Posts saved = postsRepository.save(buildStoryPost(clubId, writerId, request));
+        Posts saved = postRepository.save(buildStoryPost(clubId, writerId, request));
 
         applyOptionalUpdatesOnCreate(saved, request);
 
@@ -72,7 +72,7 @@ public class PostsService {
     public List<PostCardResponse> getRecentPosts(Long clubId, Long viewerId, Pageable pageable) {
         clubAuthorizationService.validateAndGetClubForReadPosts(clubId, viewerId);
 
-        Page<PostCardBase> page = postsRepository.findPostCards(clubId, pageable);
+        Page<PostCardBase> page = postRepository.findPostCards(clubId, pageable);
 
         List<Long> postIds = page.getContent().stream()
                 .map(PostCardBase::postId)
@@ -80,7 +80,7 @@ public class PostsService {
 
         Map<Long, List<String>> imageMap = postIds.isEmpty()
                 ? Map.of()
-                : postImagesRepository.findByPostIdIn(postIds).stream()
+                : postImageRepository.findByPostIdIn(postIds).stream()
                 .collect(Collectors.groupingBy(
                         PostImages::getPostId,
                         Collectors.mapping(PostImages::getImageUrl, Collectors.toList())
@@ -95,7 +95,7 @@ public class PostsService {
     public List<AlbumCardResponse> getRecentAlbums(Long clubId, Long viewerId, int limit) {
         clubAuthorizationService.validateAndGetClubForReadPosts(clubId, viewerId);
 
-        List<RecentAlbumRow> rows = postsRepository.findRecentAlbumRows(
+        List<RecentAlbumRow> rows = postRepository.findRecentAlbumRows(
                 clubId, PageRequest.of(0, limit)
         );
         if (rows.isEmpty()) return List.of();
@@ -104,7 +104,7 @@ public class PostsService {
                 .map(RecentAlbumRow::getScheduleId)
                 .toList();
 
-        List<PostImages> images = postImagesRepository.findImagesForSchedules(clubId, scheduleIds);
+        List<PostImages> images = postImageRepository.findImagesForSchedules(clubId, scheduleIds);
 
         Map<Long, List<PostImages>> imageMap = images.stream()
                 .collect(Collectors.groupingBy(pi -> pi.getPost().getSchedule().getScheduleId()));
@@ -174,7 +174,7 @@ public class PostsService {
 
     private Posts buildStoryPost(Long clubId, Long writerId, StoryCreateRequest request) {
         Clubs clubRef = clubsRepository.getReferenceById(clubId);
-        Users writerRef = usersRepository.getReferenceById(writerId);
+        Users writerRef = userRepository.getReferenceById(writerId);
         Schedules scheduleRef = getScheduleRefOrNull(request.scheduleId());
 
         return Posts.story(clubRef, writerRef, scheduleRef, request.content());
@@ -185,7 +185,7 @@ public class PostsService {
     }
 
     private Posts getPostOrThrow(Long postId, Long clubId) {
-        return postsRepository.findByPostIdAndClub_ClubId(postId, clubId)
+        return postRepository.findByPostIdAndClub_ClubId(postId, clubId)
                 .orElseThrow(PostsException.PostNotFound::new);
     }
 
@@ -241,7 +241,7 @@ public class PostsService {
     }
 
     private void replaceImages(Posts post, List<String> imagesUrl) {
-        postImagesRepository.deleteByPost_PostId(post.getPostId());
+        postImageRepository.deleteByPost_PostId(post.getPostId());
 
         if (imagesUrl.isEmpty()) return;
 
@@ -249,11 +249,11 @@ public class PostsService {
                 .map(url -> PostImages.of(post, url))
                 .toList();
 
-        postImagesRepository.saveAll(images);
+        postImageRepository.saveAll(images);
     }
 
     private void replaceTaggedMembers(Long postId, List<Long> memberIds) {
-        postMemberTagsRepository.deleteByPostId(postId);
+        postMemberTagRepository.deleteByPostId(postId);
 
         if (memberIds.isEmpty()) return;
 
@@ -262,6 +262,6 @@ public class PostsService {
                 .map(memberId -> PostMemberTags.of(postId, memberId))
                 .toList();
 
-        postMemberTagsRepository.saveAll(tags);
+        postMemberTagRepository.saveAll(tags);
     }
 }

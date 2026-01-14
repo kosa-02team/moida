@@ -12,7 +12,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-public interface PostsRepository extends JpaRepository<Posts, Long> {
+public interface PostRepository extends JpaRepository<Posts, Long> {
   Optional<Posts> findByPostIdAndClub_ClubId(Long postId, Long clubId);
 
   @Query("""

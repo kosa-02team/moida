@@ -6,10 +6,12 @@ import back.domain.posts.Posts;
 import back.dto.posts.comments.request.PostCommentRequest;
 import back.dto.posts.comments.response.PostCommentsIdResponse;
 import back.dto.posts.comments.response.PostCommentsResponse;
+import back.exception.ClubAuthException;
 import back.exception.PostsException;
-import back.repository.posts.PostCommentsRepository;
-import back.repository.posts.PostsRepository;
-import back.repository.users.UsersRepository;
+import back.repository.posts.PostCommentRepository;
+import back.repository.posts.PostRepository;
+import back.repository.UserRepository;
+import back.service.clubs.ClubsAuthorizationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,53 +23,51 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class PostCommentsService {
+public class PostCommentService {
 
-        private final PostCommentsRepository postCommentsRepository;
-        private final UsersRepository usersRepository;
-        private final PostsRepository postsRepository;
+        private final PostCommentRepository postCommentRepository;
+        private final UserRepository userRepository;
+        private final PostRepository postRepository;
+        private final ClubsAuthorizationService clubsAuthorizationService;
 
         public PostCommentsIdResponse createComment(
                         Long writerId,
                         Long clubId,
                         Long postId,
                         PostCommentRequest request) {
-                // TODO 권한 정책 확정 후 적용
-                // clubAuthorizationService.assertActiveMember(clubId, writerID);
-                Comments comments = postCommentsRepository.save(buildPostComment(writerId, postId, request));
+            clubsAuthorizationService.assertActiveMember(clubId, writerId);
+            Comments comments = postCommentRepository.save(buildPostComment(writerId, postId, request));
 
-                return PostCommentsIdResponse.from(comments);
+            return PostCommentsIdResponse.from(comments);
         }
 
         @Transactional
         public PostCommentsIdResponse updateComment(Long writerId, Long clubId, Long postId, Long commentId,
                         PostCommentRequest request) {
-                // TODO: clubAuthorizationService.validateAndGetClubForReadPosts(clubId,
-                // writerId);
-                // boolean isWriter = comment.getWriter().getUserId().equals(writerId); //
-                // writer 타입에 맞게 수정
-                // if (!isWriter) {
-                // clubAuthorizationService.assertAtLeastManager(clubId, writerId);
-                // }
+             clubsAuthorizationService.validateAndGetClubForUpdatePosts(clubId,writerId);
 
-                Comments comment = postCommentsRepository.findByCommentIdAndPost_PostIdAndPost_Club_ClubIdAndDeletedAtIsNull(commentId, postId, clubId)
-                                .orElseThrow(PostsException.PostCommentNotFound::new); // 예외는 댓글용으로 교체 권장
+            Comments comment = postCommentRepository.findByCommentIdAndPost_PostIdAndPost_Club_ClubIdAndDeletedAtIsNull(commentId, postId, clubId)
+                    .orElseThrow(PostsException.PostCommentNotFound::new); // 예외는 댓글용으로 교체 권장
 
-                comment.updateContent(request.content()); // 엔티티 메서드
+            boolean isWriter = comment.getWriter().getUserId().equals(writerId); //
 
-                return PostCommentsIdResponse.from(comment);
+             if (!isWriter) {
+                    clubsAuthorizationService.assertAtLeastManager(clubId, writerId);
+             }
+
+            comment.updateContent(request.content()); // 엔티티 메서드
+
+            return PostCommentsIdResponse.from(comment);
         }
 
         public PostCommentsResponse getPostComments(Long viewerId, Long clubId, Long postId, Pageable pageable) {
-                // clubAuthorizationService.validateAndGetClubForReadPosts(clubId, viewerId);
+                 clubsAuthorizationService.validateAndGetClubForReadPosts(clubId, viewerId);
 
-                Page<Comments> page = postCommentsRepository
+                Page<Comments> page = postCommentRepository
                                 .findAllByPost_PostIdAndPost_Club_ClubIdAndDeletedAtIsNull(
                                                 postId, clubId, pageable);
 
-                List<PostCommentsResponse.Item> items = page.getContent().stream().map(c -> {
-                        return PostCommentsResponse.Item.from(c);
-                }).toList();
+                List<PostCommentsResponse.Item> items = page.getContent().stream().map(PostCommentsResponse.Item::from).toList();
 
                 return new PostCommentsResponse(
                                 items,
@@ -80,10 +80,8 @@ public class PostCommentsService {
 
         @Transactional
         public PostCommentsIdResponse deleteComment(Long actorId, Long clubId, Long postId, Long commentId) {
-                // TODO: 읽기 권한 정책 필요하면 여기서 체크
-                // clubAuthorizationService.validateAndGetClubForReadPosts(clubId, actorId);
 
-                Comments comment = postCommentsRepository
+                Comments comment = postCommentRepository
                                 .findByCommentIdAndPost_PostIdAndPost_Club_ClubIdAndDeletedAtIsNull(commentId, postId, clubId)
                                 .orElseThrow(PostsException.PostCommentNotFound::new); // 프로젝트 예외로 교체
 
@@ -91,11 +89,12 @@ public class PostCommentsService {
                 if (comment.getDeletedAt() != null) {
                         return PostCommentsIdResponse.from(comment);
                 }
+                clubsAuthorizationService.validateAndGetClubForUpdatePosts(clubId, actorId);
 
-                // boolean isWriter = comment.getWriter().getUserId().equals(actorId);
-                // if (!isWriter) {
-                // clubAuthorizationService.assertAtLeastManager(clubId, actorId);
-                // }
+                 boolean isWriter = comment.getWriter().getUserId().equals(actorId);
+                 if (!isWriter) {
+                        clubsAuthorizationService.assertAtLeastManager(clubId, actorId);
+                 }
 
                 comment.delete(); // 엔티티 메서드에서 deletedAt 세팅
 
@@ -106,8 +105,8 @@ public class PostCommentsService {
                         Long writerId,
                         Long postId,
                         PostCommentRequest request) {
-                Users writerRef = usersRepository.getReferenceById(writerId);
-                Posts postsRef = postsRepository.getReferenceById(postId);
+                Users writerRef = userRepository.getReferenceById(writerId);
+                Posts postsRef = postRepository.getReferenceById(postId);
 
                 String content = request.content();
                 return new Comments(postsRef, writerRef, content);

@@ -35,7 +35,7 @@ public class ScheduleController {
             // TODO: 실제 구현 시 @AuthenticationPrincipal 등으로 현재 로그인 유저 ID 주입
     ) {
         // 임시로 하드코딩, 나중에 인증 연동 시 교체
-        Long currentUserId = 2L;
+        Long currentUserId = 1L;
         ScheduleResponse response = scheduleService.createSchedule(clubId, currentUserId, request);
         return SuccessResponse.success(HttpStatus.CREATED, response);
     }

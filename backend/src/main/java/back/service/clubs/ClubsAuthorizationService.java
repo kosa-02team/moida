@@ -63,6 +63,12 @@ public class ClubsAuthorizationService {
         assertActiveMember(clubId, viewerId); // 비공개면 멤버만 허용
     }
 
+    public void validateAndGetClubForUpdatePosts(Long clubId, Long updateId) {
+        if (updateId == null) {
+            throw new ClubAuthException.LoginRequired();
+        }
 
+        assertAtLeastManager(clubId, updateId);
+    }
 
 }
