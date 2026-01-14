@@ -29,7 +29,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(back.exception.CustomGlobalException.class)
     public ResponseEntity<ErrorResponse<Void>> handleCustomGlobalException(final back.exception.CustomGlobalException e) {
-        log.warn("CustomGlobalException : {}", e.getMessage());
+        log.warn(e.getMessage(), e);
 
         final ErrorCode errorCode = e.getErrorCode();
         return ResponseEntity
