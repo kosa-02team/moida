@@ -8,9 +8,7 @@ import back.domain.schedule.Schedules;
 import back.domain.vote.VoteOptions;
 import back.domain.vote.VoteRecords;
 import back.domain.vote.Votes;
-import back.dto.vote.VoteAnswerRequest;
-import back.dto.vote.VoteCreateRequest;
-import back.dto.vote.VoteResponse;
+import back.dto.vote.*;
 import back.exception.ResourceException;
 import back.exception.VoteException;
 import back.repository.clubs.ClubMembersRepository;
@@ -498,6 +496,217 @@ class VoteServiceTest {
             // when & then
             assertThatThrownBy(() -> voteService.answerVote(clubId, voteId, userId, request))
                     .isInstanceOf(VoteException.AlreadyClosed.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("투표 상세 조회")
+    class GetVoteById {
+
+        @Test
+        @DisplayName("GENERAL 타입 투표 상세 조회 성공")
+        void get_general_vote_by_id_success() {
+            // given
+            Long clubId = 1L;
+            Long voteId = 1L;
+            Long userId = 10L;
+
+            Clubs club = club(clubId, 1L);
+            Posts post = Posts.vote(club, user(userId), null, "투표 제목", "설명");
+            ReflectionTestUtils.setField(post, "postId", 1L);
+
+            Votes vote = newEntity(Votes.class);
+            ReflectionTestUtils.setField(vote, "voteId", voteId);
+            ReflectionTestUtils.setField(vote, "voteType", "GENERAL");
+            ReflectionTestUtils.setField(vote, "postId", 1L);
+            ReflectionTestUtils.setField(vote, "creatorId", userId);
+            ReflectionTestUtils.setField(vote, "title", "투표 제목");
+            ReflectionTestUtils.setField(vote, "status", "OPEN");
+
+            VoteOptions option1 = newEntity(VoteOptions.class);
+            ReflectionTestUtils.setField(option1, "optionId", 100L);
+            ReflectionTestUtils.setField(option1, "voteId", voteId);
+            ReflectionTestUtils.setField(option1, "optionText", "옵션1");
+            ReflectionTestUtils.setField(option1, "optionOrder", 1);
+
+            VoteOptions option2 = newEntity(VoteOptions.class);
+            ReflectionTestUtils.setField(option2, "optionId", 101L);
+            ReflectionTestUtils.setField(option2, "voteId", voteId);
+            ReflectionTestUtils.setField(option2, "optionText", "옵션2");
+            ReflectionTestUtils.setField(option2, "optionOrder", 2);
+
+            given(voteRepository.findById(voteId)).willReturn(Optional.of(vote));
+            given(postRepository.findById(1L)).willReturn(Optional.of(post));
+            given(voteOptionRepository.findByVoteIdOrderByOptionOrderAsc(voteId))
+                    .willReturn(List.of(option1, option2));
+            given(voteRecordRepository.countByOptionId(100L)).willReturn(5L);
+            given(voteRecordRepository.countByOptionId(101L)).willReturn(3L);
+            given(voteRecordRepository.findByVoteIdAndUserId(voteId, userId)).willReturn(List.of());
+
+            // when
+            VoteDetailResponse result = voteService.getVoteById(clubId, voteId, userId);
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.voteId()).isEqualTo(voteId);
+            assertThat(result.title()).isEqualTo("투표 제목");
+            assertThat(result.options()).hasSize(2);
+            then(clubsAuthorizationService).should(times(1)).assertActiveMember(clubId, userId);
+        }
+
+        @Test
+        @DisplayName("ATTENDANCE 타입 투표 상세 조회 성공")
+        void get_attendance_vote_by_id_success() {
+            // given
+            Long clubId = 1L;
+            Long voteId = 1L;
+            Long userId = 10L;
+            Long scheduleId = 100L;
+
+            Schedules schedule = schedule(scheduleId, clubId);
+
+            Votes vote = newEntity(Votes.class);
+            ReflectionTestUtils.setField(vote, "voteId", voteId);
+            ReflectionTestUtils.setField(vote, "voteType", "ATTENDANCE");
+            ReflectionTestUtils.setField(vote, "scheduleId", scheduleId);
+            ReflectionTestUtils.setField(vote, "creatorId", userId);
+            ReflectionTestUtils.setField(vote, "title", "참석 투표");
+            ReflectionTestUtils.setField(vote, "status", "OPEN");
+
+            VoteOptions attendOption = newEntity(VoteOptions.class);
+            ReflectionTestUtils.setField(attendOption, "optionId", 100L);
+            ReflectionTestUtils.setField(attendOption, "voteId", voteId);
+            ReflectionTestUtils.setField(attendOption, "optionText", "참석");
+            ReflectionTestUtils.setField(attendOption, "optionOrder", 1);
+
+            VoteOptions absentOption = newEntity(VoteOptions.class);
+            ReflectionTestUtils.setField(absentOption, "optionId", 101L);
+            ReflectionTestUtils.setField(absentOption, "voteId", voteId);
+            ReflectionTestUtils.setField(absentOption, "optionText", "불참");
+            ReflectionTestUtils.setField(absentOption, "optionOrder", 2);
+
+            given(voteRepository.findById(voteId)).willReturn(Optional.of(vote));
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+            given(voteOptionRepository.findByVoteIdOrderByOptionOrderAsc(voteId))
+                    .willReturn(List.of(attendOption, absentOption));
+            given(voteRecordRepository.countByOptionId(100L)).willReturn(8L);
+            given(voteRecordRepository.countByOptionId(101L)).willReturn(2L);
+            given(voteRecordRepository.findByVoteIdAndUserId(voteId, userId)).willReturn(List.of());
+
+            // when
+            VoteDetailResponse result = voteService.getVoteById(clubId, voteId, userId);
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.voteType()).isEqualTo("ATTENDANCE");
+            assertThat(result.scheduleId()).isEqualTo(scheduleId);
+            assertThat(result.options()).hasSize(2);
+        }
+
+        @Test
+        @DisplayName("투표 조회 실패 - 투표 없음")
+        void get_vote_by_id_fail_not_found() {
+            // given
+            Long clubId = 1L;
+            Long voteId = 999L;
+            Long userId = 10L;
+
+            given(voteRepository.findById(voteId)).willReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> voteService.getVoteById(clubId, voteId, userId))
+                    .isInstanceOf(VoteException.NotFound.class);
+        }
+
+        @Test
+        @DisplayName("투표 조회 실패 - 다른 모임의 투표")
+        void get_vote_by_id_fail_club_mismatch() {
+            // given
+            Long clubId = 1L;
+            Long voteId = 1L;
+            Long userId = 10L;
+            Long otherClubId = 999L;
+
+            Clubs otherClub = club(otherClubId, 1L);
+            Posts post = Posts.vote(otherClub, user(userId), null, "제목", "설명");
+            ReflectionTestUtils.setField(post, "postId", 1L);
+
+            Votes vote = newEntity(Votes.class);
+            ReflectionTestUtils.setField(vote, "voteId", voteId);
+            ReflectionTestUtils.setField(vote, "voteType", "GENERAL");
+            ReflectionTestUtils.setField(vote, "postId", 1L);
+
+            given(voteRepository.findById(voteId)).willReturn(Optional.of(vote));
+            given(postRepository.findById(1L)).willReturn(Optional.of(post));
+
+            // when & then
+            assertThatThrownBy(() -> voteService.getVoteById(clubId, voteId, userId))
+                    .isInstanceOf(VoteException.ClubMismatch.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("투표 목록 조회")
+    class GetVotesByClubId {
+
+        @Test
+        @DisplayName("모임의 전체 투표 목록 조회 성공")
+        void get_votes_by_club_id_success() {
+            // given
+            Long clubId = 1L;
+            Long userId = 10L;
+
+            Clubs club = club(clubId, 1L);
+            Posts post1 = Posts.vote(club, user(userId), null, "일반 투표", "설명");
+            ReflectionTestUtils.setField(post1, "postId", 1L);
+
+            Votes generalVote = newEntity(Votes.class);
+            ReflectionTestUtils.setField(generalVote, "voteId", 1L);
+            ReflectionTestUtils.setField(generalVote, "voteType", "GENERAL");
+            ReflectionTestUtils.setField(generalVote, "postId", 1L);
+            ReflectionTestUtils.setField(generalVote, "title", "일반 투표");
+            ReflectionTestUtils.setField(generalVote, "status", "OPEN");
+
+            Schedules schedule = schedule(100L, clubId);
+            Votes attendanceVote = newEntity(Votes.class);
+            ReflectionTestUtils.setField(attendanceVote, "voteId", 2L);
+            ReflectionTestUtils.setField(attendanceVote, "voteType", "ATTENDANCE");
+            ReflectionTestUtils.setField(attendanceVote, "scheduleId", 100L);
+            ReflectionTestUtils.setField(attendanceVote, "title", "참석 투표");
+            ReflectionTestUtils.setField(attendanceVote, "status", "OPEN");
+
+            given(postRepository.findByClub_ClubIdAndCategoryAndDeletedAtIsNull(eq(clubId), any()))
+                    .willReturn(List.of(post1));
+            given(scheduleRepository.findByClubId(clubId)).willReturn(List.of(schedule));
+            given(voteRepository.findByPostIdIn(List.of(1L))).willReturn(List.of(generalVote));
+            given(voteRepository.findByScheduleIdIn(List.of(100L))).willReturn(List.of(attendanceVote));
+            given(voteRecordRepository.countDistinctUsersByVoteId(1L)).willReturn(5L);
+            given(voteRecordRepository.countDistinctUsersByVoteId(2L)).willReturn(10L);
+
+            // when
+            List<VoteListResponse> result = voteService.getVotesByClubId(clubId, userId);
+
+            // then
+            assertThat(result).hasSize(2);
+            then(clubsAuthorizationService).should(times(1)).assertActiveMember(clubId, userId);
+        }
+
+        @Test
+        @DisplayName("투표 목록 조회 - 결과 없음")
+        void get_votes_by_club_id_empty() {
+            // given
+            Long clubId = 1L;
+            Long userId = 10L;
+
+            given(postRepository.findByClub_ClubIdAndCategoryAndDeletedAtIsNull(eq(clubId), any()))
+                    .willReturn(List.of());
+            given(scheduleRepository.findByClubId(clubId)).willReturn(List.of());
+
+            // when
+            List<VoteListResponse> result = voteService.getVotesByClubId(clubId, userId);
+
+            // then
+            assertThat(result).isEmpty();
         }
     }
 }

@@ -5,8 +5,7 @@ import back.domain.schedule.ScheduleParticipants;
 import back.domain.schedule.Schedules;
 import back.domain.vote.VoteOptions;
 import back.domain.vote.Votes;
-import back.dto.schedule.ScheduleCreateRequest;
-import back.dto.schedule.ScheduleResponse;
+import back.dto.schedule.*;
 import back.event.ScheduleRegisteredEvent;
 import back.exception.ScheduleException;
 import back.repository.UserRepository;
@@ -246,6 +245,486 @@ class ScheduleServiceTest {
             assertThat(result.voteDeadline()).isEqualTo(voteDeadline);
 
             then(scheduleRepository).should(times(1)).save(any(Schedules.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("단일 일정 조회")
+    class GetScheduleById {
+
+        @Test
+        @DisplayName("일정 조회 성공")
+        void get_schedule_by_id_success() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+
+            Schedules schedule = schedule(scheduleId, clubId);
+            ReflectionTestUtils.setField(schedule, "scheduleName", "테스트 일정");
+            ReflectionTestUtils.setField(schedule, "status", "OPEN");
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+
+            // when
+            ScheduleResponse result = scheduleService.getScheduleById(clubId, scheduleId, userId);
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.scheduleName()).isEqualTo("테스트 일정");
+            then(clubsAuthorizationService).should(times(1)).assertActiveMember(clubId, userId);
+        }
+
+        @Test
+        @DisplayName("일정 조회 실패 - 일정 없음")
+        void get_schedule_by_id_fail_not_found() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 999L;
+            Long userId = 10L;
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> scheduleService.getScheduleById(clubId, scheduleId, userId))
+                    .isInstanceOf(ScheduleException.NotFound.class);
+        }
+
+        @Test
+        @DisplayName("일정 조회 실패 - 다른 모임의 일정")
+        void get_schedule_by_id_fail_club_mismatch() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+            Long otherClubId = 999L;
+
+            Schedules schedule = schedule(scheduleId, otherClubId);
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+
+            // when & then
+            assertThatThrownBy(() -> scheduleService.getScheduleById(clubId, scheduleId, userId))
+                    .isInstanceOf(ScheduleException.NotFound.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("일정 수정")
+    class UpdateSchedule {
+
+        @Test
+        @DisplayName("일정 수정 성공 - 참가비 변경 없이 일반 필드만 수정")
+        void update_schedule_success_no_fee_change() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+            LocalDateTime eventDate = LocalDateTime.now().plusDays(7);
+            LocalDateTime endDate = LocalDateTime.now().plusDays(8);
+
+            Schedules schedule = schedule(scheduleId, clubId);
+            ReflectionTestUtils.setField(schedule, "scheduleName", "기존 일정");
+            ReflectionTestUtils.setField(schedule, "status", "OPEN");
+            ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.valueOf(10000));
+
+            ScheduleUpdateRequest request = new ScheduleUpdateRequest(
+                    "수정된 일정",
+                    eventDate,
+                    endDate,
+                    "신촌역",
+                    "수정된 설명",
+                    BigDecimal.valueOf(10000) // 참가비 동일
+            );
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+
+            // when
+            ScheduleResponse result = scheduleService.updateSchedule(clubId, scheduleId, userId, request);
+
+            // then
+            assertThat(result).isNotNull();
+            then(clubsAuthorizationService).should(times(1)).assertAtLeastManager(clubId, userId);
+            then(clubsAuthorizationService).should(never()).assertAtLeastAccountant(clubId, userId);
+        }
+
+        @Test
+        @DisplayName("일정 수정 성공 - 참가비 변경 시 총무 권한 체크")
+        void update_schedule_success_fee_change() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+            LocalDateTime eventDate = LocalDateTime.now().plusDays(7);
+            LocalDateTime endDate = LocalDateTime.now().plusDays(8);
+
+            Schedules schedule = schedule(scheduleId, clubId);
+            ReflectionTestUtils.setField(schedule, "scheduleName", "기존 일정");
+            ReflectionTestUtils.setField(schedule, "status", "OPEN");
+            ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.valueOf(10000));
+
+            ScheduleUpdateRequest request = new ScheduleUpdateRequest(
+                    "수정된 일정",
+                    eventDate,
+                    endDate,
+                    "신촌역",
+                    "수정된 설명",
+                    BigDecimal.valueOf(15000) // 참가비 변경
+            );
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+
+            // when
+            ScheduleResponse result = scheduleService.updateSchedule(clubId, scheduleId, userId, request);
+
+            // then
+            assertThat(result).isNotNull();
+            then(clubsAuthorizationService).should(times(1)).assertAtLeastAccountant(clubId, userId);
+            then(clubsAuthorizationService).should(never()).assertAtLeastManager(clubId, userId);
+        }
+
+        @Test
+        @DisplayName("일정 수정 실패 - 이미 종료된 일정")
+        void update_schedule_fail_already_closed() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+            LocalDateTime eventDate = LocalDateTime.now().plusDays(7);
+            LocalDateTime endDate = LocalDateTime.now().plusDays(8);
+
+            Schedules schedule = schedule(scheduleId, clubId);
+            ReflectionTestUtils.setField(schedule, "status", "CLOSED");
+            ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.ZERO);
+
+            ScheduleUpdateRequest request = new ScheduleUpdateRequest(
+                    "수정된 일정",
+                    eventDate,
+                    endDate,
+                    "신촌역",
+                    "수정된 설명",
+                    BigDecimal.ZERO
+            );
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+
+            // when & then
+            assertThatThrownBy(() -> scheduleService.updateSchedule(clubId, scheduleId, userId, request))
+                    .isInstanceOf(ScheduleException.AlreadyClosed.class);
+        }
+
+        @Test
+        @DisplayName("일정 수정 실패 - 종료일시가 시작일시보다 이전")
+        void update_schedule_fail_invalid_date_range() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+            LocalDateTime eventDate = LocalDateTime.now().plusDays(7);
+            LocalDateTime endDate = LocalDateTime.now().plusDays(6); // 시작일시보다 이전
+
+            Schedules schedule = schedule(scheduleId, clubId);
+            ReflectionTestUtils.setField(schedule, "status", "OPEN");
+            ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.ZERO);
+
+            ScheduleUpdateRequest request = new ScheduleUpdateRequest(
+                    "수정된 일정",
+                    eventDate,
+                    endDate,
+                    "신촌역",
+                    "수정된 설명",
+                    BigDecimal.ZERO
+            );
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+
+            // when & then
+            assertThatThrownBy(() -> scheduleService.updateSchedule(clubId, scheduleId, userId, request))
+                    .isInstanceOf(ScheduleException.InvalidDateRange.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("일정 마감")
+    class CloseSchedule {
+
+        @Test
+        @DisplayName("일정 마감 성공 - 참가비 없는 일정 (운영진 권한)")
+        void close_schedule_success_no_fee() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+
+            Schedules schedule = schedule(scheduleId, clubId);
+            ReflectionTestUtils.setField(schedule, "status", "OPEN");
+            ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.ZERO);
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+            given(voteRepository.findByScheduleId(scheduleId)).willReturn(Optional.empty());
+
+            // when
+            scheduleService.closeSchedule(clubId, scheduleId, userId);
+
+            // then
+            assertThat(schedule.getStatus()).isEqualTo("CLOSED");
+            then(clubsAuthorizationService).should(times(1)).assertAtLeastManager(clubId, userId);
+        }
+
+        @Test
+        @DisplayName("일정 마감 성공 - 참가비 있는 일정 (총무 권한)")
+        void close_schedule_success_with_fee() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+
+            Schedules schedule = schedule(scheduleId, clubId);
+            ReflectionTestUtils.setField(schedule, "status", "OPEN");
+            ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.valueOf(10000));
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+            given(voteRepository.findByScheduleId(scheduleId)).willReturn(Optional.empty());
+
+            // when
+            scheduleService.closeSchedule(clubId, scheduleId, userId);
+
+            // then
+            assertThat(schedule.getStatus()).isEqualTo("CLOSED");
+            then(clubsAuthorizationService).should(times(1)).assertAtLeastAccountant(clubId, userId);
+        }
+
+        @Test
+        @DisplayName("일정 마감 실패 - 이미 종료된 일정")
+        void close_schedule_fail_already_closed() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+
+            Schedules schedule = schedule(scheduleId, clubId);
+            ReflectionTestUtils.setField(schedule, "status", "CLOSED");
+            ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.ZERO);
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+
+            // when & then
+            assertThatThrownBy(() -> scheduleService.closeSchedule(clubId, scheduleId, userId))
+                    .isInstanceOf(ScheduleException.AlreadyClosed.class);
+        }
+
+        @Test
+        @DisplayName("일정 마감 실패 - 이미 취소된 일정")
+        void close_schedule_fail_already_cancelled() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+
+            Schedules schedule = schedule(scheduleId, clubId);
+            ReflectionTestUtils.setField(schedule, "status", "CANCELLED");
+            ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.ZERO);
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+
+            // when & then
+            assertThatThrownBy(() -> scheduleService.closeSchedule(clubId, scheduleId, userId))
+                    .isInstanceOf(ScheduleException.AlreadyCancelled.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("일정 취소")
+    class CancelSchedule {
+
+        @Test
+        @DisplayName("일정 취소 성공 - 참가비 없는 일정")
+        void cancel_schedule_success_no_fee() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+
+            Schedules schedule = schedule(scheduleId, clubId);
+            ReflectionTestUtils.setField(schedule, "status", "OPEN");
+            ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.ZERO);
+
+            ScheduleCancelRequest request = new ScheduleCancelRequest("우천으로 인한 취소");
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+            given(voteRepository.findByScheduleId(scheduleId)).willReturn(Optional.empty());
+
+            // when
+            scheduleService.cancelSchedule(clubId, scheduleId, userId, request);
+
+            // then
+            assertThat(schedule.getStatus()).isEqualTo("CANCELLED");
+            assertThat(schedule.getCancelReason()).isEqualTo("우천으로 인한 취소");
+            then(clubsAuthorizationService).should(times(1)).assertAtLeastManager(clubId, userId);
+        }
+
+        @Test
+        @DisplayName("일정 취소 성공 - 참가비 있는 일정 (총무 권한)")
+        void cancel_schedule_success_with_fee() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+
+            Schedules schedule = schedule(scheduleId, clubId);
+            ReflectionTestUtils.setField(schedule, "status", "OPEN");
+            ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.valueOf(10000));
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+            given(voteRepository.findByScheduleId(scheduleId)).willReturn(Optional.empty());
+
+            // when
+            scheduleService.cancelSchedule(clubId, scheduleId, userId, null);
+
+            // then
+            assertThat(schedule.getStatus()).isEqualTo("CANCELLED");
+            then(clubsAuthorizationService).should(times(1)).assertAtLeastAccountant(clubId, userId);
+        }
+
+        @Test
+        @DisplayName("일정 취소 실패 - 이미 취소된 일정")
+        void cancel_schedule_fail_already_cancelled() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+
+            Schedules schedule = schedule(scheduleId, clubId);
+            ReflectionTestUtils.setField(schedule, "status", "CANCELLED");
+            ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.ZERO);
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+
+            // when & then
+            assertThatThrownBy(() -> scheduleService.cancelSchedule(clubId, scheduleId, userId, null))
+                    .isInstanceOf(ScheduleException.AlreadyCancelled.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("정산 정보 수정")
+    class UpdateSettlement {
+
+        @Test
+        @DisplayName("정산 정보 수정 성공")
+        void update_settlement_success() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+
+            Schedules schedule = schedule(scheduleId, clubId);
+            ReflectionTestUtils.setField(schedule, "scheduleName", "테스트 일정");
+            ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.valueOf(10000));
+
+            ScheduleSettlementRequest request = new ScheduleSettlementRequest(
+                    BigDecimal.valueOf(80000),
+                    BigDecimal.valueOf(2000)
+            );
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+
+            // when
+            ScheduleResponse result = scheduleService.updateSettlement(clubId, scheduleId, userId, request);
+
+            // then
+            assertThat(result).isNotNull();
+            then(clubsAuthorizationService).should(times(1)).assertAtLeastAccountant(clubId, userId);
+        }
+
+        @Test
+        @DisplayName("정산 정보 수정 실패 - 일정 없음")
+        void update_settlement_fail_not_found() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 999L;
+            Long userId = 10L;
+
+            ScheduleSettlementRequest request = new ScheduleSettlementRequest(
+                    BigDecimal.valueOf(80000),
+                    BigDecimal.valueOf(2000)
+            );
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> scheduleService.updateSettlement(clubId, scheduleId, userId, request))
+                    .isInstanceOf(ScheduleException.NotFound.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("참여자 목록 조회")
+    class GetScheduleParticipants {
+
+        @Test
+        @DisplayName("참여자 목록 조회 성공")
+        void get_schedule_participants_success() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+
+            Schedules schedule = schedule(scheduleId, clubId);
+
+            ScheduleParticipants participant1 = newEntity(ScheduleParticipants.class);
+            ReflectionTestUtils.setField(participant1, "participantId", 1L);
+            ReflectionTestUtils.setField(participant1, "scheduleId", scheduleId);
+            ReflectionTestUtils.setField(participant1, "userId", 100L);
+            ReflectionTestUtils.setField(participant1, "attendanceStatus", "ATTENDING");
+
+            ScheduleParticipants participant2 = newEntity(ScheduleParticipants.class);
+            ReflectionTestUtils.setField(participant2, "participantId", 2L);
+            ReflectionTestUtils.setField(participant2, "scheduleId", scheduleId);
+            ReflectionTestUtils.setField(participant2, "userId", 101L);
+            ReflectionTestUtils.setField(participant2, "attendanceStatus", "NOT_ATTENDING");
+
+            Users user1 = newEntity(Users.class);
+            ReflectionTestUtils.setField(user1, "userId", 100L);
+            ReflectionTestUtils.setField(user1, "realName", "홍길동");
+
+            Users user2 = newEntity(Users.class);
+            ReflectionTestUtils.setField(user2, "userId", 101L);
+            ReflectionTestUtils.setField(user2, "realName", "김철수");
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+            given(scheduleParticipantRepository.findByScheduleId(scheduleId))
+                    .willReturn(List.of(participant1, participant2));
+            given(userRepository.findAllById(List.of(100L, 101L)))
+                    .willReturn(List.of(user1, user2));
+
+            // when
+            var result = scheduleService.getScheduleParticipants(clubId, scheduleId, userId);
+
+            // then
+            assertThat(result).hasSize(2);
+            then(clubsAuthorizationService).should(times(1)).assertActiveMember(clubId, userId);
+        }
+
+        @Test
+        @DisplayName("참여자 목록 조회 - 결과 없음")
+        void get_schedule_participants_empty() {
+            // given
+            Long clubId = 1L;
+            Long scheduleId = 1L;
+            Long userId = 10L;
+
+            Schedules schedule = schedule(scheduleId, clubId);
+
+            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+            given(scheduleParticipantRepository.findByScheduleId(scheduleId))
+                    .willReturn(List.of());
+
+            // when
+            var result = scheduleService.getScheduleParticipants(clubId, scheduleId, userId);
+
+            // then
+            assertThat(result).isEmpty();
         }
     }
 }
