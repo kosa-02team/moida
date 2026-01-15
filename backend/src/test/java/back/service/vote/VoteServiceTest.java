@@ -339,7 +339,12 @@ class VoteServiceTest {
             ReflectionTestUtils.setField(vote, "creatorId", creatorId);
             ReflectionTestUtils.setField(vote, "status", "CLOSED");
 
+            Clubs club = club(clubId, 1L);
+            Posts post = Posts.vote(club, user(creatorId), null, "제목", "설명");
+            ReflectionTestUtils.setField(post, "postId", 1L);
+
             given(voteRepository.findById(voteId)).willReturn(Optional.of(vote));
+            given(postRepository.findById(1L)).willReturn(Optional.of(post));
 
             // when & then
             assertThatThrownBy(() -> voteService.closeVote(clubId, voteId, creatorId))
