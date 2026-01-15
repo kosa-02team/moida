@@ -1,7 +1,7 @@
 package back.service.schedule;
 
-import back.domain.Clubs;
 import back.domain.Users;
+import back.domain.schedule.ScheduleParticipants;
 import back.domain.schedule.Schedules;
 import back.domain.vote.VoteOptions;
 import back.domain.vote.Votes;
@@ -9,9 +9,12 @@ import back.dto.schedule.ScheduleCreateRequest;
 import back.dto.schedule.ScheduleResponse;
 import back.event.ScheduleRegisteredEvent;
 import back.exception.ScheduleException;
+import back.repository.UserRepository;
+import back.repository.schedule.ScheduleParticipantRepository;
 import back.repository.schedule.ScheduleRepository;
 import back.repository.vote.VoteOptionRepository;
 import back.repository.vote.VoteRepository;
+import back.service.clubs.ClubsAuthorizationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -40,10 +43,19 @@ class ScheduleServiceTest {
     private ScheduleRepository scheduleRepository;
 
     @Mock
+    private ScheduleParticipantRepository scheduleParticipantRepository;
+
+    @Mock
     private VoteRepository voteRepository;
 
     @Mock
     private VoteOptionRepository voteOptionRepository;
+
+    @Mock
+    private ClubsAuthorizationService clubsAuthorizationService;
+
+    @Mock
+    private UserRepository userRepository;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;

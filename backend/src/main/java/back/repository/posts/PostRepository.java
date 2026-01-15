@@ -1,5 +1,6 @@
 package back.repository.posts;
 
+import back.domain.posts.PostCategory;
 import back.domain.posts.Posts;
 import back.dto.posts.posts.response.PostCardBase;
 import back.repository.posts.projection.RecentAlbumRow;
@@ -49,4 +50,9 @@ public interface PostRepository extends JpaRepository<Posts, Long> {
     order by max(p.createdAt) desc
     """)
     List<RecentAlbumRow> findRecentAlbumRows(@Param("clubId") Long clubId, Pageable pageable);
+
+    /**
+     * 특정 모임의 특정 카테고리 게시글 중 삭제되지 않은 게시글들을 조회합니다.
+     */
+    List<Posts> findByClub_ClubIdAndCategoryAndDeletedAtIsNull(Long clubId, PostCategory category);
 }

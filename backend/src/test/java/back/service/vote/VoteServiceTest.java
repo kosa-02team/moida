@@ -21,6 +21,7 @@ import back.repository.vote.VoteOptionRepository;
 import back.repository.vote.VoteRecordRepository;
 import back.repository.vote.VoteRepository;
 import back.repository.UserRepository;
+import back.service.clubs.ClubsAuthorizationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -66,6 +67,9 @@ class VoteServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private ClubsAuthorizationService clubsAuthorizationService;
 
     @InjectMocks
     private VoteService voteService;

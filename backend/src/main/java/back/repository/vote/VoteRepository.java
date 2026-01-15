@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface VoteRepository extends JpaRepository<Votes, Long> {
 
@@ -30,4 +31,24 @@ public interface VoteRepository extends JpaRepository<Votes, Long> {
            "AND DATE_SUB(s.event_date, INTERVAL 5 MINUTE) <= :now", 
            nativeQuery = true)
     List<Votes> findExpiredAttendanceVotes(@Param("now") LocalDateTime now);
+
+    /**
+     * 특정 일정에 연결된 투표를 조회합니다.
+     */
+    Optional<Votes> findByScheduleId(Long scheduleId);
+
+    /**
+     * postId 목록으로 투표들을 조회합니다.
+     */
+    List<Votes> findByPostIdIn(List<Long> postIds);
+
+    /**
+     * 특정 게시글에 연결된 투표를 조회합니다.
+     */
+    Optional<Votes> findByPostId(Long postId);
+
+    /**
+     * 특정 일정에 연결된 투표들을 조회합니다.
+     */
+    List<Votes> findByScheduleIdIn(List<Long> scheduleIds);
 }
