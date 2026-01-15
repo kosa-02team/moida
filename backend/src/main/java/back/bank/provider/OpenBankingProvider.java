@@ -1,17 +1,20 @@
-package back.bank.provider.impl;
+package back.bank.provider;
 
 import back.bank.dto.request.AccountCreateRequest;
+import back.dto.ledger.request.RefundRequest;
 import back.bank.dto.request.TransferRequest;
 import back.bank.dto.response.AccountCreateResponse;
 import back.bank.dto.response.AccountOwnerResponse;
 import back.bank.dto.response.BankTransaction;
+import back.dto.ledger.response.RefundResponse;
 import back.bank.dto.response.TransferResponse;
-import back.bank.provider.BankProvider;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.util.List;
 
+@Profile("prod")
 @Component
 public class OpenBankingProvider implements BankProvider {
 
@@ -43,6 +46,13 @@ public class OpenBankingProvider implements BankProvider {
     @Override
     public TransferResponse transfer(TransferRequest command) {
         // TODO: 이체 API 호출
+        throw new UnsupportedOperationException("OpenBanking 연동 전입니다.");
+    }
+
+    @Override
+    public RefundResponse refund(RefundRequest command) {
+        // TODO: 오픈뱅킹 API 출금/이체 호출
+        // POST https://openapi.openbanking.or.kr/v2.0/transfer/withdraw/fin_num
         throw new UnsupportedOperationException("OpenBanking 연동 전입니다.");
     }
 }
