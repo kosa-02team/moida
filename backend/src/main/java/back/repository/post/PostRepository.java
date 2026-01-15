@@ -16,15 +16,15 @@ public interface PostRepository extends JpaRepository<Posts, Long> {
   Optional<Posts> findByPostIdAndClub_ClubId(Long postId, Long clubId);
 
   @Query("""
-      select new back.dto.posts.posts.response.PostCardBase(
+      select new back.dto.post.post.response.PostCardBase(
           p.club.clubId,
           p.postId,
           p.writer.userId,
           p.writer.realName,
           p.title,
           p.content,
-          coalesce(count(distinct l.likeId), 0),
-          coalesce(count(distinct c.commentId), 0),
+          coalesce(count(distinct l.likeId), 0L),
+          coalesce(count(distinct c.commentId), 0L),
           p.createdAt
       )
       from Posts p

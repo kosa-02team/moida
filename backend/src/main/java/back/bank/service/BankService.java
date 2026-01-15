@@ -102,7 +102,7 @@ public class BankService {
         BankAccounts account = new BankAccounts(
                 clubId,
                 bankCode,
-                Long.parseLong(request.userId()), // userId는 String으로 넘어오므로 변환
+                request.userId(), // userId는 String으로 넘어오므로 변환
                 bank,
                 response.accountNumber(),
                 request.ownerName());
@@ -123,7 +123,28 @@ public class BankService {
      */
     @Transactional
     public List<TransactionLog> syncTransactions(Long clubId, LocalDate from, LocalDate to) {
+        // 0. 날짜 범위 자동 설정
+        LocalDate actualFrom = from;
+        LocalDate actualTo = to;
+
+        if (actualFrom == null || actualTo == null) {
+            // 마지막 거래 날짜 조회
+            var latestTransaction = transactionLogRepository.findLatestByClubId(clubId);
+
+            if (latestTransaction.isPresent()) {
+                // 마지막 거래 다음날부터
+                actualFrom = latestTransaction.get().getCreatedAt().toLocalDate().plusDays(1);
+            } else {
+                // 첫 동기화인 경우 30일 전부터
+                actualFrom = LocalDate.now().minusDays(30);
+            }
+
+            // 오늘까지
+            actualTo = LocalDate.now();
+        }
+
         // 1. clubId로 계좌 조회
+        // [refactor] 예외처리 수정 필요
         BankAccounts account = bankAccountRepository.findByClubId(clubId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 모임의 계좌를 찾을 수 없습니다. clubId: " + clubId));
 
@@ -132,7 +153,8 @@ public class BankService {
         BankProvider provider = registry.get(bankCode);
 
         // 3. Provider를 통해 오픈뱅킹 API 호출 (거래내역 조회)
-        List<BankTransaction> bankTransactions = provider.getTransactions(account.getAccountNumber(), from, to);
+        List<BankTransaction> bankTransactions = provider.getTransactions(account.getAccountNumber(), actualFrom,
+                actualTo);
 
         List<TransactionLog> savedLogs = new ArrayList<>();
 
@@ -172,8 +194,8 @@ public class BankService {
         List<BankTransactionHistory> newHistories = transactionHistoryRepository
                 .findByClubIdAndBankTransactionAtBetween(
                         clubId,
-                        from.atStartOfDay(),
-                        to.plusDays(1).atStartOfDay());
+                        actualFrom.atStartOfDay(),
+                        actualTo.plusDays(1).atStartOfDay());
         transactionMatchingService.autoMatchTransactions(clubId, newHistories);
 
         return savedLogs;
