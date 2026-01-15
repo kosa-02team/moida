@@ -19,10 +19,11 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/clubs/{clubId}/bank")
+@RequestMapping("/api/clubs/{clubId}/bank")
 public class BankAccountController {
 
     private final BankService bankService;
@@ -53,14 +54,16 @@ public class BankAccountController {
      * 모임 가상계좌 거래내역 조회 및 동기화
      * - 오픈뱅킹 API를 호출하여 실제 은행 거래내역을 가져옴
      * - BankTransactionHistory와 TransactionLog에 저장
-     * 
-     * GET /clubs/{clubId}/bank/transactions?from=2026-01-01&to=2026-01-31
+     * - from/to가 없으면 마지막 거래 이후 ~ 현재까지 자동 동기화
+     * <p>
+     * GET /api/clubs/{clubId}/bank/sync (자동 날짜 범위)
+     * GET /api/clubs/{clubId}/bank/sync?from=2026-01-01&to=2026-01-31 (수동 날짜 범위)
      */
-    @GetMapping("/transactions")
+    @GetMapping("/sync")
     public ResponseEntity<List<TransactionLog>> syncTransactions(
             @PathVariable Long clubId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         List<TransactionLog> transactionLogs = bankService.syncTransactions(clubId, from, to);
         return ResponseEntity.ok(transactionLogs);
     }
@@ -68,7 +71,7 @@ public class BankAccountController {
     /**
      * 처리된 거래내역 조회 (매칭 정보 포함)
      * - 오픈뱅킹 원본 + 매칭 정보 반환
-     * 
+     * <p>
      * GET /clubs/{clubId}/bank/transactions/processed?from=2026-01-01&to=2026-01-31
      */
     @GetMapping("/transactions/processed")
@@ -158,8 +161,8 @@ public class BankAccountController {
 
         List<Long> matchedHistoryIds = matchedRequests.stream()
                 .map(PaymentRequest::getMatchedHistoryId)
-                .filter(id -> id != null)
-                .collect(Collectors.toList());
+                .filter(Objects::nonNull)
+                .toList();
 
         // 미매칭 거래내역 필터링
         List<BankTransactionHistory> unmatched = histories.stream()
@@ -176,7 +179,7 @@ public class BankAccountController {
      * 모임 정산 환급
      * - 모임장/총무가 남은 돈을 회원들에게 돌려주기
      * - 오픈뱅킹 API 출금/이체 호출
-     * 
+     * <p>
      * POST /clubs/{clubId}/bank/refund
      */
     @PostMapping("/refund")
