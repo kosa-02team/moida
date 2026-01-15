@@ -39,8 +39,8 @@ class AuthControllerTest {
     @DisplayName("올바른 아이디와 비밀번호를 보내면 토큰을 반환하는 테스트")
     void loginSuccess() throws Exception {
         //given
-        String loginId = "testUser";
-        String rawPassword = "1234";
+        String loginId = "testUser@test.com";
+        String rawPassword = "12345678";
         String realName = "테스트유저";
 
         Users user = new Users(loginId, passwordEncoder.encode(rawPassword), realName);
