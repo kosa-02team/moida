@@ -18,6 +18,12 @@ public class BankAccounts extends BaseEntity {
     @Column(name = "account_id")
     private Long accountId;
 
+    @Column(name = "club_id")
+    private Long clubId;
+
+    @Column(name = "bank_code", length = 20)
+    private String bankCode;
+
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
@@ -35,7 +41,10 @@ public class BankAccounts extends BaseEntity {
     private LocalDateTime deletedAt;
 
     // 생성자
-    public BankAccounts(Long userId, Banks bank, String accountNumber, String depositorName) {
+    public BankAccounts(Long clubId, String bankCode, Long userId, Banks bank, String accountNumber,
+            String depositorName) {
+        this.clubId = clubId;
+        this.bankCode = bankCode;
         this.userId = userId;
         this.bank = bank;
         this.accountNumber = accountNumber;
@@ -53,4 +62,3 @@ public class BankAccounts extends BaseEntity {
         this.depositorName = depositorName;
     }
 }
-
