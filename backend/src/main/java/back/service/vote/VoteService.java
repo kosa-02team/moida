@@ -77,9 +77,8 @@ public class VoteService {
 
         Clubs clubRef = clubsRepository.getReferenceById(clubId);
         Users writerRef = userRepository.getReferenceById(userId);
-        Schedules scheduleRef = (request.scheduleId() == null)
-                ? null
-                : scheduleRepository.getReferenceById(request.scheduleId());
+        // 이미 조회한 schedule 객체를 재사용 (중복 조회 방지)
+        Schedules scheduleRef = schedule;
 
         // 1. Posts 엔티티 생성 (투표 게시글)
         Posts post = Posts.vote(

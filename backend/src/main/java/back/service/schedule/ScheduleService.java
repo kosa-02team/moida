@@ -294,7 +294,10 @@ public class ScheduleService {
         }
 
         // 연관된 ATTENDANCE 투표도 종료
-        voteRepository.findByScheduleId(scheduleId).ifPresent(Votes::close);
+        voteRepository.findByScheduleId(scheduleId).ifPresent(vote -> {
+            vote.close();
+            voteRepository.save(vote);
+        });
     }
 
     /**

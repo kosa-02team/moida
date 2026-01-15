@@ -189,7 +189,6 @@ class VoteServiceTest {
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
             given(clubsRepository.getReferenceById(clubId)).willReturn(clubRef);
             given(userRepository.getReferenceById(userId)).willReturn(userRef);
-            given(scheduleRepository.getReferenceById(scheduleId)).willReturn(schedule);
             given(postRepository.save(any(Posts.class))).willReturn(savedPost);
             given(voteRepository.save(any(Votes.class))).willReturn(savedVote);
 
