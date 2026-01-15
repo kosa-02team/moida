@@ -1,7 +1,7 @@
 package back.service.post;
 
 import back.domain.Clubs;
-import back.domain.Schedules;
+import back.domain.schedule.Schedules;
 import back.domain.Users;
 import back.domain.post.Comments;
 import back.domain.post.PostImages;
@@ -18,7 +18,7 @@ import back.dto.post.story.request.StoryUpdateRequest;
 import back.dto.post.story.response.PostDetailResponse;
 import back.exception.ClubAuthException;
 import back.exception.PostsException;
-import back.repository.SchedulesRepository;
+import back.repository.schedule.ScheduleRepository;
 import back.repository.clubs.ClubsRepository;
 import back.repository.post.PostCommentRepository;
 import back.repository.post.PostImageRepository;
@@ -55,7 +55,7 @@ public class PostServiceTests {
 
     @Mock private ClubsRepository clubsRepository;
     @Mock private UserRepository userRepository;
-    @Mock private SchedulesRepository schedulesRepository;
+    @Mock private ScheduleRepository scheduleRepository;
 
     @Mock private PostRepository postRepository;
     @Mock private PostImageRepository postImageRepository;
@@ -503,7 +503,7 @@ public class PostServiceTests {
 
             given(clubsRepository.getReferenceById(clubId)).willReturn(clubRef);
             given(userRepository.getReferenceById(writerId)).willReturn(writerRef);
-            given(schedulesRepository.getReferenceById(1L)).willReturn(scheduleRef);
+            given(scheduleRepository.getReferenceById(1L)).willReturn(scheduleRef);
 
             Posts savedPost = Posts.story(clubRef, writerRef, scheduleRef, request.content());
             ReflectionTestUtils.setField(savedPost, "postId", 1L);

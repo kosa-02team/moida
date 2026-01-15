@@ -1,4 +1,4 @@
-package back.domain;
+package back.domain.vote;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;

@@ -1,4 +1,4 @@
-package back.dto;
+package back.dto.vote;
 
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;

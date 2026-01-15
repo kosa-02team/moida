@@ -1,4 +1,4 @@
-package back.dto;
+package back.dto.schedule;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -15,6 +15,8 @@ public record ScheduleResponse(
         BigDecimal refundPerPerson,
         String status,
         LocalDateTime closedAt,
+        String cancelReason,
+        LocalDateTime voteDeadline,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {

@@ -1,4 +1,4 @@
-package back.service;
+package back.service.vote;
 
 import back.domain.*;
 import back.domain.post.Posts;
@@ -15,10 +15,12 @@ import back.repository.VoteOptionsRepository;
 import back.repository.VoteRecordsRepository;
 import back.repository.VotesRepository;
 import back.repository.UserRepository;
+import back.service.clubs.ClubsAuthorizationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,13 +29,14 @@ import java.util.stream.Collectors;
 public class VoteService {
 
     private final PostRepository postRepository;
-    private final SchedulesRepository schedulesRepository;
-    private final VotesRepository votesRepository;
-    private final VoteOptionsRepository voteOptionsRepository;
-    private final VoteRecordsRepository voteRecordsRepository;
+    private final ScheduleRepository scheduleRepository;
+    private final VoteRepository voteRepository;
+    private final VoteOptionRepository voteOptionRepository;
+    private final VoteRecordRepository voteRecordRepository;
     private final ClubMembersRepository clubMembersRepository;
     private final ClubsRepository clubsRepository;
     private final UserRepository userRepository;
+    private final ClubsAuthorizationService clubsAuthorizationService;
 
     /**
      * 모임에 속한 일정/참석 투표를 생성합니다.
@@ -45,6 +48,13 @@ public class VoteService {
      */
     @Transactional
     public VoteResponse createVote(Long clubId, Long userId, VoteCreateRequest request) {
+        // 권한 체크: ATTENDANCE 타입은 모임장/운영진만, GENERAL 타입은 ACTIVE 멤버만 생성 가능
+        if ("ATTENDANCE".equals(request.voteType())) {
+            clubsAuthorizationService.assertAtLeastManager(clubId, userId);
+        } else {
+            clubsAuthorizationService.assertActiveMember(clubId, userId);
+        }
+
         // ATTENDANCE 타입일 때 scheduleId 필수 검증
         if ("ATTENDANCE".equals(request.voteType()) && request.scheduleId() == null) {
             throw new VoteException.ScheduleIdRequired();
@@ -53,7 +63,7 @@ public class VoteService {
         // ATTENDANCE 타입이고 scheduleId가 있으면 일정 존재 여부 및 모임 소속 확인
         Schedules schedule = null;
         if ("ATTENDANCE".equals(request.voteType()) && request.scheduleId() != null) {
-            schedule = schedulesRepository.findById(request.scheduleId())
+            schedule = scheduleRepository.findById(request.scheduleId())
                     .orElseThrow(ResourceException.NotFound::new);
 
             // 일정이 해당 모임에 속하는지 확인
@@ -64,9 +74,8 @@ public class VoteService {
 
         Clubs clubRef = clubsRepository.getReferenceById(clubId);
         Users writerRef = userRepository.getReferenceById(userId);
-        Schedules scheduleRef = (request.scheduleId() == null)
-                ? null
-                : schedulesRepository.getReferenceById(request.scheduleId());
+        // 이미 조회한 schedule 객체를 재사용 (중복 조회 방지)
+        Schedules scheduleRef = schedule;
 
         // 1. Posts 엔티티 생성 (투표 게시글)
         Posts post = Posts.vote(
@@ -90,7 +99,7 @@ public class VoteService {
                 request.allowMultiple(),
                 null  // deadline은 일반 투표에서만 사용
         );
-        vote = votesRepository.save(vote);
+        vote = voteRepository.save(vote);
 
         // 3. ATTENDANCE 타입이면 VoteOptions 자동 생성 (참석/불참)
         if ("ATTENDANCE".equals(request.voteType()) && schedule != null) {
@@ -102,7 +111,7 @@ public class VoteService {
                     schedule.getEventDate(),
                     schedule.getLocation()
             );
-            voteOptionsRepository.save(attendOption);
+            voteOptionRepository.save(attendOption);
 
             // "불참" 옵션 생성
             VoteOptions absentOption = new VoteOptions(
@@ -112,7 +121,7 @@ public class VoteService {
                     null,
                     null
             );
-            voteOptionsRepository.save(absentOption);
+            voteOptionRepository.save(absentOption);
         }
 
         // 4. VoteResponse로 변환해서 리턴
@@ -136,13 +145,13 @@ public class VoteService {
      */
     @Transactional
     public void closeVote(Long clubId, Long voteId, Long userId) {
-        Votes vote = votesRepository.findById(voteId)
+        Votes vote = voteRepository.findById(voteId)
                 .orElseThrow(VoteException.NotFound::new);
 
         // clubId 검증: 투표가 해당 모임에 속하는지 확인
         Long voteClubId = null;
         if ("ATTENDANCE".equals(vote.getVoteType()) && vote.getScheduleId() != null) {
-            Schedules schedule = schedulesRepository.findById(vote.getScheduleId())
+            Schedules schedule = scheduleRepository.findById(vote.getScheduleId())
                     .orElseThrow(ResourceException.NotFound::new);
             voteClubId = schedule.getClubId();
         } else if ("GENERAL".equals(vote.getVoteType()) && vote.getPostId() != null) {
@@ -167,27 +176,13 @@ public class VoteService {
                 throw new VoteException.CreatorOnly();
             }
         } else if ("ATTENDANCE".equals(vote.getVoteType())) {
-            // ATTENDANCE 투표: 모임장 또는 운영진만 종료 가능
-            
-            // 1. 모임장 확인 (Clubs.ownerId)
-            Clubs club = clubsRepository.findById(clubId)
-                    .orElseThrow(ResourceException.NotFound::new);
-            boolean isOwner = club.getOwnerId().equals(userId);
-            
-            // 2. 운영진 확인 (ClubMembers.role = "STAFF")
-            List<String> roles = clubMembersRepository.findActiveRoles(clubId, userId)
-                    .orElseThrow(() -> new VoteException.MemberOnly());
-            boolean isStaff = roles.contains("STAFF");
-            
-            // 3. 모임장 또는 운영진만 허용
-            if (!isOwner && !isStaff) {
-                throw new VoteException.StaffOnly();
-            }
+            // ATTENDANCE 투표 종료: 운영진 이상 (돈 관련 아님)
+            clubsAuthorizationService.assertAtLeastManager(clubId, userId);
         }
 
         // 투표 종료
         vote.close();
-        votesRepository.save(vote);
+        voteRepository.save(vote);
     }
 
     /**
@@ -208,13 +203,13 @@ public class VoteService {
         }
 
         // 1. 투표 존재 확인
-        Votes vote = votesRepository.findById(voteId)
+        Votes vote = voteRepository.findById(voteId)
                 .orElseThrow(VoteException.NotFound::new);
 
         // clubId 검증: 투표가 해당 모임에 속하는지 확인
         Long voteClubId = null;
         if ("ATTENDANCE".equals(vote.getVoteType()) && vote.getScheduleId() != null) {
-            Schedules schedule = schedulesRepository.findById(vote.getScheduleId())
+            Schedules schedule = scheduleRepository.findById(vote.getScheduleId())
                     .orElseThrow(ResourceException.NotFound::new);
             voteClubId = schedule.getClubId();
         } else if ("GENERAL".equals(vote.getVoteType()) && vote.getPostId() != null) {
@@ -267,7 +262,7 @@ public class VoteService {
         optionIds = uniqueOptionIds;
 
         // 옵션이 해당 투표에 속하는지 확인
-        List<VoteOptions> validOptions = voteOptionsRepository.findAllById(optionIds);
+        List<VoteOptions> validOptions = voteOptionRepository.findAllById(optionIds);
         boolean allOptionsBelongToVote = validOptions.stream()
                 .allMatch(option -> option.getVoteId().equals(voteId));
 
@@ -281,28 +276,31 @@ public class VoteService {
         }
 
         // 6. 기존 투표 기록 확인 (중복 투표 체크)
-        List<VoteRecords> existingRecords = voteRecordsRepository.findByVoteIdAndUserId(voteId, userId);
+        List<VoteRecords> existingRecords = voteRecordRepository.findByVoteIdAndUserId(voteId, userId);
 
         // ATTENDANCE 타입은 기존 기록이 있으면 업데이트 (참석 → 불참 변경 가능)
         if ("ATTENDANCE".equals(vote.getVoteType())) {
             if (!existingRecords.isEmpty()) {
                 // 기존 기록 삭제 (참석 → 불참 변경)
-                voteRecordsRepository.deleteAll(existingRecords);
+                voteRecordRepository.deleteAll(existingRecords);
             }
         } else {
-            // GENERAL 타입은 allowMultiple이 false면 기존 기록이 있으면 에러
-            if (!vote.getAllowMultiple() && !existingRecords.isEmpty()) {
-                throw new VoteException.AlreadyParticipated();
-            }
+            // GENERAL 타입
+            if (!vote.getAllowMultiple()) {
+                // allowMultiple이 false면 기존 기록이 있으면 삭제 (투표 변경 허용)
+                if (!existingRecords.isEmpty()) {
+                    voteRecordRepository.deleteAll(existingRecords);
+                }
+            } else {
+                // allowMultiple이 true면 같은 옵션 중복 선택 방지
+                List<Long> existingOptionIds = existingRecords.stream()
+                        .map(VoteRecords::getOptionId)
+                        .collect(Collectors.toList());
 
-            // allowMultiple이 true면 같은 옵션 중복 선택 방지
-            List<Long> existingOptionIds = existingRecords.stream()
-                    .map(VoteRecords::getOptionId)
-                    .collect(Collectors.toList());
-
-            for (Long optionId : optionIds) {
-                if (existingOptionIds.contains(optionId)) {
-                    throw new VoteException.OptionAlreadySelected();
+                for (Long optionId : optionIds) {
+                    if (existingOptionIds.contains(optionId)) {
+                        throw new VoteException.OptionAlreadySelected();
+                    }
                 }
             }
         }
@@ -312,6 +310,146 @@ public class VoteService {
                 .map(optionId -> new VoteRecords(voteId, optionId, userId))
                 .collect(Collectors.toList());
 
-        voteRecordsRepository.saveAll(newRecords);
+        voteRecordRepository.saveAll(newRecords);
+    }
+
+    /**
+     * 투표 상세 정보를 조회합니다.
+     *
+     * @param clubId 모임 ID
+     * @param voteId 투표 ID
+     * @param userId 현재 로그인한 사용자 ID
+     * @return 투표 상세 정보
+     */
+    @Transactional(readOnly = true)
+    public VoteDetailResponse getVoteById(Long clubId, Long voteId, Long userId) {
+        // 권한 체크: ACTIVE 멤버만 조회 가능
+        clubsAuthorizationService.assertActiveMember(clubId, userId);
+
+        Votes vote = voteRepository.findById(voteId)
+                .orElseThrow(VoteException.NotFound::new);
+
+        // 투표가 해당 모임에 속하는지 확인
+        Long voteClubId = getVoteClubId(vote);
+        if (voteClubId == null || !voteClubId.equals(clubId)) {
+            throw new VoteException.ClubMismatch();
+        }
+
+        // 투표 옵션 조회
+        List<VoteOptions> options = voteOptionRepository.findByVoteIdOrderByOptionOrderAsc(voteId);
+
+        // 각 옵션별 투표 수 조회
+        List<VoteOptionResponse> optionResponses = options.stream()
+                .map(option -> new VoteOptionResponse(
+                        option.getOptionId(),
+                        option.getOptionText(),
+                        option.getOptionOrder(),
+                        option.getEventDate(),
+                        option.getLocation(),
+                        voteRecordRepository.countByOptionId(option.getOptionId())
+                ))
+                .collect(Collectors.toList());
+
+        // 현재 사용자가 선택한 옵션 조회
+        List<Long> mySelectedOptionIds = voteRecordRepository.findByVoteIdAndUserId(voteId, userId).stream()
+                .map(VoteRecords::getOptionId)
+                .collect(Collectors.toList());
+
+        return new VoteDetailResponse(
+                vote.getVoteId(),
+                vote.getPostId(),
+                vote.getVoteType(),
+                vote.getScheduleId(),
+                vote.getCreatorId(),
+                vote.getTitle(),
+                vote.getDescription(),
+                vote.getIsAnonymous(),
+                vote.getAllowMultiple(),
+                vote.getStatus(),
+                vote.getDeadline(),
+                vote.getClosedAt(),
+                vote.getCreatedAt(),
+                vote.getUpdatedAt(),
+                optionResponses,
+                mySelectedOptionIds
+        );
+    }
+
+    /**
+     * 모임에 속한 전체 투표 목록을 조회합니다.
+     *
+     * @param clubId 모임 ID
+     * @param userId 현재 로그인한 사용자 ID
+     * @return 투표 목록
+     */
+    @Transactional(readOnly = true)
+    public List<VoteListResponse> getVotesByClubId(Long clubId, Long userId) {
+        // 권한 체크: ACTIVE 멤버만 조회 가능
+        clubsAuthorizationService.assertActiveMember(clubId, userId);
+
+        // 방법 1: 해당 모임의 Posts에서 VOTE 카테고리 게시글 조회 후 Votes 조회
+        List<Posts> votePosts = postRepository.findByClub_ClubIdAndCategoryAndDeletedAtIsNull(clubId, PostCategory.VOTE);
+        List<Long> postIds = votePosts.stream()
+                .map(Posts::getPostId)
+                .collect(Collectors.toList());
+
+        // 방법 2: 해당 모임의 Schedules에서 ATTENDANCE 투표 조회
+        List<Schedules> schedules = scheduleRepository.findByClubId(clubId);
+        List<Long> scheduleIds = schedules.stream()
+                .map(Schedules::getScheduleId)
+                .collect(Collectors.toList());
+
+        // GENERAL 타입 투표 (postId 기반)
+        List<Votes> generalVotes = postIds.isEmpty()
+                ? new ArrayList<>()
+                : voteRepository.findByPostIdIn(postIds);
+
+        // ATTENDANCE 타입 투표 (scheduleId 기반)
+        List<Votes> attendanceVotes = scheduleIds.isEmpty()
+                ? new ArrayList<>()
+                : voteRepository.findByScheduleIdIn(scheduleIds);
+
+        // 모든 투표 합치기 (중복 제거)
+        List<Votes> allVotes = new ArrayList<>();
+        allVotes.addAll(generalVotes);
+        for (Votes attendanceVote : attendanceVotes) {
+            boolean alreadyExists = allVotes.stream()
+                    .anyMatch(v -> v.getVoteId().equals(attendanceVote.getVoteId()));
+            if (!alreadyExists) {
+                allVotes.add(attendanceVote);
+            }
+        }
+
+        // VoteListResponse로 변환
+        return allVotes.stream()
+                .map(vote -> new VoteListResponse(
+                        vote.getVoteId(),
+                        vote.getPostId(),
+                        vote.getVoteType(),
+                        vote.getScheduleId(),
+                        vote.getTitle(),
+                        vote.getStatus(),
+                        vote.getDeadline(),
+                        vote.getClosedAt(),
+                        vote.getCreatedAt(),
+                        voteRecordRepository.countDistinctUsersByVoteId(vote.getVoteId())
+                ))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 투표가 속한 모임 ID를 반환합니다.
+     */
+    private Long getVoteClubId(Votes vote) {
+        if ("ATTENDANCE".equals(vote.getVoteType()) && vote.getScheduleId() != null) {
+            return scheduleRepository.findById(vote.getScheduleId())
+                    .map(Schedules::getClubId)
+                    .orElse(null);
+        } else if ("GENERAL".equals(vote.getVoteType()) && vote.getPostId() != null) {
+            return postRepository.findById(vote.getPostId())
+                    .map(post -> post.getClub().getClubId())
+                    .orElse(null);
+        }
+        return null;
     }
 }

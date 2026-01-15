@@ -1,4 +1,4 @@
-package back.dto;
+package back.dto.schedule;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
@@ -19,7 +19,8 @@ public record ScheduleCreateRequest(
         
         String location,
         String description,
-        BigDecimal entryFee
+        BigDecimal entryFee,
+        LocalDateTime voteDeadline  // 투표 종료 시간 (선택사항)
 ) {
     @AssertTrue(message = "종료일시는 시작일시보다 이후여야 합니다")
     public boolean isValidDateRange() {

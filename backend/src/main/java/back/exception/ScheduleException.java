@@ -29,4 +29,16 @@ public class ScheduleException extends CustomGlobalException {
             super(ErrorCode.SCHEDULE_STAFF_ONLY);
         }
     }
+
+    public static class AlreadyClosed extends ScheduleException {
+        public AlreadyClosed() {
+            super(ErrorCode.SCHEDULE_ALREADY_CLOSED);
+        }
+    }
+
+    public static class AlreadyCancelled extends ScheduleException {
+        public AlreadyCancelled() {
+            super(ErrorCode.SCHEDULE_ALREADY_CANCELLED);
+        }
+    }
 }

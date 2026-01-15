@@ -29,6 +29,7 @@ public enum ErrorCode {
     CLUB_NOT_ACTIVE(UNAUTHORIZED,"CA02","모임에 접근할 수 없습니다"),
     CLUB_STAFF_REQUIRED(FORBIDDEN, "CA03","운영진 권한이 필요합니다"),
     CLUB_LOGIN_REQUIRED(UNAUTHORIZED, "CA04","로그인이 필요합니다"),
+    CLUB_ACCOUNTANT_REQUIRED(FORBIDDEN, "CA05","총무 권한이 필요합니다"),
 
     //Club Member Error
     CLUB_MEMBER_NOT_FOUND(NOT_FOUND, "CM01", "존재하지 않는 가입 신청입니다."),
@@ -67,7 +68,9 @@ public enum ErrorCode {
     //Schedule Error
     SCHEDULE_NOT_FOUND(NOT_FOUND,"SC01", "일정을 찾을 수 없습니다"),
     SCHEDULE_INVALID_DATE_RANGE(HttpStatus.BAD_REQUEST,"SC02", "종료일시는 시작일시보다 이후여야 합니다"),
-    SCHEDULE_STAFF_ONLY(HttpStatus.FORBIDDEN,"SC03", "일정 종료는 모임장 또는 운영진만 가능합니다")
+    SCHEDULE_STAFF_ONLY(HttpStatus.FORBIDDEN,"SC03", "일정 종료는 모임장 또는 운영진만 가능합니다"),
+    SCHEDULE_ALREADY_CLOSED(HttpStatus.BAD_REQUEST,"SC04", "이미 종료된 일정입니다"),
+    SCHEDULE_ALREADY_CANCELLED(HttpStatus.BAD_REQUEST,"SC05", "이미 취소된 일정입니다")
     ;
     private final HttpStatus httpStatus;
     private final String code;

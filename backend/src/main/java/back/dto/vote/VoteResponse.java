@@ -1,4 +1,4 @@
-package back.dto;
+package back.dto.vote;
 
 public record VoteResponse(
         Long voteId,

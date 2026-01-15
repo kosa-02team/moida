@@ -24,29 +24,82 @@ public class ClubsAuthorizationService {
                 .orElseThrow(ClubAuthException.NotFound::new);
     }
 
-    //모임 활성화 멤버인지
+    /**
+     * 모임 활성화 멤버인지 확인
+     */
     public void assertActiveMember(Long clubId, Long userId) {
         if (!clubMembersRepository.existsByClubIdAndUserIdAndStatus(clubId, userId, ClubMembers.Status.ACTIVE)) {
-            throw new ClubAuthException.NotActive(); // 또는 NotActive로 통일
+            throw new ClubAuthException.NotActive();
         }
     }
 
+    /**
+     * 운영진 이상 권한 확인 (모임장, 총무, 운영진)
+     * 권한 계층: 멤버 < 운영진(STAFF) < 총무(ACCOUNTANT) < 모임장
+     */
     public void assertAtLeastManager(Long clubId, Long userId) {
-
         Clubs club = getClubOrThrow(clubId);
 
-        // 모임장 또는 운영진 권한 확인
+        // 1. 모임장 확인
         boolean isOwner = club.getOwnerId().equals(userId);
         
-        // 2. 운영진 확인 (ClubMembers.role = "STAFF")
+        // 2. 운영진 또는 총무 확인 (총무는 운영진 권한 포함)
         List<String> roles = clubMembersRepository.findActiveRoles(clubId, userId)
                 .orElseThrow(ClubAuthException.NotActive::new);
         boolean isStaff = roles.contains("STAFF");
+        boolean isAccountant = roles.contains("ACCOUNTANT");
         
-        // 3. 모임장 또는 운영진만 허용
-        if (!isOwner && !isStaff) {
-            throw new ClubAuthException.RoleInsufficient();
+        // 3. 모임장, 총무, 운영진 중 하나라도 해당되면 허용
+        if (!isOwner && !isAccountant && !isStaff) {
+            throw new ClubAuthException.StaffRequired();
         }
+    }
+
+    /**
+     * 총무 이상 권한 확인 (모임장 또는 ACCOUNTANT)
+     * - 돈 관련 작업에 사용 (참가비 있는 일정 생성/수정, 정산 등)
+     */
+    public void assertAtLeastAccountant(Long clubId, Long userId) {
+        Clubs club = getClubOrThrow(clubId);
+
+        // 1. 모임장 확인
+        boolean isOwner = club.getOwnerId().equals(userId);
+        
+        // 2. 총무 확인 (ClubMembers.role = "ACCOUNTANT")
+        List<String> roles = clubMembersRepository.findActiveRoles(clubId, userId)
+                .orElseThrow(ClubAuthException.NotActive::new);
+        boolean isAccountant = roles.contains("ACCOUNTANT");
+        
+        // 3. 모임장 또는 총무만 허용
+        if (!isOwner && !isAccountant) {
+            throw new ClubAuthException.AccountantRequired();
+        }
+    }
+
+    /**
+     * 운영진 또는 총무 이상 권한 확인 (모임장, STAFF, ACCOUNTANT 모두 가능)
+     */
+    public void assertAtLeastStaffOrAccountant(Long clubId, Long userId) {
+        Clubs club = getClubOrThrow(clubId);
+
+        // 1. 모임장 확인
+        boolean isOwner = club.getOwnerId().equals(userId);
+        
+        // 2. 운영진 또는 총무 확인
+        List<String> roles = clubMembersRepository.findActiveRoles(clubId, userId)
+                .orElseThrow(ClubAuthException.NotActive::new);
+        boolean isStaff = roles.contains("STAFF");
+        boolean isAccountant = roles.contains("ACCOUNTANT");
+        
+        // 3. 모임장, 운영진, 총무 중 하나라도 해당되면 허용
+        if (!isOwner && !isStaff && !isAccountant) {
+            throw new ClubAuthException.StaffRequired();
+        }
+    }
+
+    // 기존 호환성 유지
+    public void assertAtLeastManager(Long clubId, Long userId, boolean dummy) {
+        assertAtLeastStaffOrAccountant(clubId, userId);
     }
 
     public void validateAndGetClubForReadPosts(Long clubId, Long viewerId) {
@@ -70,5 +123,4 @@ public class ClubsAuthorizationService {
 
         assertAtLeastManager(clubId, updateId);
     }
-
 }

@@ -1,4 +1,4 @@
-package back.dto.post.response;
+package back.dto.posts.story.response;
 
 import java.time.LocalDateTime;
 import java.util.List;

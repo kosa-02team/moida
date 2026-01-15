@@ -1,7 +1,7 @@
 package back.service.post;
 
 import back.domain.Clubs;
-import back.domain.Schedules;
+import back.domain.schedule.Schedules;
 import back.domain.Users;
 import back.domain.post.PostImages;
 import back.domain.post.PostMemberTags;
@@ -13,7 +13,7 @@ import back.dto.post.story.request.StoryCreateRequest;
 import back.dto.post.story.request.StoryUpdateRequest;
 import back.dto.post.story.response.*;
 import back.exception.PostsException;
-import back.repository.SchedulesRepository;
+import back.repository.schedule.ScheduleRepository;
 import back.repository.clubs.ClubsRepository;
 import back.repository.post.PostImageRepository;
 import back.repository.post.PostMemberTagRepository;
@@ -42,7 +42,7 @@ public class PostService {
 
     private final ClubsRepository clubsRepository;
     private final UserRepository userRepository;
-    private final SchedulesRepository schedulesRepository;
+    private final ScheduleRepository scheduleRepository;
 
     private final PostRepository postRepository;
     private final PostImageRepository postImageRepository;
@@ -181,7 +181,7 @@ public class PostService {
     }
 
     private Schedules getScheduleRefOrNull(Long scheduleId) {
-        return (scheduleId == null) ? null : schedulesRepository.getReferenceById(scheduleId);
+        return (scheduleId == null) ? null : scheduleRepository.getReferenceById(scheduleId);
     }
 
     private Posts getPostOrThrow(Long postId, Long clubId) {

@@ -1,5 +1,6 @@
-package back.domain;
+package back.domain.schedule;
 
+import back.domain.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -52,6 +53,12 @@ public class Schedules extends BaseEntity {
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
 
+    @Column(name = "cancel_reason", columnDefinition = "TEXT")
+    private String cancelReason;
+
+    @Column(name = "vote_deadline")
+    private LocalDateTime voteDeadline;
+
     // 생성자
     public Schedules(Long clubId, String scheduleName, LocalDateTime eventDate, LocalDateTime endDate, String location, String description, BigDecimal entryFee) {
         this.clubId = clubId;
@@ -83,9 +90,19 @@ public class Schedules extends BaseEntity {
         this.closedAt = LocalDateTime.now();
     }
 
+    public void cancel(String cancelReason) {
+        this.status = "CANCELLED";
+        this.closedAt = LocalDateTime.now();
+        this.cancelReason = cancelReason;
+    }
+
     public void cancel() {
         this.status = "CANCELLED";
         this.closedAt = LocalDateTime.now();
+    }
+
+    public void setVoteDeadline(LocalDateTime voteDeadline) {
+        this.voteDeadline = voteDeadline;
     }
 
     public void reopen() {
