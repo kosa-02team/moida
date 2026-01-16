@@ -156,22 +156,26 @@ public class VoteService {
         // 이미 조회한 schedule 객체를 재사용 (중복 조회 방지)
         Schedules scheduleRef = schedule;
 
-        // 1. Posts 엔티티 생성 (투표 게시글)
-        Posts post = Posts.vote(
-                clubRef,
-                writerRef,
-                scheduleRef,
-                request.title(),
-                request.description()
-        );
-        post = postRepository.save(post);
+        // 1. Posts 엔티티 생성 (GENERAL 타입일 때만)
+        // ATTENDANCE 타입은 게시글과 무관하므로 postId는 null
+        Posts post = null;
+        if ("GENERAL".equals(request.voteType())) {
+            post = Posts.vote(
+                    clubRef,
+                    writerRef,
+                    null, // GENERAL 타입은 schedule과 무관
+                    request.title(),
+                    request.description()
+            );
+            post = postRepository.save(post);
+        }
 
         // 2. Votes 엔티티 생성
         // GENERAL 타입일 때만 deadline 사용, ATTENDANCE 타입은 null
         LocalDateTime deadline = "GENERAL".equals(request.voteType()) ? request.deadline() : null;
         
         Votes vote = new Votes(
-                post.getPostId(),
+                post != null ? post.getPostId() : null, // GENERAL 타입일 때만 postId 설정
                 request.voteType(),
                 request.scheduleId(),
                 userId,
@@ -223,7 +227,7 @@ public class VoteService {
         // 5. VoteResponse로 변환해서 리턴
         return new VoteResponse(
                 vote.getVoteId(),
-                post.getPostId(),
+                post != null ? post.getPostId() : null, // GENERAL 타입일 때만 postId 설정
                 vote.getVoteType(),
                 vote.getTitle(),
                 vote.getDescription(),
