@@ -120,7 +120,12 @@ class VoteServiceTest {
                     "투표 설명",
                     false,
                     false,
-                    null
+                    null, // scheduleId
+                    null, // deadline
+                    List.of( // options (최소 2개 필요)
+                            new VoteOptionCreateRequest("옵션1", 1, null, null),
+                            new VoteOptionCreateRequest("옵션2", 2, null, null)
+                    )
             );
 
             Clubs clubRef = club(clubId, 1L);
@@ -152,7 +157,7 @@ class VoteServiceTest {
             then(userRepository).should(times(1)).getReferenceById(userId);
             then(postRepository).should(times(1)).save(any(Posts.class));
             then(voteRepository).should(times(1)).save(any(Votes.class));
-            then(voteOptionRepository).shouldHaveNoInteractions();
+            then(voteOptionRepository).should(times(2)).save(any(VoteOptions.class)); // GENERAL 타입은 2개 옵션 생성
         }
 
         @Test
@@ -169,15 +174,14 @@ class VoteServiceTest {
                     "참석 여부를 확인합니다",
                     false,
                     false,
-                    scheduleId
+                    scheduleId, // scheduleId
+                    null, // deadline
+                    null  // options (ATTENDANCE는 null)
             );
 
             Schedules schedule = schedule(scheduleId, clubId);
             Clubs clubRef = club(clubId, 1L);
             Users userRef = user(userId);
-
-            Posts savedPost = Posts.vote(clubRef, userRef, schedule, request.title(), request.description());
-            ReflectionTestUtils.setField(savedPost, "postId", 1L);
 
             Votes savedVote = newEntity(Votes.class);
             ReflectionTestUtils.setField(savedVote, "voteId", 1L);
@@ -188,7 +192,6 @@ class VoteServiceTest {
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
             given(clubsRepository.getReferenceById(clubId)).willReturn(clubRef);
             given(userRepository.getReferenceById(userId)).willReturn(userRef);
-            given(postRepository.save(any(Posts.class))).willReturn(savedPost);
             given(voteRepository.save(any(Votes.class))).willReturn(savedVote);
 
             // when
@@ -198,9 +201,10 @@ class VoteServiceTest {
             assertThat(result).isNotNull();
             assertThat(result.voteType()).isEqualTo("ATTENDANCE");
             assertThat(result.scheduleId()).isEqualTo(scheduleId);
+            assertThat(result.postId()).isNull(); // ATTENDANCE 타입은 postId가 null
 
             then(scheduleRepository).should(times(1)).findById(scheduleId);
-            then(postRepository).should(times(1)).save(any(Posts.class));
+            then(postRepository).shouldHaveNoInteractions(); // ATTENDANCE 타입은 Posts 생성 안함
             then(voteRepository).should(times(1)).save(any(Votes.class));
             then(voteOptionRepository).should(times(2)).save(any(VoteOptions.class));
         }
@@ -218,7 +222,9 @@ class VoteServiceTest {
                     "설명",
                     false,
                     false,
-                    null // scheduleId 없음
+                    null, // scheduleId 없음
+                    null, // deadline
+                    null  // options
             );
 
             // when & then
@@ -244,7 +250,9 @@ class VoteServiceTest {
                     "설명",
                     false,
                     false,
-                    scheduleId
+                    scheduleId, // scheduleId
+                    null, // deadline
+                    null  // options (ATTENDANCE는 null)
             );
 
             Schedules schedule = schedule(scheduleId, otherClubId); // 다른 모임
