@@ -1,5 +1,7 @@
 package back.dto.post.story.response;
 
+import back.dto.post.post.response.PostCardBase;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
