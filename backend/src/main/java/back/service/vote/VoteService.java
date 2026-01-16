@@ -1,6 +1,7 @@
 package back.service.vote;
 
 import back.domain.*;
+import back.domain.post.PostCategory;
 import back.domain.post.Posts;
 import back.domain.schedule.Schedules;
 import back.domain.vote.VoteOptions;
