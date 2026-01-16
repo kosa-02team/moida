@@ -1,8 +1,11 @@
 package back.service.ledger;
 
 import back.bank.domain.BankTransactionHistory;
+import back.domain.ClubMembers;
 import back.domain.ledger.PaymentRequest;
 import back.bank.repository.BankTransactionHistoryRepository;
+import back.repository.ClubMemberRepository;
+import back.repository.clubs.ClubMembersRepository;
 import back.repository.ledger.PaymentRequestRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,11 +24,14 @@ public class TransactionMatchingService {
 
     private final PaymentRequestRepository paymentRequestRepository;
     private final BankTransactionHistoryRepository transactionHistoryRepository;
+    private final ClubMemberRepository clubMemberRepository;
 
     public TransactionMatchingService(PaymentRequestRepository paymentRequestRepository,
-            BankTransactionHistoryRepository transactionHistoryRepository) {
+            BankTransactionHistoryRepository transactionHistoryRepository,
+          ClubMemberRepository clubMemberRepository) {
         this.paymentRequestRepository = paymentRequestRepository;
         this.transactionHistoryRepository = transactionHistoryRepository;
+        this.clubMemberRepository = clubMemberRepository;
     }
 
     /**
@@ -73,32 +79,48 @@ public class TransactionMatchingService {
 
     /**
      * 매칭 조건 확인
-     * 1. print_content에 회원 이름 포함
-     * 2. 금액이 예상 금액과 일치
-     * 3. 거래 날짜가 예상 날짜 ±N일 이내 (N=match_days_range)
+     * 1. 금액이 예상 금액과 일치 
+     * 2. 거래 날짜가 예상 날짜 ±N일 이내 (N=match_days_range)툴바 사용자 지정…
+     * 3. print_content에 회원 이름, 닉네임 포함
      */
-    private boolean isMatched(BankTransactionHistory transaction, PaymentRequest request) {
-        // 조건 1: 이름 확인 (대소문자 구분 없이)
-        String senderName = transaction.getSenderName();
-        if (senderName == null || !senderName.contains(request.getMemberName())) {
-            return false;
-        }
+    private boolean isMatched(BankTransactionHistory tx, PaymentRequest req) {
 
-        // 조건 2: 금액 확인
-        BigDecimal transactionAmount = transaction.getAmount();
-        if (transactionAmount.compareTo(request.getExpectedAmount()) != 0) {
-            return false;
-        }
+        // 1) 금액 먼저
+        if (tx.getAmount().compareTo(req.getExpectedAmount()) != 0) return false;
 
-        // 조건 3: 날짜 범위 확인
-        LocalDate transactionDate = transaction.getBankTransactionAt().toLocalDate();
-        LocalDate expectedDate = request.getExpectedDate();
-        int daysRange = request.getMatchDaysRange() != null ? request.getMatchDaysRange() : 10;
+        // 2) 날짜 범위
+        LocalDate txDate = tx.getBankTransactionAt().toLocalDate();
+        LocalDate expected = req.getExpectedDate();
+        int range = req.getMatchDaysRange() != null ? req.getMatchDaysRange() : 10;
 
-        LocalDate fromDate = expectedDate.minusDays(daysRange);
-        LocalDate toDate = expectedDate.plusDays(daysRange);
+        if (txDate.isBefore(expected.minusDays(range)) || txDate.isAfter(expected.plusDays(range))) return false;
 
-        return !transactionDate.isBefore(fromDate) && !transactionDate.isAfter(toDate);
+        // 3) 적요
+        String content = normalize(tx.getPrintContent());
+        if (content.isBlank()) return false;
+
+        // 4) memberId로 실명/닉네임 조회 (방법 A면 member 가져와서 member.realName() 써도 됨)
+        var viewOpt = clubMemberRepository.findNameView(req.getClubId(), req.getMemberId());
+        if (viewOpt.isEmpty()) return false;
+
+        String realNameRaw = viewOpt.get().getRealName();
+        String nickRaw = viewOpt.get().getClubNickname();
+
+        String realName = normalize(realNameRaw);
+        String nick = normalize(nickRaw);
+
+        // 5) 실명/닉네임이 클럽 내 유일할 때만 매칭 허용
+        boolean realNameUnique = !realName.isBlank()
+                && clubMemberRepository.countByClubIdAndRealName(req.getClubId(), realNameRaw) == 1;
+
+        boolean nickUnique = !nick.isBlank()
+                && clubMemberRepository.countByClubIdAndClubNickname(req.getClubId(), nickRaw) == 1;
+
+        // 6) 유일한 경우에만 contains 허용
+        if (realNameUnique && content.contains(realName)) return true;
+        if (nickUnique && content.contains(nick)) return true;
+
+        return false;
     }
 
     /**
@@ -153,4 +175,12 @@ public class TransactionMatchingService {
             }
         }
     }
+
+    private String normalize(String s) {
+        if (s == null) return "";
+        return s.replaceAll("\\s+", "")
+                .replaceAll("[^0-9a-zA-Z가-힣]", "")
+                .toLowerCase();
+    }
+
 }

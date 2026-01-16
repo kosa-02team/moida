@@ -29,11 +29,8 @@ public class BankTransactionHistory {
     @Column(name = "bank_transaction_at", nullable = false)
     private LocalDateTime bankTransactionAt;
 
-    @Column(name = "sender_account_number", nullable = false, length = 255)
-    private String senderAccountNumber;
-
-    @Column(name = "sender_name", nullable = false, length = 50)
-    private String senderName;
+    @Column(name = "print_content", nullable = false, length = 50)
+    private String printContent;
 
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal amount;
@@ -46,12 +43,11 @@ public class BankTransactionHistory {
 
     // 생성자
     public BankTransactionHistory(Long clubId, LocalDateTime bankTransactionAt, 
-                                   String senderAccountNumber, String senderName,
+                                   String printContent,
                                    BigDecimal amount, String uniqueTxKey) {
         this.clubId = clubId;
         this.bankTransactionAt = bankTransactionAt;
-        this.senderAccountNumber = senderAccountNumber;
-        this.senderName = senderName;
+        this.printContent = printContent;
         this.amount = amount;
         this.uniqueTxKey = uniqueTxKey;
     }

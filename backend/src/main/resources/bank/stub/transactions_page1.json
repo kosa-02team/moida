@@ -11,54 +11,135 @@
   "bank_name": "오픈은행",
   "savings_bank_name": "",
   "fintech_use_num": "123456789012345678901234",
-  "balance_amt": "1450000",
-  "page_record_cnt": "5",
+  "balance_amt": "1290000",
+  "page_record_cnt": "14",
   "next_page_yn": "N",
   "res_list": [
     {
       "tran_date": "20260115",
       "tran_time": "093000",
       "inout_type": "입금",
-      "tran_type": "현금",
-      "print_content": "회비입금",
-      "tran_amt": "50000",
-      "after_balance_amt": "1450000"
+      "tran_type": "이체",
+      "print_content": "김민준",
+      "tran_amt": "30000",
+      "after_balance_amt": "1290000"
+    },
+    {
+      "tran_date": "20260115",
+      "tran_time": "090500",
+      "inout_type": "입금",
+      "tran_type": "이체",
+      "print_content": "이서준",
+      "tran_amt": "30000",
+      "after_balance_amt": "1260000"
     },
     {
       "tran_date": "20260114",
-      "tran_time": "153000",
-      "inout_type": "출금",
-      "tran_type": "현금",
-      "print_content": "모임비용",
+      "tran_time": "201500",
+      "inout_type": "입금",
+      "tran_type": "이체",
+      "print_content": "박지훈",
       "tran_amt": "30000",
-      "after_balance_amt": "1400000"
+      "after_balance_amt": "1230000"
+    },
+    {
+      "tran_date": "20260114",
+      "tran_time": "184000",
+      "inout_type": "입금",
+      "tran_type": "이체",
+      "print_content": "최서연",
+      "tran_amt": "30000",
+      "after_balance_amt": "1200000"
+    },
+    {
+      "tran_date": "20260114",
+      "tran_time": "111000",
+      "inout_type": "입금",
+      "tran_type": "이체",
+      "print_content": "정하준",
+      "tran_amt": "30000",
+      "after_balance_amt": "1170000"
+    },
+    {
+      "tran_date": "20260113",
+      "tran_time": "173000",
+      "inout_type": "입금",
+      "tran_type": "이체",
+      "print_content": "한지민",
+      "tran_amt": "30000",
+      "after_balance_amt": "1140000"
     },
     {
       "tran_date": "20260113",
       "tran_time": "110000",
       "inout_type": "입금",
-      "tran_type": "현금",
-      "print_content": "회비입금",
-      "tran_amt": "50000",
-      "after_balance_amt": "1430000"
+      "tran_type": "이체",
+      "print_content": "오세훈",
+      "tran_amt": "30000",
+      "after_balance_amt": "1110000"
+    },
+    {
+      "tran_date": "20260113",
+      "tran_time": "094000",
+      "inout_type": "입금",
+      "tran_type": "이체",
+      "print_content": "윤아린",
+      "tran_amt": "30000",
+      "after_balance_amt": "1080000"
+    },
+    {
+      "tran_date": "20260112",
+      "tran_time": "202000",
+      "inout_type": "입금",
+      "tran_type": "이체",
+      "print_content": "장도윤",
+      "tran_amt": "30000",
+      "after_balance_amt": "1050000"
+    },
+    {
+      "tran_date": "20260112",
+      "tran_time": "171500",
+      "inout_type": "입금",
+      "tran_type": "이체",
+      "print_content": "임수현",
+      "tran_amt": "30000",
+      "after_balance_amt": "1020000"
     },
     {
       "tran_date": "20260112",
       "tran_time": "140000",
       "inout_type": "입금",
       "tran_type": "이체",
-      "print_content": "회비입금",
-      "tran_amt": "50000",
-      "after_balance_amt": "1380000"
+      "print_content": "신유진",
+      "tran_amt": "30000",
+      "after_balance_amt": "990000"
+    },
+    {
+      "tran_date": "20260111",
+      "tran_time": "190000",
+      "inout_type": "입금",
+      "tran_type": "이체",
+      "print_content": "조현우",
+      "tran_amt": "30000",
+      "after_balance_amt": "960000"
+    },
+    {
+      "tran_date": "20260111",
+      "tran_time": "171000",
+      "inout_type": "입금",
+      "tran_type": "이체",
+      "print_content": "강태현",
+      "tran_amt": "30000",
+      "after_balance_amt": "930000"
     },
     {
       "tran_date": "20260111",
       "tran_time": "163000",
-      "inout_type": "출금",
-      "tran_type": "현금",
-      "print_content": "식비결제",
-      "tran_amt": "120000",
-      "after_balance_amt": "1330000"
+      "inout_type": "입금",
+      "tran_type": "이체",
+      "print_content": "서지안",
+      "tran_amt": "30000",
+      "after_balance_amt": "900000"
     }
   ]
 }

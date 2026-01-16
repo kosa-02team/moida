@@ -1,4 +1,4 @@
-package back.bank.provider.test;
+package back.bank.provider.stub;
 
 import back.bank.dto.request.AccountCreateRequest;
 import back.dto.ledger.request.RefundRequest;
