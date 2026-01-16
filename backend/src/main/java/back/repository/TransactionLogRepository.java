@@ -1,6 +1,6 @@
 package back.repository;
 
-import back.domain.TransactionLog;
+import back.domain.ledger.TransactionLog;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

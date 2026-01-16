@@ -15,7 +15,7 @@ import back.bank.provider.BankProviderRegistry;
 import back.bank.repository.BankAccountRepository;
 import back.bank.repository.BankRepository;
 import back.bank.repository.BankTransactionHistoryRepository;
-import back.domain.TransactionLog;
+import back.domain.ledger.TransactionLog;
 import back.repository.TransactionLogRepository;
 import back.service.ledger.TransactionMatchingService;
 import org.springframework.stereotype.Service;
@@ -131,13 +131,9 @@ public class BankService {
             // 마지막 거래 날짜 조회
             var latestTransaction = transactionLogRepository.findLatestByClubId(clubId);
 
-            if (latestTransaction.isPresent()) {
-                // 마지막 거래 다음날부터
-                actualFrom = latestTransaction.get().getCreatedAt().toLocalDate().plusDays(1);
-            } else {
-                // 첫 동기화인 경우 30일 전부터
-                actualFrom = LocalDate.now().minusDays(30);
-            }
+            // 마지막 거래 다음날부터
+            // 첫 동기화인 경우 30일 전부터
+            actualFrom = latestTransaction.map(transactionLog -> transactionLog.getCreatedAt().toLocalDate().plusDays(1)).orElseGet(() -> LocalDate.now().minusDays(30));
 
             // 오늘까지
             actualTo = LocalDate.now();
@@ -169,8 +165,7 @@ public class BankService {
             BankTransactionHistory history = new BankTransactionHistory(
                     clubId,
                     tx.occurredAt(),
-                    account.getAccountNumber(), // senderAccountNumber
-                    account.getDepositorName(), // senderName
+                    tx.printContent(), // senderName
                     tx.amount(),
                     tx.txId() // uniqueTxKey로 사용
             );
@@ -183,7 +178,7 @@ public class BankService {
                     tx.type(), // "DEPOSIT" or "WITHDRAW"
                     tx.amount(),
                     tx.balanceAfter(),
-                    tx.memo(),
+                    tx.printContent(),
                     null // editorId는 시스템 자동 동기화이므로 null
             );
             TransactionLog savedLog = transactionLogRepository.save(log);

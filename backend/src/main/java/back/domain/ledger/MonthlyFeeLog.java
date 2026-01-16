@@ -1,4 +1,4 @@
-package back.domain;
+package back.domain.ledger;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;

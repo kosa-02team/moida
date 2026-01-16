@@ -10,7 +10,7 @@ import back.dto.ledger.response.RefundResponse;
 import back.bank.repository.BankTransactionHistoryRepository;
 import back.repository.ledger.PaymentRequestRepository;
 import back.bank.service.BankService;
-import back.domain.TransactionLog;
+import back.domain.ledger.TransactionLog;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -59,7 +59,7 @@ public class BankAccountController {
      * GET /api/clubs/{clubId}/bank/sync (자동 날짜 범위)
      * GET /api/clubs/{clubId}/bank/sync?from=2026-01-01&to=2026-01-31 (수동 날짜 범위)
      */
-    @GetMapping("/sync")
+    @PostMapping("/sync")
     public ResponseEntity<List<TransactionLog>> syncTransactions(
             @PathVariable Long clubId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -109,7 +109,7 @@ public class BankAccountController {
                             extractType(history),
                             history.getAmount(),
                             java.math.BigDecimal.ZERO, // balance_after
-                            history.getSenderName(),
+                            history.getPrintContent(),
                             matchedRequest));
                 } else {
                     processed.add(ProcessedTransactionResponse.confirmed(
@@ -119,7 +119,7 @@ public class BankAccountController {
                             extractType(history),
                             history.getAmount(),
                             java.math.BigDecimal.ZERO,
-                            history.getSenderName(),
+                            history.getPrintContent(),
                             matchedRequest));
                 }
             } else {
@@ -131,7 +131,7 @@ public class BankAccountController {
                         extractType(history),
                         history.getAmount(),
                         java.math.BigDecimal.ZERO,
-                        history.getSenderName()));
+                        history.getPrintContent()));
             }
         }
 

@@ -1,5 +1,6 @@
-package back.domain;
+package back.domain.ledger;
 
+import back.domain.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;

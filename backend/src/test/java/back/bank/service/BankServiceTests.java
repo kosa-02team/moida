@@ -13,7 +13,7 @@ import back.bank.provider.BankProviderRegistry;
 import back.bank.repository.BankAccountRepository;
 import back.bank.repository.BankRepository;
 import back.bank.repository.BankTransactionHistoryRepository;
-import back.domain.TransactionLog;
+import back.domain.ledger.TransactionLog;
 import back.repository.TransactionLogRepository;
 import back.service.ledger.TransactionMatchingService;
 import org.junit.jupiter.api.DisplayName;
@@ -26,7 +26,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 

@@ -9,6 +9,6 @@ public record BankTransaction(
         String type,            // "DEPOSIT" / "WITHDRAW" 등
         BigDecimal amount,
         BigDecimal balanceAfter,
-        String memo
+        String printContent
 ) {
 }
