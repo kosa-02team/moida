@@ -23,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -51,16 +52,91 @@ public class VoteService {
      */
     @Transactional
     public VoteResponse createVote(Long clubId, Long userId, VoteCreateRequest request) {
-        // 권한 체크: ATTENDANCE 타입은 모임장/운영진만, GENERAL 타입은 ACTIVE 멤버만 생성 가능
+        // 1. voteType 검증
+        if (request.voteType() == null || 
+            (!"GENERAL".equals(request.voteType()) && !"ATTENDANCE".equals(request.voteType()))) {
+            throw new VoteException.OptionInvalid(); // voteType이 유효하지 않음
+        }
+
+        // 2. title 검증 (null, 빈 문자열, 길이 체크)
+        if (request.title() == null || request.title().trim().isEmpty()) {
+            throw new VoteException.OptionInvalid(); // title이 유효하지 않음
+        }
+        if (request.title().length() > 200) {
+            throw new VoteException.OptionInvalid(); // title이 200자 초과
+        }
+
+        // 3. 권한 체크: ATTENDANCE 타입은 모임장/운영진만, GENERAL 타입은 ACTIVE 멤버만 생성 가능
         if ("ATTENDANCE".equals(request.voteType())) {
             clubsAuthorizationService.assertAtLeastManager(clubId, userId);
         } else {
             clubsAuthorizationService.assertActiveMember(clubId, userId);
         }
 
-        // ATTENDANCE 타입일 때 scheduleId 필수 검증
-        if ("ATTENDANCE".equals(request.voteType()) && request.scheduleId() == null) {
-            throw new VoteException.ScheduleIdRequired();
+        // 4. ATTENDANCE 타입일 때 scheduleId 필수 검증 및 options 불가 검증
+        if ("ATTENDANCE".equals(request.voteType())) {
+            if (request.scheduleId() == null) {
+                throw new VoteException.ScheduleIdRequired();
+            }
+            // ATTENDANCE 타입은 options를 전달하면 안됨
+            if (request.options() != null && !request.options().isEmpty()) {
+                throw new VoteException.OptionInvalid(); // ATTENDANCE 타입은 options 사용 불가
+            }
+        }
+
+        // 5. GENERAL 타입일 때 options 필수 검증 (최소 2개 이상) 및 scheduleId 불가 검증
+        if ("GENERAL".equals(request.voteType())) {
+            // GENERAL 타입은 scheduleId를 전달하면 안됨
+            if (request.scheduleId() != null) {
+                throw new VoteException.OptionInvalid(); // GENERAL 타입은 scheduleId 사용 불가
+            }
+            
+            if (request.options() == null || request.options().size() < 2) {
+                throw new VoteException.OptionRequired();
+            }
+            
+            // options 리스트에 null이 포함되어 있는지 체크
+            if (request.options().stream().anyMatch(option -> option == null)) {
+                throw new VoteException.OptionInvalid(); // options에 null 포함
+            }
+            
+            // 각 옵션 검증
+            for (VoteOptionCreateRequest option : request.options()) {
+                // optionText null 및 빈 문자열 체크 (방어적 코딩)
+                if (option.optionText() == null || option.optionText().trim().isEmpty()) {
+                    throw new VoteException.OptionInvalid(); // optionText가 null이거나 빈 문자열
+                }
+                
+                // optionText 길이 체크 (200자)
+                if (option.optionText().length() > 200) {
+                    throw new VoteException.OptionInvalid(); // optionText가 200자 초과
+                }
+                
+                // location 길이 체크 (255자)
+                if (option.location() != null && option.location().length() > 255) {
+                    throw new VoteException.OptionInvalid(); // location이 255자 초과
+                }
+                
+                // order가 null이거나 음수인지 체크
+                if (option.order() == null || option.order() < 0) {
+                    throw new VoteException.OptionInvalid(); // order가 null이거나 음수
+                }
+            }
+            
+            // deadline이 과거 날짜인지 검증
+            if (request.deadline() != null && request.deadline().isBefore(LocalDateTime.now())) {
+                throw new VoteException.DeadlinePassed();
+            }
+            
+            // options의 order 중복 체크
+            List<Integer> orders = request.options().stream()
+                    .map(VoteOptionCreateRequest::order)
+                    .filter(order -> order != null)
+                    .collect(Collectors.toList());
+            long uniqueOrderCount = orders.stream().distinct().count();
+            if (orders.size() != uniqueOrderCount) {
+                throw new VoteException.OptionDuplicate();
+            }
         }
 
         // ATTENDANCE 타입이고 scheduleId가 있으면 일정 존재 여부 및 모임 소속 확인
@@ -91,6 +167,9 @@ public class VoteService {
         post = postRepository.save(post);
 
         // 2. Votes 엔티티 생성
+        // GENERAL 타입일 때만 deadline 사용, ATTENDANCE 타입은 null
+        LocalDateTime deadline = "GENERAL".equals(request.voteType()) ? request.deadline() : null;
+        
         Votes vote = new Votes(
                 post.getPostId(),
                 request.voteType(),
@@ -100,7 +179,7 @@ public class VoteService {
                 request.description(),
                 request.isAnonymous(),
                 request.allowMultiple(),
-                null  // deadline은 일반 투표에서만 사용
+                deadline
         );
         vote = voteRepository.save(vote);
 
@@ -126,8 +205,22 @@ public class VoteService {
             );
             voteOptionRepository.save(absentOption);
         }
+        
+        // 4. GENERAL 타입이면 사용자가 입력한 옵션들 생성
+        if ("GENERAL".equals(request.voteType()) && request.options() != null && !request.options().isEmpty()) {
+            for (VoteOptionCreateRequest optionRequest : request.options()) {
+                VoteOptions option = new VoteOptions(
+                        vote.getVoteId(),
+                        optionRequest.optionText(),
+                        optionRequest.order(),
+                        optionRequest.eventDate(),
+                        optionRequest.location()
+                );
+                voteOptionRepository.save(option);
+            }
+        }
 
-        // 4. VoteResponse로 변환해서 리턴
+        // 5. VoteResponse로 변환해서 리턴
         return new VoteResponse(
                 vote.getVoteId(),
                 post.getPostId(),

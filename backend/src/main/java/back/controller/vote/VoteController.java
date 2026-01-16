@@ -54,7 +54,7 @@ public class VoteController {
     public SuccessResponse<VoteResponse> createVote(
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable("clubId") Long clubId,
-            @RequestBody VoteCreateRequest request
+            @RequestBody @Valid VoteCreateRequest request
     ) {
         Long currentUserId = requireUserId(principal);
         VoteResponse response = voteService.createVote(clubId, currentUserId, request);
