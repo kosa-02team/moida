@@ -55,4 +55,15 @@ public class AuthException extends CustomGlobalException{
             super(ErrorCode.REFRESH_TOKEN_NOT_FOUND, message);
         }
     }
+
+    public static class InvalidRefreshToken extends AuthException {
+
+        public InvalidRefreshToken() {
+            super(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        public InvalidRefreshToken(String message) {
+            super(ErrorCode.INVALID_REFRESH_TOKEN, message);
+        }
+    }
 }
