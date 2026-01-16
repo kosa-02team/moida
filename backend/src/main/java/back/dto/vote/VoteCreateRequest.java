@@ -1,5 +1,6 @@
 package back.dto.vote;
 
+import jakarta.validation.Valid;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -14,6 +15,6 @@ public record VoteCreateRequest(
         Boolean allowMultiple,
         Long scheduleId,       // ATTENDANCE 타입일 때만 사용, 없으면 null
         LocalDateTime deadline, // GENERAL 타입일 때 사용 (선택)
-        List<VoteOptionCreateRequest> options  // GENERAL 타입일 때 사용 (사용자가 입력한 옵션들)
+        @Valid List<VoteOptionCreateRequest> options  // GENERAL 타입일 때 사용 (사용자가 입력한 옵션들)
 ) {
 }
