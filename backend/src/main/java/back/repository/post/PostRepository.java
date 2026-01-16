@@ -1,5 +1,6 @@
 package back.repository.post;
 
+import back.domain.post.PostCategory;
 import back.domain.post.Posts;
 import back.dto.post.post.response.PostCardBase;
 import back.repository.post.projection.RecentAlbumRow;
