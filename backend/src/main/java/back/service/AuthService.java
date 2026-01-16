@@ -4,6 +4,7 @@ import back.config.security.JwtTokenProvider;
 import back.config.security.RefreshToken;
 import back.domain.Users;
 import back.dto.LoginRequest;
+import back.dto.auth.RefreshTokenRequest;
 import back.dto.auth.SignupRequest;
 import back.dto.auth.RefreshTokenResponse;
 import back.exception.AuthException;
@@ -57,9 +58,9 @@ public class AuthService {
         return savedUser.getUserId();
     }
 
-    public RefreshTokenResponse refresh(String refreshToken) {
-        if (jwtTokenProvider.validateToken(refreshToken)) {
-            RefreshToken oldRefreshToken = refreshTokenRepository.findById(refreshToken)
+    public RefreshTokenResponse refresh(RefreshTokenRequest refreshTokenRequest) {
+        if (jwtTokenProvider.validateToken(refreshTokenRequest.refreshToken())) {
+            RefreshToken oldRefreshToken = refreshTokenRepository.findById(refreshTokenRequest.refreshToken())
                     .orElseThrow(() -> new AuthException.RefreshTokenNotFound());
 
             Users user = oldRefreshToken.getUser();
@@ -67,7 +68,7 @@ public class AuthService {
             String newRefreshToken = jwtTokenProvider.createRefreshToken();
 
             refreshTokenRepository.save(new RefreshToken(newRefreshToken, user));
-            refreshTokenRepository.deleteById(refreshToken);
+            refreshTokenRepository.deleteById(refreshTokenRequest.refreshToken());
 
             return new RefreshTokenResponse(newAccessToken, newRefreshToken);
         }
