@@ -23,11 +23,11 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    public ResponseEntity<SuccessResponse<String>> login(@RequestBody
+    public ResponseEntity<SuccessResponse<RefreshTokenResponse>> login(@RequestBody
                                                          @Valid
                                                          LoginRequest loginRequest) {
-        String token = authService.login(loginRequest);
-        return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK, token));
+        RefreshTokenResponse refreshTokenResponse = authService.login(loginRequest);
+        return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK, refreshTokenResponse));
     }
 
     @PostMapping("/signup")

@@ -25,17 +25,19 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
 
     @Transactional
-    public String login(LoginRequest loginRequest) {
-        // 1. 사용자 존재 여부 확인
+    public RefreshTokenResponse login(LoginRequest loginRequest) {
         Users user = userRepository.findByLoginId(loginRequest.loginId())
                 .orElseThrow(() -> new AuthException.UserNotFound());
 
-        // 2. 비밀번호 일치 확인
         if (!passwordEncoder.matches(loginRequest.password(), user.getPassword())) {
             throw new AuthException.LoginFailed();
         }
-        // 3. 토큰 생성 및 반환
-        return jwtTokenProvider.createAccessToken(user.getLoginId(), user.getSystemRole(), user.getUserId());
+        String accessToken = jwtTokenProvider.createAccessToken(user.getLoginId(), user.getSystemRole(), user.getUserId());
+        String refreshToken = jwtTokenProvider.createRefreshToken();
+
+        refreshTokenRepository.save(new RefreshToken(refreshToken, user));
+
+        return new RefreshTokenResponse(accessToken, refreshToken);
     }
 
     @Transactional
