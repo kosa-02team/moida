@@ -1,7 +1,7 @@
 package back.service;
 
 import back.domain.Users;
-import back.dto.SignupRequest;
+import back.dto.auth.SignupRequest;
 import back.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

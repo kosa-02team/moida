@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.Date;
 
 @Slf4j
@@ -44,6 +45,18 @@ public class JwtTokenProvider {
                 .issuedAt(now)
                 .expiration(validity)
                 .signWith(secretKey)
+                .compact();
+    }
+
+    // Refresh Token 생성
+    public String createRefreshToken() {
+        Date now = new Date();
+        Date validity = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 14);
+
+        return Jwts.builder()
+                .signWith(secretKey)
+                .issuedAt(now)
+                .expiration(validity)
                 .compact();
     }
 

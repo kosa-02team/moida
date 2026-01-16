@@ -1,10 +1,13 @@
 package back.service;
 
 import back.config.security.JwtTokenProvider;
+import back.config.security.RefreshToken;
 import back.domain.Users;
 import back.dto.LoginRequest;
-import back.dto.SignupRequest;
+import back.dto.auth.SignupRequest;
+import back.dto.auth.RefreshTokenResponse;
 import back.exception.AuthException;
+import back.repository.RefreshTokenRepository;
 import back.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -19,6 +22,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Transactional
     public String login(LoginRequest loginRequest) {
@@ -49,5 +53,22 @@ public class AuthService {
         Users savedUser = userRepository.save(users);
 
         return savedUser.getUserId();
+    }
+
+    public RefreshTokenResponse refresh(String refreshToken) {
+        if (jwtTokenProvider.validateToken(refreshToken)) {
+            RefreshToken oldRefreshToken = refreshTokenRepository.findById(refreshToken)
+                    .orElseThrow(() -> new AuthException.RefreshTokenNotFound());
+
+            Users user = oldRefreshToken.getUser();
+            String newAccessToken = jwtTokenProvider.createAccessToken(user.getLoginId(), user.getSystemRole(), user.getUserId());
+            String newRefreshToken = jwtTokenProvider.createRefreshToken();
+
+            refreshTokenRepository.save(new RefreshToken(newRefreshToken, user));
+            refreshTokenRepository.deleteById(refreshToken);
+
+            return new RefreshTokenResponse(newAccessToken, newRefreshToken);
+        }
+        throw new AuthException.InvalidRefreshToken();
     }
 }
