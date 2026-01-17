@@ -1,9 +1,7 @@
 package back.config.security;
 
 import back.domain.Users;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,10 +13,10 @@ import java.time.LocalDateTime;
 public class RefreshToken {
 
     @Id
-    String token;
-
-    LocalDateTime expireTime;
-
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    private String token;
+    private LocalDateTime expireTime;
     @ManyToOne
     Users user;
 
