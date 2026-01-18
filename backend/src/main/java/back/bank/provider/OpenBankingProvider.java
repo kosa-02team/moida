@@ -44,6 +44,12 @@ public class OpenBankingProvider implements BankProvider {
     }
 
     @Override
+    public List<BankTransaction> getTransactionsStub(String accountNumber, Long stubId, LocalDate from, LocalDate to) {
+        // TODO: 거래내역조회 API 호출
+        throw new UnsupportedOperationException("OpenBanking 연동 전입니다.");
+    }
+
+    @Override
     public TransferResponse transfer(TransferRequest command) {
         // TODO: 이체 API 호출
         throw new UnsupportedOperationException("OpenBanking 연동 전입니다.");
