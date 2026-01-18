@@ -26,17 +26,17 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 
-@ExtendWith(MockitoExtension.class) // Mockito 확장 기능을 사용
+@ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
 
     @InjectMocks
-    private AuthService authService; // 가짜 객체들을 주입받을 테스트 대상
+    private AuthService authService;
 
     @Mock
-    private RefreshTokenRepository refreshTokenRepository; // 가짜 저장소
+    private RefreshTokenRepository refreshTokenRepository;
 
     @Mock
-    private JwtTokenProvider jwtTokenProvider; // 가짜 토큰 생성기
+    private JwtTokenProvider jwtTokenProvider;
 
     @Mock
     private UserRepository userRepository;
@@ -47,39 +47,42 @@ class AuthServiceTest {
     @Test
     @DisplayName("리프레시 토큰 재발급 성공 - RTR 정책(저장 및 삭제) 검증")
     void refresh_Success() {
-        // given (준비)
+        // given
         String oldTokenStr = "old-refresh-token";
         String newAccessStr = "new-access-token";
         String newRefreshStr = "new-refresh-token";
 
-        // 요청 DTO 생성
         RefreshTokenRequest request = new RefreshTokenRequest(oldTokenStr);
 
-        // 가짜 유저와 가짜 토큰 엔티티 생성
-        Users mockUser = new Users("testUser", "12345678", "테스트");
+        Users mockUser = new Users("testUser@test.com", "12345678", "테스트");
 
         RefreshToken mockRefreshTokenEntity = new RefreshToken(oldTokenStr, mockUser);
 
         // Mock 동작 정의
-        given(jwtTokenProvider.validateToken(oldTokenStr)).willReturn(true); // 1. 토큰 유효성 통과
-        given(refreshTokenRepository.findById(oldTokenStr))
-                .willReturn(Optional.of(mockRefreshTokenEntity)); // 2. DB에서 찾음
+        given(jwtTokenProvider.validateToken(oldTokenStr)).willReturn(true);
+
+        // [수정 1] findById(String) -> findByToken(String)으로 변경
+        given(refreshTokenRepository.findByToken(oldTokenStr))
+                .willReturn(Optional.of(mockRefreshTokenEntity));
 
         given(jwtTokenProvider.createAccessToken(mockUser.getLoginId(), mockUser.getSystemRole(), mockUser.getUserId()))
-                .willReturn(newAccessStr); // 3. 새 액세스 토큰 생성
+                .willReturn(newAccessStr);
         given(jwtTokenProvider.createRefreshToken())
-                .willReturn(newRefreshStr); // 4. 새 리프레시 토큰 생성
+                .willReturn(newRefreshStr);
 
-        // when (실행)
+        // when
         RefreshTokenResponse response = authService.refresh(request);
 
-        // then (검증)
+        // then
         assertThat(response.accessToken()).isEqualTo(newAccessStr);
         assertThat(response.refreshToken()).isEqualTo(newRefreshStr);
 
-        // ** 핵심 RTR 로직 검증 **
-        verify(refreshTokenRepository, times(1)).deleteById(oldTokenStr); // 헌 토큰 삭제되었는지?
-        verify(refreshTokenRepository, times(1)).save(any(RefreshToken.class)); // 새 토큰 저장되었는지?
+        // [수정 2] deleteById(String) -> delete(Entity) 검증으로 변경
+        // 서비스 코드에서 refreshTokenRepository.delete(oldRefreshToken)를 호출하므로,
+        // deleteById가 아니라 delete 메서드가 호출되었는지 확인해야 함.
+        verify(refreshTokenRepository, times(1)).delete(mockRefreshTokenEntity);
+
+        verify(refreshTokenRepository, times(1)).save(any(RefreshToken.class));
     }
 
     @Test
@@ -89,11 +92,11 @@ class AuthServiceTest {
         String invalidToken = "invalid-token";
         RefreshTokenRequest request = new RefreshTokenRequest(invalidToken);
 
-        given(jwtTokenProvider.validateToken(invalidToken)).willReturn(false); // 유효하지 않다고 설정
+        given(jwtTokenProvider.validateToken(invalidToken)).willReturn(false);
 
         // when & then
         assertThatThrownBy(() -> authService.refresh(request))
-                .isInstanceOf(AuthException.InvalidRefreshToken.class); // 우리가 만든 예외가 터져야 함
+                .isInstanceOf(AuthException.InvalidRefreshToken.class);
     }
 
     @Test
@@ -103,9 +106,11 @@ class AuthServiceTest {
         String notFoundToken = "not-found-token";
         RefreshTokenRequest request = new RefreshTokenRequest(notFoundToken);
 
-        given(jwtTokenProvider.validateToken(notFoundToken)).willReturn(true); // 검증은 통과했으나
-        given(refreshTokenRepository.findById(notFoundToken))
-                .willReturn(Optional.empty()); // DB에는 없음
+        given(jwtTokenProvider.validateToken(notFoundToken)).willReturn(true);
+
+        // [수정 3] findById(String) -> findByToken(String)으로 변경
+        given(refreshTokenRepository.findByToken(notFoundToken))
+                .willReturn(Optional.empty());
 
         // when & then
         assertThatThrownBy(() -> authService.refresh(request))

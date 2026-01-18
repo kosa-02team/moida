@@ -22,38 +22,38 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-// 1. WebMvcTest: 컨트롤러만 집중적으로 테스트 (Service, Repository 빈은 로드 안 함)
 @WebMvcTest(controllers = AuthController.class)
-@AutoConfigureMockMvc(addFilters = false) // 2. Spring Security 필터 비활성화 (순수 컨트롤러 로직만 테스트)
+@AutoConfigureMockMvc(addFilters = false) // 시큐리티 필터 비활성화 (순수 컨트롤러 로직 검증)
 class AuthControllerTest {
 
     @Autowired
-    private MockMvc mockMvc; // 3. 가짜 HTTP 요청을 보내는 도구
+    private MockMvc mockMvc;
 
     @Autowired
-    private ObjectMapper objectMapper; // 4. 객체 <-> JSON 변환 도구
+    private ObjectMapper objectMapper;
 
+    // Spring Boot 3.4+ 대응: @MockBean -> @MockitoBean
     @MockitoBean
-    private AuthService authService; // 5. 서비스는 가짜(Mock)로 대체
+    private AuthService authService;
 
     @Test
     @DisplayName("로그인 성공 시 토큰 응답 반환")
     void login_Success() throws Exception {
         // given
-        LoginRequest request = new LoginRequest("test@email.com", "password1234"); // 이메일 형식으로 변경
+        // [중요] LoginRequest의 loginId는 @Email 검증이 있으므로 이메일 형식을 지켜야 함
+        LoginRequest request = new LoginRequest("test@email.com", "password1234");
         RefreshTokenResponse response = new RefreshTokenResponse("access-token", "refresh-token");
 
-        // 서비스가 호출되면 가짜 응답을 주도록 설정
+        // 서비스가 호출되면 준비된 response를 반환하도록 Mocking
         given(authService.login(any(LoginRequest.class))).willReturn(response);
 
         // when & then
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request))) // 객체를 JSON 문자열로 변환
-                .andDo(print()) // 테스트 로그 출력
-                .andExpect(status().isOk()) // HTTP 200 확인
-                // JSON 응답 검증 (SuccessResponse 구조에 따라 경로는 달라질 수 있음)
-                // 예: SuccessResponse 안에 'data' 필드에 결과가 들어간다고 가정
+                        .content(objectMapper.writeValueAsString(request)))
+                .andDo(print())
+                .andExpect(status().isOk())
+                // SuccessResponse 구조에 따라 data 필드 하위 검증
                 .andExpect(jsonPath("$.data.accessToken").value("access-token"))
                 .andExpect(jsonPath("$.data.refreshToken").value("refresh-token"));
     }
@@ -65,7 +65,7 @@ class AuthControllerTest {
         RefreshTokenRequest request = new RefreshTokenRequest("old-refresh-token");
         RefreshTokenResponse response = new RefreshTokenResponse("new-access-token", "new-refresh-token");
 
-        // 서비스의 refresh 메서드가 호출되면, 준비한 response를 반환해라!
+        // [중요] 서비스 메서드 파라미터가 String이 아닌 DTO(RefreshTokenRequest)로 변경됨
         given(authService.refresh(any(RefreshTokenRequest.class))).willReturn(response);
 
         // when & then
@@ -74,11 +74,10 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andDo(print())
                 .andExpect(status().isOk())
-                // 값이 제대로 넘어왔는지 확인
                 .andExpect(jsonPath("$.data.accessToken").value("new-access-token"))
                 .andExpect(jsonPath("$.data.refreshToken").value("new-refresh-token"));
 
-        // 실제로 서비스가 호출되었는지 검증 (중요: DTO가 잘 넘어갔는지 확인)
+        // [검증] 컨트롤러가 서비스에 DTO를 잘 넘겨줬는지 확인
         verify(authService).refresh(any(RefreshTokenRequest.class));
     }
 }
