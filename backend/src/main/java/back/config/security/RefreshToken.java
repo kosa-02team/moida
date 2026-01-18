@@ -15,9 +15,11 @@ public class RefreshToken {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @Column(columnDefinition = "TEXT")
     private String token;
     private LocalDateTime expireTime;
     @ManyToOne
+    @JoinColumn(name = "user_id")
     Users user;
 
     public RefreshToken(String token, Users user) {
