@@ -4,14 +4,9 @@ import back.exception.response.ErrorCode;
 import back.exception.response.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.BindingResult;
-import org.springframework.validation.FieldError;
-import org.springframework.validation.ObjectError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
-import java.util.List;
 
 @RestControllerAdvice
 @Slf4j
@@ -56,17 +51,7 @@ public class GlobalExceptionHandler {
                 .status(errorCode.getHttpStatus())
                 .body(ErrorResponse.error(errorCode));
     }
-
-    @ExceptionHandler(ClubAuthException.class)
-    public ResponseEntity<ErrorResponse> handleClubAuthException(final ClubAuthException e) {
-        log.warn("ClubAuthException : {}", e.getMessage());
-        return ResponseEntity
-                .status(e.getErrorCode().getHttpStatus())
-                .body(ErrorResponse.error(e.getErrorCode()));
-    }
-
-
-
+    
     @ExceptionHandler(PostsException.class)
     public ResponseEntity<ErrorResponse> handlePostException(final PostsException e) {
         log.warn("PostException : {}", e.getMessage());

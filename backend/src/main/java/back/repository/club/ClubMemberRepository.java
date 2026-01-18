@@ -12,6 +12,8 @@ import java.util.Optional;
 public interface ClubMemberRepository extends JpaRepository<ClubMembers, Long> {
 
     boolean existsByClubIdAndUserId(Long clubId, Long userId);
+    boolean existsByClubIdAndUserIdAndStatus(Long clubId, Long userId, ClubMembers.Status status);
+    boolean existsByClubIdAndNickname(Long clubId, String nickname);
 
     Optional<ClubMembers> findByClubIdAndUserId(Long clubId, Long userId);
     Optional<ClubMembers> findByClubIdAndMemberId(Long clubId, Long memberId);
@@ -21,9 +23,6 @@ public interface ClubMemberRepository extends JpaRepository<ClubMembers, Long> {
         return findByClubIdAndUserIdAndStatus(clubId, userId, ClubMembers.Status.ACTIVE)
                 .map(ClubMembers::getRole);
     }
-
-    boolean existsByClubIdAndUserIdAndStatus(Long clubId, Long userId, ClubMembers.Status status);
-    boolean existsByClubIdAndNickname(Long clubId, String nickname);
 
     long countByClubIdAndStatus(Long clubId, ClubMembers.Status status);
 

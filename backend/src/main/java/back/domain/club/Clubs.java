@@ -11,7 +11,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "clubs", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_club_name", columnNames = {"club_name"})
+    @UniqueConstraint(name = "uk_club_name", columnNames = {"club_name"})
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -61,11 +61,10 @@ public class Clubs extends BaseEntity {
     }
 
     public enum Type {
-        OPERATION_FEE,    // 운영비형
-        FAIR_SETTLEMENT   // 공정정산형
+        OPERATION_FEE,
+        FAIR_SETTLEMENT
     }
 
-    // 생성자
     public Clubs(String clubName, Long ownerId, Type type, Integer maxMembers) {
         this.clubName = clubName;
         this.ownerId = ownerId;
@@ -75,13 +74,11 @@ public class Clubs extends BaseEntity {
         this.type = type;
         this.maxMembers = maxMembers;
     }
-
     // 기본값 생성자 (테스트용)
     public Clubs(String clubName, Long ownerId) {
         this(clubName, ownerId, Type.OPERATION_FEE, 100);
     }
 
-    // 도메인 메서드
     public void updateName(String clubName) {
         this.clubName = clubName;
     }

@@ -30,6 +30,16 @@ public enum ErrorCode {
     CLUB_CLOSED(HttpStatus.BAD_REQUEST, "C03", "이미 폐쇄된 클럽입니다."),
     CLUB_MAX_CAPACITY(BAD_REQUEST, "C04", "최대 정원이 가득 찼습니다."),
 
+    //ClubAuth Error
+    CLUB_AUTH_NOT_ACTIVE(FORBIDDEN, "CA01", "활성 멤버가 아닙니다."),
+    CLUB_AUTH_NOT_STAFF(FORBIDDEN, "CA02", "운영진 권한이 필요한 기능입니다."),
+    CLUB_AUTH_NOT_ACCOUNTANT(FORBIDDEN, "CA03", "총무 권한이 필요한 기능입니다."),
+    CLUB_AUTH_STAFF_REQUIRED(FORBIDDEN, "CA04", "운영진 이상 권한이 필요합니다."),
+    CLUB_AUTH_ACCOUNTANT_REQUIRED(FORBIDDEN, "CA05", "총무 이상 권한이 필요합니다."),
+    CLUB_AUTH_LOGIN_REQUIRED(UNAUTHORIZED, "CA06", "로그인이 필요합니다."),
+    CLUB_AUTH_NOT_OWNER(FORBIDDEN, "CA07", "모임장(방장) 권한이 필요합니다."),
+    CLUB_AUTH_NO_PERMISSION(FORBIDDEN, "CA08", "해당 작업을 수행할 권한이 없습니다."),
+
     //ClubMember Error
     CLUB_MEMBER_REQUEST_NOT_FOUND(NOT_FOUND, "CM01", "가입 신청 내역을 찾을 수 없습니다."),
     CLUB_MEMBER_ALREADY_WAITING(CONFLICT, "CM02", "이미 가입 승인 대기 중인 회원입니다."),

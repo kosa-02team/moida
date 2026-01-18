@@ -22,8 +22,8 @@ SET @col_exists = (
 );
 
 SET @sql = IF(@col_exists > 0,
-    'ALTER TABLE club_members MODIFY COLUMN role VARCHAR(100) DEFAULT ''MEMBER'' COMMENT ''역할: OWNER(모임장),STAFF(운영진),ACCOUNTANT(총무),MEMBER(일반 회원)''',
-    'SELECT 1');
+              'ALTER TABLE club_members MODIFY COLUMN role VARCHAR(100) DEFAULT ''MEMBER'' COMMENT ''역할: OWNER(모임장),STAFF(운영진),ACCOUNTANT(총무),MEMBER(일반 회원)''',
+              'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
@@ -39,8 +39,8 @@ SET @col_exists = (
 );
 
 SET @sql = IF(@col_exists > 0,
-    'ALTER TABLE club_members MODIFY COLUMN status VARCHAR(20) DEFAULT ''PENDING'' COMMENT ''상태: PENDING(기본: 승인 대기),ACTIVE(활동),LEFT(탈퇴),KICKED(강퇴), REJECTED(가입 거절)''',
-    'SELECT 1');
+              'ALTER TABLE club_members MODIFY COLUMN status VARCHAR(20) DEFAULT ''PENDING'' COMMENT ''상태: PENDING(기본: 승인 대기),ACTIVE(활동),LEFT(탈퇴),KICKED(강퇴), REJECTED(가입 거절)''',
+              'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
@@ -55,8 +55,8 @@ SET @col_exists = (
 );
 
 SET @sql = IF(@col_exists > 0,
-    'ALTER TABLE club_members MODIFY COLUMN joined_at DATETIME COMMENT ''가입 승인 시점''',
-    'SELECT 1');
+              'ALTER TABLE club_members MODIFY COLUMN joined_at DATETIME COMMENT ''가입 승인 시점''',
+              'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
@@ -71,8 +71,8 @@ SET @col_exists = (
 );
 
 SET @sql = IF(@col_exists = 0,
-    'ALTER TABLE club_members ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT ''레코드 생성일''',
-    'SELECT 1');
+              'ALTER TABLE club_members ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT ''레코드 생성일''',
+              'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
@@ -87,8 +87,8 @@ SET @col_exists = (
 );
 
 SET @sql = IF(@col_exists = 0,
-    'ALTER TABLE club_members ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT ''레코드 수정일''',
-    'SELECT 1');
+              'ALTER TABLE club_members ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT ''레코드 수정일''',
+              'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
@@ -106,15 +106,15 @@ SET @fk_exists = (
 );
 
 SET @sql = IF(@fk_exists > 0,
-    'ALTER TABLE club_members DROP FOREIGN KEY fk_member_club',
-    'SELECT 1');
+              'ALTER TABLE club_members DROP FOREIGN KEY fk_member_club',
+              'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(@fk_exists > 0,
-    'ALTER TABLE club_members ADD CONSTRAINT fk_member_club FOREIGN KEY (club_id) REFERENCES clubs(club_id) ON DELETE CASCADE',
-    'SELECT 1');
+              'ALTER TABLE club_members ADD CONSTRAINT fk_member_club FOREIGN KEY (club_id) REFERENCES clubs(club_id) ON DELETE CASCADE',
+              'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
@@ -129,15 +129,15 @@ SET @fk_exists = (
 );
 
 SET @sql = IF(@fk_exists > 0,
-    'ALTER TABLE club_members DROP FOREIGN KEY fk_member_user',
-    'SELECT 1');
+              'ALTER TABLE club_members DROP FOREIGN KEY fk_member_user',
+              'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(@fk_exists > 0,
-    'ALTER TABLE club_members ADD CONSTRAINT fk_member_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE',
-    'SELECT 1');
+              'ALTER TABLE club_members ADD CONSTRAINT fk_member_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE',
+              'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;

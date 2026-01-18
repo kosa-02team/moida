@@ -46,7 +46,7 @@ public class ClubResponse {
                 .closedAt(entity.getClosedAt())
                 .build();
     }
-    //비공개 모임인 경우 (검색 결과용)
+
     public static ClubResponse limited(Clubs entity) {
         return ClubResponse.builder()
                 .clubId(entity.getClubId())
@@ -56,7 +56,7 @@ public class ClubResponse {
                 .status(entity.getStatus().name())
                 .build();
     }
-    //공개 모임인 경우
+
     public static ClubResponse full(Clubs entity, Integer currentMembers) {
         return from(entity, currentMembers);
     }

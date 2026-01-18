@@ -1,7 +1,7 @@
 package back.domain.club;
 
 import back.domain.BaseEntity;
-import back.exception.club.ClubMemberException;
+import back.exception.ClubException;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -9,8 +9,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "club_members", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_club_user", columnNames = {"club_id", "user_id"}),
-        @UniqueConstraint(name = "uk_club_nickname", columnNames = {"club_id", "nickname"})
+    @UniqueConstraint(name = "uk_club_user", columnNames = {"club_id", "user_id"}),
+    @UniqueConstraint(name = "uk_club_nickname", columnNames = {"club_id", "nickname"})
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -46,11 +46,11 @@ public class ClubMembers extends BaseEntity {
     }
 
     public enum Role {
-        OWNER(0),      // (최고 권한)
-        ACCOUNTANT(1),
-        STAFF(2),
-        MEMBER(3),
-        NONE(99);      // 권한 없음 (LEFT/KICKED 상태)
+        OWNER(0),
+        ACCOUNTANT(1), 
+        STAFF(2),      
+        MEMBER(3),     
+        NONE(99);
 
         private final int priority;
 
@@ -72,10 +72,9 @@ public class ClubMembers extends BaseEntity {
         this.status = Status.PENDING;
     }
 
-    // 도메인 메서드
     public void approve(){
         if (this.status != Status.PENDING) {
-            throw new ClubMemberException.NotPending();
+            throw new ClubException.MemberNotPending();
         }
 
         this.status = Status.ACTIVE;
@@ -89,27 +88,27 @@ public class ClubMembers extends BaseEntity {
 
     public void kick() {
         if(this.status != Status.ACTIVE){
-            throw new ClubMemberException.NotActive();
+            throw new ClubException.MemberNotActive();
         };
         this.status = Status.KICKED;
         this.role = Role.NONE;
     }
-
+    
     public void reject() {
         if (this.status != Status.PENDING) {
-            throw new ClubMemberException.NotPending();
+            throw new ClubException.MemberNotPending();
         }
         this.status = Status.REJECTED;
     }
-
+    
     public void reApply(){
         if(this.status == Status.KICKED){
-            throw new ClubMemberException.KickedOut();
+            throw new ClubException.MemberKickedOut();
         }
         if (this.status == Status.REJECTED || this.status == Status.LEFT) {
             this.status = Status.PENDING;
         }else {
-            throw new ClubMemberException.AlreadyActive();
+            throw new ClubException.MemberAlreadyActive();
         }
     }
 
