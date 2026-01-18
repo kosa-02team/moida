@@ -30,6 +30,11 @@ INSERT INTO clubs
 VALUES
 (1, '1번 모임', 1, 1, 'MOIDA0001', 'ACTIVE', 'PUBLIC', NOW(), NOW(), NULL);
 
+-- 은행 계좌생성(club_id = 1)
+INSERT INTO bank_accounts
+(club_id, bank_code, user_id, bank_id, account_number, depositor_name, deleted_at, created_at, updated_at)
+VALUES
+(1, 'STUB', 1, 10, '123456789', '두효정', null, NOW(), NOW());
 
 -- 모임장 멤버십 등록 (member_id는 auto_increment라 생략 권장)
 INSERT INTO club_members
@@ -91,3 +96,15 @@ VALUES
 (1, 19, '배준호', 'MEMBER', 'ACTIVE', NOW(), NOW(), NOW()),
 (1, 20, '고은서', 'MEMBER', 'ACTIVE', NOW(), NOW(), NOW()),
 (1, 21, '남도현', 'MEMBER', 'ACTIVE', NOW(), NOW(), NOW());
+
+INSERT INTO schedules
+(
+    schedule_id, club_id, schedule_name, event_date, end_date,
+    location, description, entry_fee, total_spent, refund_per_person,
+    status, vote_deadline, closed_at, cancel_reason, created_at, updated_at
+)
+VALUES
+-- 1. [진행 중] 다가오는 1월 정기 모임 (참가비 3만원)
+(1, 1, '1월 신년회', '2025-01-25 18:00:00', '2025-01-25 22:00:00',
+'강남역 맛집', '다같이 모여서 신년회 합시다!', 30000.00, 0, 0,
+'OPEN', '2025-01-20 23:59:59', NULL, NULL, NOW(), NOW());

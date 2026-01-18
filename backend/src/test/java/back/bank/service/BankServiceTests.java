@@ -14,7 +14,7 @@ import back.bank.repository.BankAccountRepository;
 import back.bank.repository.BankRepository;
 import back.bank.repository.BankTransactionHistoryRepository;
 import back.domain.ledger.TransactionLog;
-import back.repository.TransactionLogRepository;
+import back.repository.ledger.TransactionLogRepository;
 import back.service.ledger.TransactionMatchingService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -172,5 +172,6 @@ class BankServiceTests {
 
         // then
         verify(transactionLogRepository).save(any(TransactionLog.class));
+        verify(transactionHistoryRepository).save(any(BankTransactionHistory.class));
     }
 }

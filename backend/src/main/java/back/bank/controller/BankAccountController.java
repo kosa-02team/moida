@@ -68,6 +68,16 @@ public class BankAccountController {
         return ResponseEntity.ok(transactionLogs);
     }
 
+    @PostMapping("/sync/{stubId}")
+    public ResponseEntity<List<TransactionLog>> syncTransactionsStub(
+            @PathVariable Long clubId,
+            @PathVariable Long stubId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        List<TransactionLog> transactionLogs = bankService.syncTransactionsStub(clubId, stubId, from, to);
+        return ResponseEntity.ok(transactionLogs);
+    }
+
     /**
      * 처리된 거래내역 조회 (매칭 정보 포함)
      * - 오픈뱅킹 원본 + 매칭 정보 반환

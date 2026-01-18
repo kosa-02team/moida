@@ -1,0 +1,28 @@
+{
+  "api_tran_id": "AA12349BHZ1324K82AL3",
+  "api_tran_dtm": "20260115104300567",
+  "rsp_code": "A0000",
+  "rsp_message": "정상처리 되었습니다",
+  "bank_tran_id": "M202601151043BHZ003",
+  "bank_tran_date": "20260115",
+  "bank_code_tran": "097",
+  "bank_rsp_code": "000",
+  "bank_rsp_message": "",
+  "bank_name": "오픈은행",
+  "savings_bank_name": "",
+  "fintech_use_num": "123456789012345678901234",
+  "balance_amt": "1290000",
+  "page_record_cnt": "14",
+  "next_page_yn": "N",
+  "res_list": [
+    {
+      "tran_date": "20260115",
+      "tran_time": "093000",
+      "inout_type": "입금",
+      "tran_type": "이체",
+      "print_content": "장도윤",
+      "tran_amt": "50000",
+      "after_balance_amt": "1290000"
+    }
+  ]
+}

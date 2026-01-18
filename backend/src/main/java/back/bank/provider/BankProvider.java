@@ -40,6 +40,8 @@ public interface BankProvider {
      */
     List<BankTransaction> getTransactions(String accountNumber, LocalDate from, LocalDate to);
 
+    List<BankTransaction> getTransactionsStub(String accountNumber, Long stubId, LocalDate from, LocalDate to);
+
     /**
      * 송금(계좌이체) 기능
      * - 회원들에게 나눠줘야 하므로 Transfer 필요
