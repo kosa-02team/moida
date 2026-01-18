@@ -24,20 +24,29 @@ public enum ErrorCode {
     USER_NOT_FOUND(NOT_FOUND, "A02", "존재하지 않는 사용자입니다."),
     LOGINID_DUPLICATED(CONFLICT, "A03", "이미 존재하는 회원입니다."),
 
+<<<<<<< Updated upstream
     //Club Authorization Error
     CLUB_NOT_FOUND(NOT_FOUND,"CA01", "모임을 찾을 수 없습니다"),
     CLUB_NOT_ACTIVE(UNAUTHORIZED,"CA02","모임에 접근할 수 없습니다"),
     CLUB_STAFF_REQUIRED(FORBIDDEN, "CA03","운영진 권한이 필요합니다"),
     CLUB_LOGIN_REQUIRED(UNAUTHORIZED, "CA04","로그인이 필요합니다"),
     CLUB_ACCOUNTANT_REQUIRED(FORBIDDEN, "CA05","총무 권한이 필요합니다"),
+=======
+    //Club Error
+    CLUB_NOT_FOUND(HttpStatus.NOT_FOUND, "C01", "존재하지 않는 클럽입니다."),
+    CLUB_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "C02", "이미 존재하는 클럽 이름입니다."),
+    CLUB_CLOSED(HttpStatus.BAD_REQUEST, "C03", "이미 폐쇄된 클럽입니다."),
+    CLUB_MAX_CAPACITY(BAD_REQUEST, "C04", "최대 정원이 가득 찼습니다."),
+>>>>>>> Stashed changes
 
-    //Club Member Error
-    CLUB_MEMBER_NOT_FOUND(NOT_FOUND, "CM01", "존재하지 않는 가입 신청입니다."),
-    CLUB_MEMBER_NOT_PENDING_STATUS(BAD_REQUEST, "CM02", "대기 상태인 회원만 승인할 수 있습니다."),
-    CLUB_MEMBER_FORBIDDEN(FORBIDDEN, "CM03", "해당 모임의 관리자 권한이 없습니다."),
-    CLUB_MEMBER_ALREADY_APPLIED_OR_ACTIVE(BAD_REQUEST, "CM04", "가입 신청 중이거나 활동 중인 회원입니다."),
-    CLUB_MEMBER_KICKED_OUT_USER(FORBIDDEN, "CM05", "해당 모임에서 강퇴된 사용자는 재가입이 불가합니다."),
-    CLUB_MEMBER_NOT_ACTIVE(BAD_REQUEST,"CM06","활동이 정지된 회원입니다"),
+    //ClubMember Error
+    CLUB_MEMBER_REQUEST_NOT_FOUND(NOT_FOUND, "CM01", "가입 신청 내역을 찾을 수 없습니다."),
+    CLUB_MEMBER_ALREADY_WAITING(CONFLICT, "CM02", "이미 가입 승인 대기 중인 회원입니다."),
+    CLUB_MEMBER_ALREADY_ACTIVE_STATUS(CONFLICT, "CM03", "이미 해당 모임의 활동 멤버입니다."),
+    CLUB_MEMBER_INVALID_APPROVE_TARGET(BAD_REQUEST,  "CM04", "승인 대기 상태의 회원만 가입 승인이 가능합니다."),
+    CLUB_MEMBER_NOT_ACTIVE_STATUS(BAD_REQUEST, "CM05", "현재 해당 모임 멤버가 아닙니다."),
+    CLUB_MEMBER_KICKED_OUT_USER(FORBIDDEN, "CM06", "강퇴 처리된 사용자는 재가입이 불가합니다."),
+    CLUB_MEMBER_NICKNAME_DUPLICATE(CONFLICT, "CM07", "이미 해당 모임에서 사용 중인 닉네임입니다."),
 
     //Vote Error
     VOTE_NOT_FOUND(NOT_FOUND,"V01", "투표를 찾을 수 없습니다"),
