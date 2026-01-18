@@ -43,35 +43,37 @@ public class AuthService {
 
     @Transactional
     public Long signup(SignupRequest signupRequest) {
-
-        //이미 가입된 사용자가 있을 경우
         if (userRepository.existsByLoginId(signupRequest.loginId())) {
             throw new AuthException.LoginIdDuplicated();
         }
 
         String encodedPassword = passwordEncoder.encode(signupRequest.password());
-
         Users users = new Users(signupRequest.loginId(), encodedPassword, signupRequest.realName());
-
         Users savedUser = userRepository.save(users);
 
         return savedUser.getUserId();
     }
 
+    @Transactional
     public RefreshTokenResponse refresh(RefreshTokenRequest refreshTokenRequest) {
-        if (jwtTokenProvider.validateToken(refreshTokenRequest.refreshToken())) {
-            RefreshToken oldRefreshToken = refreshTokenRepository.findById(refreshTokenRequest.refreshToken())
-                    .orElseThrow(() -> new AuthException.RefreshTokenNotFound());
+        String requestToken = refreshTokenRequest.refreshToken();
 
-            Users user = oldRefreshToken.getUser();
-            String newAccessToken = jwtTokenProvider.createAccessToken(user.getLoginId(), user.getSystemRole(), user.getUserId());
-            String newRefreshToken = jwtTokenProvider.createRefreshToken();
-
-            refreshTokenRepository.save(new RefreshToken(newRefreshToken, user));
-            refreshTokenRepository.deleteById(refreshTokenRequest.refreshToken());
-
-            return new RefreshTokenResponse(newAccessToken, newRefreshToken);
+        if (!jwtTokenProvider.validateToken(requestToken)) {
+            throw new AuthException.InvalidRefreshToken();
         }
-        throw new AuthException.InvalidRefreshToken();
+
+        RefreshToken oldRefreshToken = refreshTokenRepository.findByToken(requestToken)
+                .orElseThrow(() -> new AuthException.RefreshTokenNotFound());
+
+        Users user = oldRefreshToken.getUser();
+
+        String newAccessToken = jwtTokenProvider.createAccessToken(user.getLoginId(), user.getSystemRole(), user.getUserId());
+        String newRefreshTokenVal = jwtTokenProvider.createRefreshToken();
+
+        refreshTokenRepository.save(new RefreshToken(newRefreshTokenVal, user));
+
+        refreshTokenRepository.delete(oldRefreshToken);
+
+        return new RefreshTokenResponse(newAccessToken, newRefreshTokenVal);
     }
 }
