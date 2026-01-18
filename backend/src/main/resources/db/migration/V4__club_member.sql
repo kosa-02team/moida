@@ -1,23 +1,63 @@
--- 1. 모임 멤버 테이블
-DROP TABLE club_members;
-CREATE TABLE club_members (
-                              member_id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '멤버 식별자',
-                              club_id BIGINT NOT NULL COMMENT '소속 모임 식별자',
-                              user_id BIGINT NOT NULL COMMENT '회원 ID',
-                              club_nickname VARCHAR(50) NOT NULL COMMENT '모임 내 별칭',
+-- V4: 모임 멤버 테이블
+--
+-- V1 초기 스키마에서 변경된 사항:
+-- 1. club_nickname → nickname 컬럼명 변경
+-- 2. nickname 길이: VARCHAR(50) → VARCHAR(10) 변경
+-- 3. uk_club_nickname 제약조건 추가 (club_id, nickname)
+--
+-- 엔티티 변경사항:
+-- - ClubMembers.java: clubNickname → nickname 변경, 길이 제한 10자
 
-                              role VARCHAR(100) DEFAULT 'MEMBER' COMMENT '역할: OWNER(모임장),STAFF(운영진),ACCOUNTANT(총무),MEMBER(일반 회원)',
+SET FOREIGN_KEY_CHECKS = 0;
 
-                              status VARCHAR(20) DEFAULT 'PENDING' COMMENT '상태: PENDING(기본: 승인 대기),ACTIVE(활동),LEFT(탈퇴),KICKED(강퇴), REJECTED(가입 거절)',
+-- 1. club_nickname → nickname 컬럼명 변경 및 길이 수정
+SET @col_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'club_members'
+      AND COLUMN_NAME = 'club_nickname'
+);
 
-                              joined_at DATETIME COMMENT '가입 승인 시점',
-                              created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '레코드 생성일',
-                              updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '레코드 수정일',
+SET @sql = IF(@col_exists > 0,
+              'ALTER TABLE club_members CHANGE COLUMN club_nickname nickname VARCHAR(10) NOT NULL COMMENT ''모임 내 별칭 (최대 10자)''',
+              'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
-                              UNIQUE KEY uk_club_user (club_id, user_id),
+-- 2. uk_club_nickname 제약조건 추가 (club_id, nickname)
+SET @uk_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.TABLE_CONSTRAINTS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'club_members'
+      AND CONSTRAINT_NAME = 'uk_club_nickname'
+      AND CONSTRAINT_TYPE = 'UNIQUE'
+);
+-- 중복된 (club_id, nickname) 조합이 있는지 확인
+SET @duplicate_count = (
+    SELECT COUNT(*)
+    FROM (
+             SELECT club_id, nickname, COUNT(*) as cnt
+             FROM club_members
+             GROUP BY club_id, nickname
+             HAVING cnt > 1
+         ) AS duplicates
+);
 
-                              CONSTRAINT fk_member_club FOREIGN KEY (club_id)
-                                  REFERENCES clubs(club_id) ON DELETE CASCADE,
-                              CONSTRAINT fk_member_user FOREIGN KEY (user_id)
-                                  REFERENCES users(user_id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SET @sql = IF(@duplicate_count > 0,
+              CONCAT('SIGNAL SQLSTATE ''45000'' SET MESSAGE_TEXT = ''Cannot add UNIQUE constraint: ', @duplicate_count, ' duplicate (club_id, nickname) found. Please clean up duplicate data first.'''),
+              'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(@duplicate_count = 0 AND @uk_exists = 0,
+              'ALTER TABLE club_members ADD CONSTRAINT uk_club_nickname UNIQUE (club_id, nickname)',
+              'SELECT 1');
+PREPARE stmt FROM @sql;
+#EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET FOREIGN_KEY_CHECKS = 1;
