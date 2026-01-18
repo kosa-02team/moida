@@ -42,10 +42,6 @@ public class TransactionMatchingService {
         List<PaymentRequest> matchableRequests = paymentRequestRepository.findMatchableRequests(clubId);
 
         for (BankTransactionHistory transaction : newTransactions) {
-            // DEPOSIT만 매칭 대상
-            if (!"DEPOSIT".equalsIgnoreCase(extractTransactionType(transaction))) {
-                continue;
-            }
 
             // 이미 매칭된 거래는 스킵
             if (isAlreadyMatched(transaction, matchableRequests)) {
@@ -82,34 +78,78 @@ public class TransactionMatchingService {
      * 3. print_content에 회원 이름, 닉네임 포함
      */
     private boolean isMatched(BankTransactionHistory tx, PaymentRequest req) {
+        System.out.println("은행거래내역 금액 : " + tx.getAmount() + ", 지불 요청 금액 : " + req.getExpectedAmount());
 
-        // 1) 금액 먼저
-        if (tx.getAmount().compareTo(req.getExpectedAmount()) != 0) return false;
+        // 1) 금액 먼저 (절대값 비교)
+        if (tx.getAmount().abs().compareTo(req.getExpectedAmount().abs()) != 0)
+            return false;
+
+        System.out.println("타입매칭");
+
+        // 1-1) 타입 매칭 확인
+        String txType = extractTransactionType(tx);
+
+        if ("DEPOSIT".equalsIgnoreCase(txType)) {
+            // 입금 트랜잭션은 DEPOSIT, MEMBERSHIP_FEE 등과 매칭
+            if (req.getRequestType() == PaymentRequest.RequestType.SETTLEMENT)
+                return false;
+        } else if ("WITHDRAW".equalsIgnoreCase(txType)) {
+            // 출금 트랜잭션은 SETTLEMENT와 매칭
+            if (req.getRequestType() != PaymentRequest.RequestType.SETTLEMENT)
+                return false;
+        }
+
+        System.out.println("날짜 범위");
 
         // 2) 날짜 범위
         LocalDate txDate = tx.getBankTransactionAt().toLocalDate();
         LocalDate expected = req.getExpectedDate();
         int range = req.getMatchDaysRange() != null ? req.getMatchDaysRange() : 10;
 
-        if (txDate.isBefore(expected.minusDays(range)) || txDate.isAfter(expected.plusDays(range))) return false;
+        if (txDate.isBefore(expected.minusDays(range)) || txDate.isAfter(expected.plusDays(range))){
+            System.out.println("입금 날짜: txDate : " + txDate + " 가 " + expected.minusDays(range) + "와" +
+                    expected.plusDays(range) + "사이?");
+            return false;
+        }
+
+
+        System.out.println("적요");
 
         // 3) 적요
         String content = normalize(tx.getPrintContent());
-        if (content.isBlank()) return false;
+        if (content.isBlank())
+            return false;
 
-        // 4) memberId로 닉네임 조회
-        var memberOpt = clubMemberRepository.findByClubIdAndMemberId(req.getClubId(), req.getMemberId());
-        if (memberOpt.isEmpty()) return false;
+        // 4) memberId로 실명/닉네임 조회 (방법 A면 member 가져와서 member.realName() 써도 됨)
+        System.out.println("지불 요청 클럽, 멤버 아이디 : " + req.getClubId() + " , " + req.getMemberId());
 
-        String nickRaw = memberOpt.get().getNickname();
+        var viewOpt = clubMemberRepository.findNameView(req.getClubId(), req.getMemberId());
+        if (viewOpt.isEmpty()){
+            System.out.println("사람을 찾을 수 없습니다");
+            return false;
+        }
+
+
+        String realNameRaw = viewOpt.get().getRealName();
+        String nickRaw = viewOpt.get().getClubNickname();
+
+        String realName = normalize(realNameRaw);
         String nick = normalize(nickRaw);
 
-        // 5) 닉네임이 클럽 내 유일할 때만 매칭 허용
+        System.out.println("멤버 실명 : " + realName);
+
+        // 5) 실명/닉네임이 클럽 내 유일할 때만 매칭 허용
+        boolean realNameUnique = !realName.isBlank()
+                && clubMemberRepository.countByClubIdAndRealName(req.getClubId(), realNameRaw) == 1;
+
         boolean nickUnique = !nick.isBlank()
-                && clubMemberRepository.existsByClubIdAndNickname(req.getClubId(), nickRaw);
+                && clubMemberRepository.countByClubIdAndClubNickname(req.getClubId(), nickRaw) == 1;
 
         // 6) 유일한 경우에만 contains 허용
-        if (nickUnique && content.contains(nick)) return true;
+        if (realNameUnique && content.contains(realName))
+            return true;
+        if (nickUnique && content.contains(nick))
+            return true;
 
         return false;
     }
@@ -128,7 +168,7 @@ public class TransactionMatchingService {
      */
     private String extractTransactionType(BankTransactionHistory transaction) {
         // TODO: BankTransactionHistory에 type 필드가 있으면 그걸 사용
-        // 현재는 금액이 양수면 DEPOSIT으로 가정
+        // 현재는 금액이 양수면 DEPOSIT, 음수면 WITHDRAW로 가정
         return transaction.getAmount().compareTo(BigDecimal.ZERO) > 0 ? "DEPOSIT" : "WITHDRAW";
     }
 
@@ -168,7 +208,8 @@ public class TransactionMatchingService {
     }
 
     private String normalize(String s) {
-        if (s == null) return "";
+        if (s == null)
+            return "";
         return s.replaceAll("\\s+", "")
                 .replaceAll("[^0-9a-zA-Z가-힣]", "")
                 .toLowerCase();

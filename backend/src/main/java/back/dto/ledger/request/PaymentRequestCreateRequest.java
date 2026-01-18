@@ -16,7 +16,12 @@ public record PaymentRequestCreateRequest(
             BigDecimal expectedAmount,
             LocalDate expectedDate,
             Integer matchDaysRange, // ±N일 (선택, 기본 10일)
-            Integer expiresInDays // N일 후 만료 (선택)
+            Integer expiresInDays,   // N일 후 만료 (선택)
+
+            //  [추가] 일정 관련 요청일 경우
+            Long scheduleId,
+            // [추가] 회비 관련 요청일 경우 (예: "2024-02")
+            String billingPeriod
     ) {
     }
 }

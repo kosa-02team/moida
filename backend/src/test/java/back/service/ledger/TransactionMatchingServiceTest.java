@@ -1,0 +1,91 @@
+package back.service.ledger;
+
+import back.bank.domain.BankTransactionHistory;
+import back.domain.ledger.PaymentRequest;
+import back.repository.ClubMemberRepository;
+import back.repository.clubs.MemberNameView;
+import back.bank.repository.BankTransactionHistoryRepository;
+import back.repository.ledger.PaymentRequestRepository;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+public class TransactionMatchingServiceTest {
+
+    @InjectMocks
+    private TransactionMatchingService transactionMatchingService;
+
+    @Mock
+    private PaymentRequestRepository paymentRequestRepository;
+    @Mock
+    private BankTransactionHistoryRepository transactionHistoryRepository;
+    @Mock
+    private ClubMemberRepository clubMemberRepository;
+
+    @Test
+    @DisplayName("출금(WITHDRAW) 트랜잭션은 정산(SETTLEMENT) 요청과 매칭되어야 한다")
+    void matchWithdrawWithSettlement() {
+        // given
+        Long clubId = 1L;
+        Long requestId = 100L;
+        Long memberId = 200L;
+        BigDecimal amount = new BigDecimal("-50000.00"); // 출금액 (음수)
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1. Transaction (Withdrawal)
+        BankTransactionHistory tx = mock(BankTransactionHistory.class);
+        when(tx.getAmount()).thenReturn(amount);
+        when(tx.getBankTransactionAt()).thenReturn(now);
+        when(tx.getPrintContent()).thenReturn("홍길동 환급");
+        when(tx.getHistoryId()).thenReturn(999L);
+
+        // 2. Settlement Request
+        PaymentRequest request = mock(PaymentRequest.class);
+        // when(request.getRequestId()).thenReturn(requestId); // Unused
+        when(request.getExpectedAmount()).thenReturn(new BigDecimal("-50000.00")); // 예상금액도 음수로 표현되는지, 양수로 표현되는지는 구현
+                                                                                   // 의존적이나, Review Fix에서 abs() 비교를
+                                                                                   // 넣었으므로 괜찮음.
+        // PaymentRequest constructor might take ABS value, let's assume it matches
+        // transaction logic.
+        // But let's check my fix:
+        // tx.getAmount().abs().compareTo(req.getExpectedAmount().abs())
+        // So signs don't strictly matter for the check, but type check matters.
+        when(request.getRequestType()).thenReturn(PaymentRequest.RequestType.SETTLEMENT);
+        when(request.isMatchable()).thenReturn(true);
+        when(request.getClubId()).thenReturn(clubId);
+        when(request.getMemberId()).thenReturn(memberId);
+        when(request.getExpectedDate()).thenReturn(now.toLocalDate());
+        lenient().when(request.getMatchDaysRange()).thenReturn(5);
+
+        // 3. Mocks for isMatched
+        when(paymentRequestRepository.findMatchableRequests(clubId)).thenReturn(List.of(request));
+
+        // Club Member Name Mocking (for name matching)
+        var memberView = mock(MemberNameView.class);
+        when(memberView.getRealName()).thenReturn("홍길동");
+        when(memberView.getClubNickname()).thenReturn("길동이");
+        when(clubMemberRepository.findNameView(clubId, memberId)).thenReturn(Optional.of(memberView));
+
+        when(clubMemberRepository.countByClubIdAndRealName(clubId, "홍길동")).thenReturn(1L);
+
+        // when
+        transactionMatchingService.autoMatchTransactions(clubId, List.of(tx));
+
+        // then
+        // verify request.autoMatch(txId) is called
+        verify(request).autoMatch(999L);
+        verify(paymentRequestRepository).save(request);
+    }
+}

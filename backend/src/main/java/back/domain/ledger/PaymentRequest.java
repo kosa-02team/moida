@@ -65,11 +65,18 @@ public class PaymentRequest {
     @Column(name = "matched_by")
     private Long matchedBy;
 
+    @Column(name = "schedule_id")
+    private Long scheduleId;
+
+    @Column(name = "billing_period", length = 20)
+    private String billingPeriod;
+
     // 생성자
     public PaymentRequest(Long clubId, Long memberId, String memberName,
-            RequestType requestType, BigDecimal expectedAmount,
-            LocalDate expectedDate, Integer matchDaysRange,
-            LocalDateTime expiresAt) {
+                          RequestType requestType, BigDecimal expectedAmount,
+                          LocalDate expectedDate, Integer matchDaysRange,
+                          LocalDateTime expiresAt,
+                          Long scheduleId, String billingPeriod) { // 추가된 파라미터
         this.clubId = clubId;
         this.memberId = memberId;
         this.memberName = memberName;
@@ -80,6 +87,10 @@ public class PaymentRequest {
         this.expiresAt = expiresAt;
         this.createdAt = LocalDateTime.now();
         this.status = RequestStatus.PENDING;
+
+        // 추가된 매핑
+        this.scheduleId = scheduleId;
+        this.billingPeriod = billingPeriod;
     }
 
     // 도메인 메서드

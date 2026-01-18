@@ -29,7 +29,7 @@ public class TransactionLog {
     @Column(name = "schedule_id")
     private Long scheduleId;
 
-    @Column(name = "account_id", nullable = false)
+    @Column(name = "account_id")
     private Long accountId;
 
     @Column(nullable = false, length = 30)
@@ -48,9 +48,9 @@ public class TransactionLog {
     private Long editorId;
 
     // 생성자
-    public TransactionLog(Long clubId, Long accountId, String type, 
-                          BigDecimal amount, BigDecimal balanceAfter,
-                          String description, Long editorId) {
+    public TransactionLog(Long clubId, Long accountId, String type,
+            BigDecimal amount, BigDecimal balanceAfter,
+            String description, Long editorId) {
         this.clubId = clubId;
         this.scheduleId = null;
         this.accountId = accountId;
@@ -61,9 +61,9 @@ public class TransactionLog {
         this.editorId = editorId;
     }
 
-    public TransactionLog(Long clubId, Long scheduleId, Long accountId, String type, 
-                          BigDecimal amount, BigDecimal balanceAfter,
-                          String description, Long editorId) {
+    public TransactionLog(Long clubId, Long scheduleId, Long accountId, String type,
+            BigDecimal amount, BigDecimal balanceAfter,
+            String description, Long editorId) {
         this.clubId = clubId;
         this.scheduleId = scheduleId;
         this.accountId = accountId;
@@ -75,6 +75,7 @@ public class TransactionLog {
     }
 
     // 도메인 메서드
-    // 회계 원장은 불변이므로 수정 메서드 제거
-    // 오류 수정이 필요한 경우 상계 거래(compensating entry)를 추가해야 함
+    public void updateDescription(String description) {
+        this.description = description;
+    }
 }

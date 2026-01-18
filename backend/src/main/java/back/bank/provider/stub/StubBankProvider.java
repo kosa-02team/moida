@@ -80,8 +80,13 @@ public class StubBankProvider implements BankProvider {
                         // 거래 타입 변환 ("입금" -> "DEPOSIT", "출금" -> "WITHDRAW")
                         String type = item.inout_type().equals("입금") ? "DEPOSIT" : "WITHDRAW";
 
+                        // Deterministic ID 생성
+                        String uniqueKeySource = item.tran_date() + item.tran_time() + item.inout_type()
+                                + item.tran_amt() + item.print_content();
+                        String deterministicId = UUID.nameUUIDFromBytes(uniqueKeySource.getBytes()).toString();
+
                         return new BankTransaction(
-                                UUID.randomUUID().toString(), // txId - 고유 ID 생성
+                                deterministicId, // txId - 고유 ID 생성 (Deterministic)
                                 tranDateTime,
                                 type,
                                 new BigDecimal(item.tran_amt()),
@@ -92,6 +97,60 @@ public class StubBankProvider implements BankProvider {
 
         } catch (IOException e) {
             throw new RuntimeException("Failed to read stub transaction data", e);
+        }
+    }
+
+    @Override
+    public List<BankTransaction> getTransactionsStub(String accountNumber, Long stubId, LocalDate from, LocalDate to) {
+        // stubId를 이용해 파일명 동적 생성 (예: stubId가 1이면 transactions_page1.json)
+        // stubId가 null일 경우 기본값(예: 1)을 설정하는 안전장치를 추가하는 것도 좋습니다.
+        long pageId = (stubId != null) ? stubId : 1L;
+        String filePath = String.format("bank/stub/transactions_page%d.json", pageId);
+
+        try {
+            ClassPathResource resource = new ClassPathResource(filePath);
+
+            // 파일이 존재하는지 확인 (선택 사항)
+            if (!resource.exists()) {
+                throw new RuntimeException("Stub file not found: " + filePath);
+            }
+
+            OpenBankingTransactionResponse response = objectMapper.readValue(
+                    resource.getInputStream(),
+                    OpenBankingTransactionResponse.class);
+
+            // 오픈뱅킹 API 응답을 BankTransaction으로 변환
+            DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+            DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HHmmss");
+
+            return response.res_list().stream()
+                    .map(item -> {
+                        // 날짜/시간 파싱
+                        LocalDate tranDate = LocalDate.parse(item.tran_date(), dateFormatter);
+                        LocalDateTime tranDateTime = LocalDateTime.of(
+                                tranDate,
+                                java.time.LocalTime.parse(item.tran_time(), timeFormatter));
+
+                        // 거래 타입 변환 ("입금" -> "DEPOSIT", "출금" -> "WITHDRAW")
+                        String type = "입금".equals(item.inout_type()) ? "DEPOSIT" : "WITHDRAW";
+
+                        // Deterministic ID 생성
+                        String uniqueKeySource = item.tran_date() + item.tran_time() + item.inout_type()
+                                + item.tran_amt() + item.print_content();
+                        String deterministicId = UUID.nameUUIDFromBytes(uniqueKeySource.getBytes()).toString();
+
+                        return new BankTransaction(
+                                deterministicId, // txId - 고유 ID 생성 (Deterministic)
+                                tranDateTime,
+                                type,
+                                new BigDecimal(item.tran_amt()),
+                                new BigDecimal(item.after_balance_amt()),
+                                item.print_content());
+                    })
+                    .collect(Collectors.toList());
+
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read stub transaction data from " + filePath, e);
         }
     }
 

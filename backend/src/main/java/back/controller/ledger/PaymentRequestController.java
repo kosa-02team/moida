@@ -1,83 +1,84 @@
 package back.controller.ledger;
 
+import back.config.security.UserPrincipal;
 import back.domain.ledger.PaymentRequest;
 import back.dto.ledger.request.PaymentRequestCreateRequest;
+import back.service.ledger.EventFundService;
 import back.service.ledger.PaymentRequestService;
-import back.service.ledger.TransactionMatchingService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 /**
- * 입금요청 관리 Controller
+ * 입금 및 정산 요청 관리 Controller
  */
 @RestController
-@RequestMapping("/clubs/{clubId}/payment-requests")
+@RequestMapping("/api/clubs/{clubId}")
+@RequiredArgsConstructor
 public class PaymentRequestController {
 
     private final PaymentRequestService paymentRequestService;
-    private final TransactionMatchingService transactionMatchingService;
+    private final EventFundService eventFundService;
 
-    public PaymentRequestController(PaymentRequestService paymentRequestService,
-            TransactionMatchingService transactionMatchingService) {
-        this.paymentRequestService = paymentRequestService;
-        this.transactionMatchingService = transactionMatchingService;
-    }
+    // --- 1. 기본 입금 요청 관리 (PaymentRequestService) ---
 
     /**
-     * 입금요청 생성
-     * POST /clubs/{clubId}/payment-requests
+     * 수동 입금 요청 생성 (운영비 등)
      */
-    @PostMapping
-    public ResponseEntity<List<PaymentRequest>> createPaymentRequests(
+    @PostMapping("/payment-requests")
+    public ResponseEntity<List<PaymentRequest>> createManualRequests(
             @PathVariable Long clubId,
             @RequestBody PaymentRequestCreateRequest request) {
-        List<PaymentRequest> created = paymentRequestService.createPaymentRequests(clubId, request);
-        return ResponseEntity.ok(created);
+        return ResponseEntity.ok(paymentRequestService.createPaymentRequests(clubId, request));
     }
 
     /**
-     * 입금요청 목록 조회
-     * GET /clubs/{clubId}/payment-requests
+     * 입금 요청 목록 조회
      */
-    @GetMapping
-    public ResponseEntity<List<PaymentRequest>> getPaymentRequests(
-            @PathVariable Long clubId) {
-        List<PaymentRequest> requests = paymentRequestService.getPaymentRequests(clubId);
-        return ResponseEntity.ok(requests);
+    @GetMapping("/payment-requests")
+    public ResponseEntity<List<PaymentRequest>> getRequests(@PathVariable Long clubId) {
+        return ResponseEntity.ok(paymentRequestService.getPaymentRequests(clubId));
     }
 
     /**
-     * 특정 상태의 입금요청 조회
-     * GET /clubs/{clubId}/payment-requests?status=PENDING
+     * 특정 요청 입금 확인 (관리자 수동 처리)
      */
-    @GetMapping(params = "status")
-    public ResponseEntity<List<PaymentRequest>> getPaymentRequestsByStatus(
-            @PathVariable Long clubId,
-            @RequestParam PaymentRequest.RequestStatus status) {
-        List<PaymentRequest> requests = paymentRequestService.getPaymentRequestsByStatus(clubId, status);
-        return ResponseEntity.ok(requests);
-    }
-
-    /**
-     * 수동 매칭
-     * POST /clubs/{clubId}/payment-requests/{requestId}/match
-     */
-    @PostMapping("/{requestId}/match")
-    public ResponseEntity<Void> manualMatch(
+    @PatchMapping("/payment-requests/{requestId}/confirm")
+    public ResponseEntity<Void> confirmRequest(
             @PathVariable Long clubId,
             @PathVariable Long requestId,
-            @RequestBody ManualMatchRequest request) {
-        transactionMatchingService.manualMatch(requestId, request.historyId(), request.matchedBy());
+            @AuthenticationPrincipal UserPrincipal user) {
+        Long userId = user.getUserId();
+        paymentRequestService.confirmPayment(requestId, userId);
+        return ResponseEntity.ok().build();
+    }
+
+    // --- 2. 일정 자금 관리 (EventFundService) ---
+
+    /**
+     * [일정] 참가비 일괄 걷기 요청
+     * POST /clubs/{id}/schedules/{scheduleId}/collect-fee
+     */
+    @PostMapping("/schedules/{scheduleId}/collect-fee")
+    public ResponseEntity<Void> collectScheduleFee(
+            @PathVariable Long clubId,
+            @PathVariable Long scheduleId) {
+        eventFundService.collectEntryFees(clubId, scheduleId);
         return ResponseEntity.ok().build();
     }
 
     /**
-     * 수동 매칭 요청 DTO
+     * [일정] 정산 및 잔액 환급 실행
+     * POST /clubs/{id}/schedules/{scheduleId}/settle
      */
-    public record ManualMatchRequest(
-            Long historyId,
-            Long matchedBy) {
+    @PostMapping("/schedules/{scheduleId}/settle")
+    public ResponseEntity<Void> settleSchedule(
+            @PathVariable Long clubId,
+            @PathVariable Long scheduleId) {
+        eventFundService.settleAndRefund(clubId, scheduleId);
+        return ResponseEntity.ok().build();
     }
 }
