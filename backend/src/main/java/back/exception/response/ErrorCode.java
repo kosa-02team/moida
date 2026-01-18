@@ -24,20 +24,11 @@ public enum ErrorCode {
     USER_NOT_FOUND(NOT_FOUND, "A02", "존재하지 않는 사용자입니다."),
     LOGINID_DUPLICATED(CONFLICT, "A03", "이미 존재하는 회원입니다."),
 
-<<<<<<< Updated upstream
-    //Club Authorization Error
-    CLUB_NOT_FOUND(NOT_FOUND,"CA01", "모임을 찾을 수 없습니다"),
-    CLUB_NOT_ACTIVE(UNAUTHORIZED,"CA02","모임에 접근할 수 없습니다"),
-    CLUB_STAFF_REQUIRED(FORBIDDEN, "CA03","운영진 권한이 필요합니다"),
-    CLUB_LOGIN_REQUIRED(UNAUTHORIZED, "CA04","로그인이 필요합니다"),
-    CLUB_ACCOUNTANT_REQUIRED(FORBIDDEN, "CA05","총무 권한이 필요합니다"),
-=======
     //Club Error
     CLUB_NOT_FOUND(HttpStatus.NOT_FOUND, "C01", "존재하지 않는 클럽입니다."),
     CLUB_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "C02", "이미 존재하는 클럽 이름입니다."),
     CLUB_CLOSED(HttpStatus.BAD_REQUEST, "C03", "이미 폐쇄된 클럽입니다."),
     CLUB_MAX_CAPACITY(BAD_REQUEST, "C04", "최대 정원이 가득 찼습니다."),
->>>>>>> Stashed changes
 
     //ClubMember Error
     CLUB_MEMBER_REQUEST_NOT_FOUND(NOT_FOUND, "CM01", "가입 신청 내역을 찾을 수 없습니다."),
