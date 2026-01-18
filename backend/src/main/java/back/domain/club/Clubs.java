@@ -35,11 +35,11 @@ public class Clubs extends BaseEntity {
     private String inviteCode;
 
     @Enumerated(EnumType.STRING)
-    @Column(length = 20)
+    @Column(length = 20, nullable = false)
     private Status status = Status.ACTIVE;
 
     @Enumerated(EnumType.STRING)
-    @Column(length = 20)
+    @Column(length = 20, nullable = false)
     private Visibility visibility = Visibility.PUBLIC;
 
     @Enumerated(EnumType.STRING)

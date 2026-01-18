@@ -123,10 +123,4 @@ public class ClubException extends CustomGlobalException {
             super(ErrorCode.CLUB_AUTH_NO_PERMISSION);
         }
     }
-
-    public static class AuthRoleInsufficient extends ClubException {
-        public AuthRoleInsufficient() {
-            super(ErrorCode.CLUB_AUTH_NO_PERMISSION);
-        }
-    }
 }

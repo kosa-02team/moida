@@ -57,6 +57,7 @@ SET @sql = IF(@duplicate_count = 0 AND @uk_exists = 0,
               'ALTER TABLE club_members ADD CONSTRAINT uk_club_nickname UNIQUE (club_id, nickname)',
               'SELECT 1');
 PREPARE stmt FROM @sql;
+EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 SET FOREIGN_KEY_CHECKS = 1;
