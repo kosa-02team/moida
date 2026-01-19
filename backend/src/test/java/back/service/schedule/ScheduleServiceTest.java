@@ -13,7 +13,7 @@ import back.repository.schedule.ScheduleParticipantRepository;
 import back.repository.schedule.ScheduleRepository;
 import back.repository.vote.VoteOptionRepository;
 import back.repository.vote.VoteRepository;
-import back.service.clubs.ClubsAuthorizationService;
+import back.service.club.ClubAuthService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -51,7 +51,7 @@ class ScheduleServiceTest {
     private VoteOptionRepository voteOptionRepository;
 
     @Mock
-    private ClubsAuthorizationService clubsAuthorizationService;
+    private ClubAuthService clubsAuthorizationService;
 
     @Mock
     private UserRepository userRepository;
