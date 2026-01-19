@@ -78,4 +78,8 @@ public class TransactionLog {
     public void updateDescription(String description) {
         this.description = description;
     }
+
+    public void updateScheduleId(Long scheduleId) {
+        this.scheduleId = scheduleId;
+    }
 }

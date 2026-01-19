@@ -129,7 +129,7 @@ class BankServiceTests {
         // then
         verify(transactionHistoryRepository).save(any(BankTransactionHistory.class));
         verify(transactionLogRepository).save(any(TransactionLog.class));
-        verify(transactionMatchingService).autoMatchTransactions(eq(clubId), any());
+        verify(transactionMatchingService).autoMatchTransactions(eq(clubId), any(), any());
     }
 
     @Test

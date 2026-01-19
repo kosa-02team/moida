@@ -6,6 +6,10 @@ import back.repository.ClubMemberRepository;
 import back.repository.clubs.MemberNameView;
 import back.bank.repository.BankTransactionHistoryRepository;
 import back.repository.ledger.PaymentRequestRepository;
+import back.repository.clubs.ClubsRepository;
+import back.repository.ledger.TransactionLogRepository;
+import back.domain.Clubs;
+import back.domain.ledger.TransactionLog;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +22,8 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.HashMap;
 
 import static org.mockito.Mockito.*;
 
@@ -33,6 +39,10 @@ public class TransactionMatchingServiceTest {
     private BankTransactionHistoryRepository transactionHistoryRepository;
     @Mock
     private ClubMemberRepository clubMemberRepository;
+    @Mock
+    private ClubsRepository clubsRepository;
+    @Mock
+    private TransactionLogRepository transactionLogRepository;
 
     @Test
     @DisplayName("출금(WITHDRAW) 트랜잭션은 정산(SETTLEMENT) 요청과 매칭되어야 한다")
@@ -54,14 +64,7 @@ public class TransactionMatchingServiceTest {
         // 2. Settlement Request
         PaymentRequest request = mock(PaymentRequest.class);
         // when(request.getRequestId()).thenReturn(requestId); // Unused
-        when(request.getExpectedAmount()).thenReturn(new BigDecimal("-50000.00")); // 예상금액도 음수로 표현되는지, 양수로 표현되는지는 구현
-                                                                                   // 의존적이나, Review Fix에서 abs() 비교를
-                                                                                   // 넣었으므로 괜찮음.
-        // PaymentRequest constructor might take ABS value, let's assume it matches
-        // transaction logic.
-        // But let's check my fix:
-        // tx.getAmount().abs().compareTo(req.getExpectedAmount().abs())
-        // So signs don't strictly matter for the check, but type check matters.
+        when(request.getExpectedAmount()).thenReturn(new BigDecimal("-50000.00"));
         when(request.getRequestType()).thenReturn(PaymentRequest.RequestType.SETTLEMENT);
         when(request.isMatchable()).thenReturn(true);
         when(request.getClubId()).thenReturn(clubId);
@@ -72,6 +75,9 @@ public class TransactionMatchingServiceTest {
         // 3. Mocks for isMatched
         when(paymentRequestRepository.findMatchableRequests(clubId)).thenReturn(List.of(request));
 
+        // Mock Club (Assuming not FAIR_SETTLEMENT for this test or simple pass)
+        // If we want to test scheduleId update, we need a FAIR_SETTLEMENT club
+
         // Club Member Name Mocking (for name matching)
         var memberView = mock(MemberNameView.class);
         when(memberView.getRealName()).thenReturn("홍길동");
@@ -80,8 +86,11 @@ public class TransactionMatchingServiceTest {
 
         when(clubMemberRepository.countByClubIdAndRealName(clubId, "홍길동")).thenReturn(1L);
 
+        // Map for logs (empty for this test or mocked)
+        Map<Long, TransactionLog> logMap = new HashMap<>();
+
         // when
-        transactionMatchingService.autoMatchTransactions(clubId, List.of(tx));
+        transactionMatchingService.autoMatchTransactions(clubId, List.of(tx), logMap);
 
         // then
         // verify request.autoMatch(txId) is called

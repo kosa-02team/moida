@@ -23,13 +23,19 @@ public class TransactionMatchingService {
     private final PaymentRequestRepository paymentRequestRepository;
     private final BankTransactionHistoryRepository transactionHistoryRepository;
     private final ClubMemberRepository clubMemberRepository;
+    private final ClubsRepository clubsRepository;
+    private final TransactionLogRepository transactionLogRepository;
 
     public TransactionMatchingService(PaymentRequestRepository paymentRequestRepository,
             BankTransactionHistoryRepository transactionHistoryRepository,
-          ClubMemberRepository clubMemberRepository) {
+            ClubMemberRepository clubMemberRepository,
+            ClubsRepository clubsRepository,
+            TransactionLogRepository transactionLogRepository) {
         this.paymentRequestRepository = paymentRequestRepository;
         this.transactionHistoryRepository = transactionHistoryRepository;
         this.clubMemberRepository = clubMemberRepository;
+        this.clubsRepository = clubsRepository;
+        this.transactionLogRepository = transactionLogRepository;
     }
 
     /**
@@ -37,9 +43,14 @@ public class TransactionMatchingService {
      * - 새로운 거래내역이 들어올 때 호출
      */
     @Transactional
-    public void autoMatchTransactions(Long clubId, List<BankTransactionHistory> newTransactions) {
+    public void autoMatchTransactions(Long clubId, List<BankTransactionHistory> newTransactions,
+            Map<Long, TransactionLog> newTransactionLogs) {
         // 매칭 가능한 입금요청 조회 (PENDING 상태 + 만료되지 않음)
         List<PaymentRequest> matchableRequests = paymentRequestRepository.findMatchableRequests(clubId);
+
+        // 클럽 정보 조회 (운영 타입 확인용)
+        Clubs club = clubsRepository.findById(clubId).orElse(null);
+        boolean isFairSettlement = club != null && club.getType() == Clubs.ClubType.FAIR_SETTLEMENT;
 
         for (BankTransactionHistory transaction : newTransactions) {
 
@@ -49,14 +60,15 @@ public class TransactionMatchingService {
             }
 
             // 매칭 시도
-            tryMatch(transaction, matchableRequests);
+            tryMatch(transaction, matchableRequests, isFairSettlement, newTransactionLogs);
         }
     }
 
     /**
      * 거래내역과 입금요청 매칭 시도
      */
-    private void tryMatch(BankTransactionHistory transaction, List<PaymentRequest> requests) {
+    private void tryMatch(BankTransactionHistory transaction, List<PaymentRequest> requests, boolean isFairSettlement,
+            Map<Long, TransactionLog> newTransactionLogs) {
         for (PaymentRequest request : requests) {
             if (!request.isMatchable()) {
                 continue;
@@ -66,6 +78,17 @@ public class TransactionMatchingService {
                 // 자동 매칭 처리
                 request.autoMatch(transaction.getHistoryId());
                 paymentRequestRepository.save(request);
+
+                // FAIR_SETTLEMENT 타입인 경우 TransactionLog에 scheduleId 저장
+                if (isFairSettlement && newTransactionLogs != null
+                        && newTransactionLogs.containsKey(transaction.getHistoryId())) {
+                    TransactionLog log = newTransactionLogs.get(transaction.getHistoryId());
+                    if (log != null && request.getScheduleId() != null) {
+                        log.updateScheduleId(request.getScheduleId());
+                        transactionLogRepository.save(log); // 변경사항 저장
+                    }
+                }
+
                 return; // 하나의 거래내역은 하나의 요청에만 매칭
             }
         }
@@ -73,7 +96,7 @@ public class TransactionMatchingService {
 
     /**
      * 매칭 조건 확인
-     * 1. 금액이 예상 금액과 일치 
+     * 1. 금액이 예상 금액과 일치
      * 2. 거래 날짜가 예상 날짜 ±N일 이내 (N=match_days_range)툴바 사용자 지정…
      * 3. print_content에 회원 이름, 닉네임 포함
      */
@@ -106,12 +129,11 @@ public class TransactionMatchingService {
         LocalDate expected = req.getExpectedDate();
         int range = req.getMatchDaysRange() != null ? req.getMatchDaysRange() : 10;
 
-        if (txDate.isBefore(expected.minusDays(range)) || txDate.isAfter(expected.plusDays(range))){
+        if (txDate.isBefore(expected.minusDays(range)) || txDate.isAfter(expected.plusDays(range))) {
             System.out.println("입금 날짜: txDate : " + txDate + " 가 " + expected.minusDays(range) + "와" +
                     expected.plusDays(range) + "사이?");
             return false;
         }
-
 
         System.out.println("적요");
 
@@ -124,11 +146,10 @@ public class TransactionMatchingService {
         System.out.println("지불 요청 클럽, 멤버 아이디 : " + req.getClubId() + " , " + req.getMemberId());
 
         var viewOpt = clubMemberRepository.findNameView(req.getClubId(), req.getMemberId());
-        if (viewOpt.isEmpty()){
+        if (viewOpt.isEmpty()) {
             System.out.println("사람을 찾을 수 없습니다");
             return false;
         }
-
 
         String realNameRaw = viewOpt.get().getRealName();
         String nickRaw = viewOpt.get().getClubNickname();

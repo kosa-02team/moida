@@ -26,6 +26,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 @Service
 public class BankService {
@@ -158,6 +160,8 @@ public class BankService {
                                 actualTo);
 
                 List<TransactionLog> savedLogs = new ArrayList<>();
+                List<BankTransactionHistory> savedHistories = new ArrayList<>();
+                Map<Long, TransactionLog> historyToLogMap = new HashMap<>();
 
                 // 4. 각 거래내역을 BankTransactionHistory와 TransactionLog에 저장
                 for (BankTransaction tx : bankTransactions) {
@@ -191,12 +195,7 @@ public class BankService {
                 }
 
                 // 5. 자동 매칭 수행 (새로 저장된 거래내역과 입금요청 매칭)
-                List<BankTransactionHistory> newHistories = transactionHistoryRepository
-                                .findByClubIdAndBankTransactionAtBetween(
-                                                clubId,
-                                                actualFrom.atStartOfDay(),
-                                                actualTo.plusDays(1).atStartOfDay());
-                transactionMatchingService.autoMatchTransactions(clubId, newHistories);
+                transactionMatchingService.autoMatchTransactions(clubId, savedHistories, historyToLogMap);
 
                 return savedLogs;
         }
@@ -237,6 +236,8 @@ public class BankService {
                                 actualTo);
 
                 List<TransactionLog> savedLogs = new ArrayList<>();
+                List<BankTransactionHistory> savedHistories = new ArrayList<>();
+                Map<Long, TransactionLog> historyToLogMap = new HashMap<>();
 
                 // 4. 각 거래내역을 BankTransactionHistory와 TransactionLog에 저장
                 for (BankTransaction tx : bankTransactions) {
@@ -268,15 +269,14 @@ public class BankService {
                         );
                         TransactionLog savedLog = transactionLogRepository.save(log);
                         savedLogs.add(savedLog);
+
+                        // 새로 저장된 내역 수집 및 매핑
+                        savedHistories.add(history);
+                        historyToLogMap.put(history.getHistoryId(), savedLog);
                 }
 
                 // 5. 자동 매칭 수행 (새로 저장된 거래내역과 입금요청 매칭)
-                List<BankTransactionHistory> newHistories = transactionHistoryRepository
-                                .findByClubIdAndBankTransactionAtBetween(
-                                                clubId,
-                                                actualFrom.atStartOfDay(),
-                                                actualTo.plusDays(1).atStartOfDay());
-                transactionMatchingService.autoMatchTransactions(clubId, newHistories);
+                transactionMatchingService.autoMatchTransactions(clubId, savedHistories, historyToLogMap);
 
                 return savedLogs;
         }
