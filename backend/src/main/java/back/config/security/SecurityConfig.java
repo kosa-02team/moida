@@ -58,7 +58,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll() // 인증 제외 경로
                         .requestMatchers("/api/admin/**").hasRole("ADMIN") // 관리자 페이지 권한 설정
-                        .anyRequest().permitAll()// authenticated() // 그 외 모든 요청은 인증 필요
+                        .anyRequest().authenticated() // 그 외 모든 요청은 인증 필요
                 )
                 // JWT 인증 필터를 UsernamePasswordAuthenticationFilter 앞에 배치
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider),
