@@ -10,7 +10,7 @@ import back.exception.PostsException;
 import back.repository.post.PostCommentRepository;
 import back.repository.post.PostRepository;
 import back.repository.UserRepository;
-import back.service.clubs.ClubsAuthorizationService;
+import back.service.club.ClubAuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,7 +27,7 @@ public class PostCommentService {
         private final PostCommentRepository postCommentRepository;
         private final UserRepository userRepository;
         private final PostRepository postRepository;
-        private final ClubsAuthorizationService clubsAuthorizationService;
+        private final ClubAuthService clubsAuthorizationService;
 
         public PostCommentsIdResponse createComment(
                         Long writerId,

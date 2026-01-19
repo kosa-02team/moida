@@ -1,6 +1,6 @@
 package back.service.post;
 
-import back.domain.Clubs;
+import back.domain.club.Clubs;
 import back.domain.schedule.Schedules;
 import back.domain.Users;
 import back.domain.post.Comments;
@@ -16,16 +16,16 @@ import back.dto.post.post.response.PostIdResponse;
 import back.dto.post.story.request.StoryCreateRequest;
 import back.dto.post.story.request.StoryUpdateRequest;
 import back.dto.post.story.response.PostDetailResponse;
-import back.exception.ClubAuthException;
+import back.exception.ClubException;
 import back.exception.PostsException;
 import back.repository.schedule.ScheduleRepository;
-import back.repository.clubs.ClubsRepository;
+import back.repository.club.ClubRepository;
 import back.repository.post.PostCommentRepository;
 import back.repository.post.PostImageRepository;
 import back.repository.post.PostMemberTagRepository;
 import back.repository.post.PostRepository;
 import back.repository.UserRepository;
-import back.service.clubs.ClubsAuthorizationService;
+import back.service.club.ClubAuthService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -51,9 +51,9 @@ import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 public class PostServiceTests {
-    @Mock private ClubsAuthorizationService clubAuthorizationService;
+    @Mock private ClubAuthService clubAuthorizationService;
 
-    @Mock private ClubsRepository clubsRepository;
+    @Mock private ClubRepository clubsRepository;
     @Mock private UserRepository userRepository;
     @Mock private ScheduleRepository scheduleRepository;
 
@@ -148,13 +148,13 @@ public class PostServiceTests {
             Long viewerId = null; // 게스트
             Pageable pageable = PageRequest.of(0, 10);
 
-            willThrow(new ClubAuthException.LoginRequired()) // 프로젝트 예외로 교체
+            willThrow(new ClubException.AuthLoginRequired()) // 프로젝트 예외로 교체
                     .given(clubAuthorizationService)
                     .validateAndGetClubForReadPosts(clubId, viewerId);
 
             // when & then
             assertThatThrownBy(() -> postService.getRecentPosts(clubId, viewerId, pageable))
-                    .isInstanceOf(ClubAuthException.class);
+                    .isInstanceOf(ClubException.class);
 
             then(postRepository).shouldHaveNoInteractions();
             then(postImageRepository).shouldHaveNoInteractions();
@@ -264,13 +264,13 @@ public class PostServiceTests {
             Long postId = 1L;
             Long viewerId = null; // 게스트 정책이면 null
 
-            willThrow(new ClubAuthException.LoginRequired()) // 프로젝트 예외로 교체
+            willThrow(new ClubException.AuthLoginRequired()) // 프로젝트 예외로 교체
                     .given(clubAuthorizationService)
                     .validateAndGetClubForReadPosts(clubId, viewerId);
 
             // when & then
             assertThatThrownBy(() -> postService.getPost(clubId, postId, viewerId))
-                    .isInstanceOf(ClubAuthException.class);
+                    .isInstanceOf(ClubException.class);
 
             then(postRepository).shouldHaveNoInteractions();
         }
@@ -315,7 +315,7 @@ public class PostServiceTests {
         @DisplayName("게시글 내 댓글 전체 조회")
         class GetComments {
 
-            @Mock private ClubsAuthorizationService clubAuthorizationService;
+            @Mock private ClubAuthService clubAuthorizationService;
             @Mock private PostCommentRepository postCommentRepository;
 
             @InjectMocks
@@ -418,13 +418,13 @@ public class PostServiceTests {
 
                 Pageable pageable = PageRequest.of(0, 20);
 
-                willThrow(new ClubAuthException.LoginRequired()) // 프로젝트 예외로 교체
+                willThrow(new ClubException.AuthLoginRequired()) // 프로젝트 예외로 교체
                         .given(clubAuthorizationService)
                         .validateAndGetClubForReadPosts(clubId, viewerId);
 
                 // when & then
                 assertThatThrownBy(() -> postCommentService.getPostComments(viewerId, clubId, postId, pageable))
-                        .isInstanceOf(ClubAuthException.class);
+                        .isInstanceOf(ClubException.class);
 
                 then(postCommentRepository).shouldHaveNoInteractions();
             }
@@ -536,13 +536,13 @@ public class PostServiceTests {
                     null
             );
 
-            willThrow(new ClubAuthException.LoginRequired()) // 프로젝트 예외로 교체
+            willThrow(new ClubException.AuthLoginRequired()) // 프로젝트 예외로 교체
                     .given(clubAuthorizationService)
                     .assertActiveMember(clubId, writerId);
 
             // when & then
             assertThatThrownBy(() -> postService.createStory(clubId, writerId, request))
-                    .isInstanceOf(ClubAuthException.class);
+                    .isInstanceOf(ClubException.class);
 
             then(postRepository).shouldHaveNoInteractions();
             then(postImageRepository).shouldHaveNoInteractions();
@@ -552,7 +552,7 @@ public class PostServiceTests {
         @Nested
         class CreateComment {
 
-            @Mock private ClubsAuthorizationService clubAuthorizationService;
+            @Mock private ClubAuthService clubAuthorizationService;
             @Mock private PostRepository postRepository;
             @Mock private PostCommentRepository postCommentRepository;
             @Mock private UserRepository userRepository;
@@ -600,13 +600,13 @@ public class PostServiceTests {
 
                 PostCommentRequest req = new PostCommentRequest("hi");
 
-                willThrow(new ClubAuthException.LoginRequired()) // 프로젝트 예외로 교체
+                willThrow(new ClubException.AuthLoginRequired()) // 프로젝트 예외로 교체
                         .given(clubAuthorizationService)
                         .assertActiveMember(clubId, writerId);
 
                 // when & then
                 assertThatThrownBy(() -> postCommentService.createComment(writerId, clubId, postId, req))
-                        .isInstanceOf(ClubAuthException.class);
+                        .isInstanceOf(ClubException.class);
 
                 then(postCommentRepository).shouldHaveNoInteractions();
             }
@@ -729,7 +729,7 @@ public class PostServiceTests {
             given(postRepository.findByPostIdAndClub_ClubId(postId, clubId))
                     .willReturn(Optional.of(post));
 
-            willThrow(new ClubAuthException.RoleInsufficient()) // 프로젝트 예외로 교체
+            willThrow(new ClubException.AuthNoPermission()) // 프로젝트 예외로 교체
                     .given(clubAuthorizationService)
                     .assertAtLeastManager(clubId, actorId);
 
@@ -739,7 +739,7 @@ public class PostServiceTests {
 
             // when & then
             assertThatThrownBy(() -> postService.updatePost(clubId, postId, actorId, request))
-                    .isInstanceOf(ClubAuthException.class);
+                    .isInstanceOf(ClubException.class);
 
             then(postImageRepository).shouldHaveNoInteractions();
             then(postMemberTagRepository).shouldHaveNoInteractions();
@@ -763,7 +763,7 @@ public class PostServiceTests {
             given(postRepository.findByPostIdAndClub_ClubId(postId, clubId))
                     .willReturn(Optional.of(post));
 
-            willThrow(new ClubAuthException.LoginRequired()) // 프로젝트 예외로 교체
+            willThrow(new ClubException.AuthLoginRequired()) // 프로젝트 예외로 교체
                     .given(clubAuthorizationService)
                     .assertAtLeastManager(clubId, memberId);
 
@@ -774,7 +774,7 @@ public class PostServiceTests {
 
             // when & then
             assertThatThrownBy(() -> postService.updatePost(clubId, postId, memberId, request))
-                    .isInstanceOf(ClubAuthException.class);
+                    .isInstanceOf(ClubException.class);
 
             then(postImageRepository).shouldHaveNoInteractions();
             then(postMemberTagRepository).shouldHaveNoInteractions();
@@ -902,13 +902,13 @@ public class PostServiceTests {
                 given(postCommentRepository.findByCommentIdAndPost_PostIdAndPost_Club_ClubIdAndDeletedAtIsNull(commentId, postId, clubId))
                         .willReturn(Optional.of(comment));
 
-                willThrow(new ClubAuthException.LoginRequired()) // 프로젝트 예외로 교체
+                willThrow(new ClubException.AuthLoginRequired()) // 프로젝트 예외로 교체
                         .given(clubAuthorizationService)
                         .assertAtLeastManager(clubId, actorId);
 
                 // when & then
                 assertThatThrownBy(() -> postCommentService.updateComment(actorId, clubId, postId, commentId, req))
-                        .isInstanceOf(ClubAuthException.class);
+                        .isInstanceOf(ClubException.class);
 
                 assertThat(comment.getContent()).isEqualTo("old");
             }
@@ -1004,13 +1004,13 @@ public class PostServiceTests {
             given(postRepository.findByPostIdAndClub_ClubId(postId, clubId))
                     .willReturn(Optional.of(post));
 
-            willThrow(new ClubAuthException.LoginRequired()) // 프로젝트 예외로 교체
+            willThrow(new ClubException.AuthLoginRequired()) // 프로젝트 예외로 교체
                     .given(clubAuthorizationService)
                     .assertAtLeastManager(clubId, memberId);
 
             // when & then
             assertThatThrownBy(() -> postService.deletePost(clubId, postId, memberId))
-                    .isInstanceOf(ClubAuthException.class);
+                    .isInstanceOf(ClubException.class);
 
             // delete 안 됨
             assertThat(post.getDeletedAt()).isNull();
@@ -1128,13 +1128,13 @@ public class PostServiceTests {
                 given(postCommentRepository.findByCommentIdAndPost_PostIdAndPost_Club_ClubIdAndDeletedAtIsNull(commentId, postId, clubId))
                         .willReturn(Optional.of(comment));
 
-                willThrow(new ClubAuthException.LoginRequired()) // 프로젝트 예외로 교체
+                willThrow(new ClubException.AuthLoginRequired()) // 프로젝트 예외로 교체
                         .given(clubAuthorizationService)
                         .assertAtLeastManager(clubId, actorId);
 
                 // when & then
                 assertThatThrownBy(() -> postCommentService.deleteComment(actorId, clubId, postId, commentId))
-                        .isInstanceOf(ClubAuthException.class);
+                        .isInstanceOf(ClubException.class);
 
                 assertThat(comment.getDeletedAt()).isNull(); // 삭제 안 됨
             }

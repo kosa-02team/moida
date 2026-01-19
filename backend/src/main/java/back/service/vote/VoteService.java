@@ -1,6 +1,8 @@
 package back.service.vote;
 
 import back.domain.*;
+import back.domain.club.Clubs;
+import back.domain.club.ClubMembers;
 import back.domain.post.PostCategory;
 import back.domain.post.Posts;
 import back.domain.schedule.Schedules;
@@ -10,15 +12,15 @@ import back.domain.vote.Votes;
 import back.dto.vote.*;
 import back.exception.ResourceException;
 import back.exception.VoteException;
-import back.repository.clubs.ClubMembersRepository;
-import back.repository.clubs.ClubsRepository;
+import back.repository.club.ClubMemberRepository;
+import back.repository.club.ClubRepository;
 import back.repository.post.PostRepository;
 import back.repository.schedule.ScheduleRepository;
 import back.repository.vote.VoteOptionRepository;
 import back.repository.vote.VoteRecordRepository;
 import back.repository.vote.VoteRepository;
 import back.repository.UserRepository;
-import back.service.clubs.ClubsAuthorizationService;
+import back.service.club.ClubAuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,10 +39,10 @@ public class VoteService {
     private final VoteRepository voteRepository;
     private final VoteOptionRepository voteOptionRepository;
     private final VoteRecordRepository voteRecordRepository;
-    private final ClubMembersRepository clubMembersRepository;
-    private final ClubsRepository clubsRepository;
+    private final ClubMemberRepository clubMembersRepository;
+    private final ClubRepository clubsRepository;
     private final UserRepository userRepository;
-    private final ClubsAuthorizationService clubsAuthorizationService;
+    private final ClubAuthService clubsAuthorizationService;
 
     /**
      * 모임에 속한 일정/참석 투표를 생성합니다.
@@ -283,10 +285,10 @@ public class VoteService {
                     .orElseThrow(ResourceException.NotFound::new);
             boolean isOwner = club.getOwnerId().equals(userId);
 
-            // 2. 운영진 확인 (ClubMembers.role = "STAFF")
-            List<String> roles = clubMembersRepository.findActiveRoles(clubId, userId)
+            // 2. 운영진 확인 (ClubMembers.role이 STAFF 이상)
+            ClubMembers.Role role = clubMembersRepository.findActiveRole(clubId, userId)
                     .orElseThrow(() -> new VoteException.MemberOnly());
-            boolean isStaff = roles.contains("STAFF");
+            boolean isStaff = role.isAtLeast(ClubMembers.Role.STAFF);
 
             // 3. 모임장 또는 운영진만 허용
             if (!isOwner && !isStaff) {

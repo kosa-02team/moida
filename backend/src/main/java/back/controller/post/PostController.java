@@ -7,7 +7,7 @@ import back.dto.post.story.response.AlbumCardResponse;
 import back.dto.post.post.response.PostCardResponse;
 import back.dto.post.story.response.PostDetailResponse;
 import back.dto.post.post.response.PostIdResponse;
-import back.exception.ClubAuthException;
+import back.exception.ClubException;
 import back.service.post.PostLikeService;
 import back.service.post.PostService;
 import lombok.RequiredArgsConstructor;
@@ -134,7 +134,7 @@ public class PostController {
     }
 
     private Long requireUserId(UserPrincipal principal) {
-        if (principal == null) throw new ClubAuthException.LoginRequired();
+        if (principal == null) throw new ClubException.AuthLoginRequired();
         return principal.getUserId();
     }
 }

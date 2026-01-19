@@ -1,7 +1,7 @@
 package back.service.vote;
 
-import back.domain.Clubs;
-import back.domain.ClubMembers;
+import back.domain.club.Clubs;
+import back.domain.club.ClubMembers;
 import back.domain.Users;
 import back.domain.post.Posts;
 import back.domain.schedule.Schedules;
@@ -10,15 +10,15 @@ import back.domain.vote.VoteRecords;
 import back.domain.vote.Votes;
 import back.dto.vote.*;
 import back.exception.VoteException;
-import back.repository.clubs.ClubMembersRepository;
-import back.repository.clubs.ClubsRepository;
+import back.repository.club.ClubMemberRepository;
+import back.repository.club.ClubRepository;
 import back.repository.post.PostRepository;
 import back.repository.schedule.ScheduleRepository;
 import back.repository.vote.VoteOptionRepository;
 import back.repository.vote.VoteRecordRepository;
 import back.repository.vote.VoteRepository;
 import back.repository.UserRepository;
-import back.service.clubs.ClubsAuthorizationService;
+import back.service.club.ClubAuthService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -57,16 +57,16 @@ class VoteServiceTest {
     private VoteRecordRepository voteRecordRepository;
 
     @Mock
-    private ClubMembersRepository clubMembersRepository;
+    private ClubMemberRepository clubMembersRepository;
 
     @Mock
-    private ClubsRepository clubsRepository;
+    private ClubRepository clubsRepository;
 
     @Mock
     private UserRepository userRepository;
 
     @Mock
-    private ClubsAuthorizationService clubsAuthorizationService;
+    private ClubAuthService clubsAuthorizationService;
 
     @InjectMocks
     private VoteService voteService;

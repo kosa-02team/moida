@@ -4,7 +4,7 @@ import back.config.security.UserPrincipal;
 import back.dto.post.comment.request.PostCommentRequest;
 import back.dto.post.comment.response.PostCommentsIdResponse;
 import back.dto.post.comment.response.PostCommentsResponse;
-import back.exception.ClubAuthException;
+import back.exception.ClubException;
 import back.service.post.PostCommentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -71,7 +71,7 @@ public class PostCommentController {
     }
 
     private Long requireUserId(UserPrincipal principal) {
-        if (principal == null) throw new ClubAuthException.LoginRequired();
+        if (principal == null) throw new ClubException.AuthLoginRequired();
         return principal.getUserId();
     }
 }

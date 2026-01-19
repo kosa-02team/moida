@@ -3,7 +3,7 @@ package back.controller.schedule;
 import back.common.response.SuccessResponse;
 import back.config.security.UserPrincipal;
 import back.dto.schedule.*;
-import back.exception.ClubAuthException;
+import back.exception.ClubException;
 import back.service.schedule.ScheduleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -129,7 +129,7 @@ public class ScheduleController {
     }
 
     private Long requireUserId(UserPrincipal principal) {
-        if (principal == null) throw new ClubAuthException.LoginRequired();
+        if (principal == null) throw new ClubException.AuthLoginRequired();
         return principal.getUserId();
     }
 }

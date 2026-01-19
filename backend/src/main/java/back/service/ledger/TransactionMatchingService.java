@@ -1,11 +1,9 @@
 package back.service.ledger;
 
 import back.bank.domain.BankTransactionHistory;
-import back.domain.ClubMembers;
 import back.domain.ledger.PaymentRequest;
 import back.bank.repository.BankTransactionHistoryRepository;
-import back.repository.ClubMemberRepository;
-import back.repository.clubs.ClubMembersRepository;
+import back.repository.club.ClubMemberRepository;
 import back.repository.ledger.PaymentRequestRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -99,25 +97,18 @@ public class TransactionMatchingService {
         String content = normalize(tx.getPrintContent());
         if (content.isBlank()) return false;
 
-        // 4) memberId로 실명/닉네임 조회 (방법 A면 member 가져와서 member.realName() 써도 됨)
-        var viewOpt = clubMemberRepository.findNameView(req.getClubId(), req.getMemberId());
-        if (viewOpt.isEmpty()) return false;
+        // 4) memberId로 닉네임 조회
+        var memberOpt = clubMemberRepository.findByClubIdAndMemberId(req.getClubId(), req.getMemberId());
+        if (memberOpt.isEmpty()) return false;
 
-        String realNameRaw = viewOpt.get().getRealName();
-        String nickRaw = viewOpt.get().getClubNickname();
-
-        String realName = normalize(realNameRaw);
+        String nickRaw = memberOpt.get().getNickname();
         String nick = normalize(nickRaw);
 
-        // 5) 실명/닉네임이 클럽 내 유일할 때만 매칭 허용
-        boolean realNameUnique = !realName.isBlank()
-                && clubMemberRepository.countByClubIdAndRealName(req.getClubId(), realNameRaw) == 1;
-
+        // 5) 닉네임이 클럽 내 유일할 때만 매칭 허용
         boolean nickUnique = !nick.isBlank()
-                && clubMemberRepository.countByClubIdAndClubNickname(req.getClubId(), nickRaw) == 1;
+                && clubMemberRepository.existsByClubIdAndNickname(req.getClubId(), nickRaw);
 
         // 6) 유일한 경우에만 contains 허용
-        if (realNameUnique && content.contains(realName)) return true;
         if (nickUnique && content.contains(nick)) return true;
 
         return false;

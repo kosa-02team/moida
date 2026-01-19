@@ -3,7 +3,7 @@ package back.controller.vote;
 import back.common.response.SuccessResponse;
 import back.config.security.UserPrincipal;
 import back.dto.vote.*;
-import back.exception.ClubAuthException;
+import back.exception.ClubException;
 import back.service.vote.VoteService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -54,7 +54,7 @@ public class VoteController {
     public SuccessResponse<VoteResponse> createVote(
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable("clubId") Long clubId,
-            @RequestBody @Valid VoteCreateRequest request
+            @RequestBody VoteCreateRequest request
     ) {
         Long currentUserId = requireUserId(principal);
         VoteResponse response = voteService.createVote(clubId, currentUserId, request);
@@ -85,7 +85,7 @@ public class VoteController {
     }
 
     private Long requireUserId(UserPrincipal principal) {
-        if (principal == null) throw new ClubAuthException.LoginRequired();
+        if (principal == null) throw new ClubException.AuthLoginRequired();
         return principal.getUserId();
     }
 }

@@ -3,11 +3,10 @@ package back.listener;
 import back.domain.Notifications;
 import back.dto.NotificationResponse;
 import back.event.ScheduleRegisteredEvent;
-import back.repository.clubs.ClubMembersRepository;
+import back.repository.club.ClubMemberRepository;
 import back.repository.notifications.NotificationsRepository;
 import back.service.notifications.NotificationService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -19,7 +18,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class NotificationEventListener {
 
-    private final ClubMembersRepository clubMembersRepository;
+    private final ClubMemberRepository clubMemberRepository;
     private final NotificationsRepository notificationsRepository;
     private final NotificationService notificationService;
 

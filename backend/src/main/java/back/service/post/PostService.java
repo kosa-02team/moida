@@ -1,6 +1,6 @@
 package back.service.post;
 
-import back.domain.Clubs;
+import back.domain.club.Clubs;
 import back.domain.schedule.Schedules;
 import back.domain.Users;
 import back.domain.post.PostImages;
@@ -14,13 +14,13 @@ import back.dto.post.story.request.StoryUpdateRequest;
 import back.dto.post.story.response.*;
 import back.exception.PostsException;
 import back.repository.schedule.ScheduleRepository;
-import back.repository.clubs.ClubsRepository;
+import back.repository.club.ClubRepository;
 import back.repository.post.PostImageRepository;
 import back.repository.post.PostMemberTagRepository;
 import back.repository.post.PostRepository;
 import back.repository.post.projection.RecentAlbumRow;
 import back.repository.UserRepository;
-import back.service.clubs.ClubsAuthorizationService;
+import back.service.club.ClubAuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -38,9 +38,9 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class PostService {
 
-    private final ClubsAuthorizationService clubAuthorizationService;
+    private final ClubAuthService clubAuthorizationService;
 
-    private final ClubsRepository clubsRepository;
+    private final ClubRepository clubsRepository;
     private final UserRepository userRepository;
     private final ScheduleRepository scheduleRepository;
 

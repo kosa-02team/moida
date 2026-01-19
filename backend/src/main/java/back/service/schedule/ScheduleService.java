@@ -13,7 +13,7 @@ import back.repository.schedule.ScheduleParticipantRepository;
 import back.repository.schedule.ScheduleRepository;
 import back.repository.vote.VoteOptionRepository;
 import back.repository.vote.VoteRepository;
-import back.service.clubs.ClubsAuthorizationService;
+import back.service.club.ClubAuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -31,7 +31,7 @@ public class ScheduleService {
     private final ScheduleParticipantRepository scheduleParticipantRepository;
     private final VoteRepository voteRepository;
     private final VoteOptionRepository voteOptionRepository;
-    private final ClubsAuthorizationService clubsAuthorizationService;
+    private final ClubAuthService clubAuthService;
     private final UserRepository userRepository;
 
     // 알림 전송을 위해 의존성 추가
@@ -47,7 +47,7 @@ public class ScheduleService {
     @Transactional(readOnly = true)
     public List<ScheduleResponse> getSchedulesByClubId(Long clubId, Long userId) {
         // 권한 체크: ACTIVE 멤버만 조회 가능
-        clubsAuthorizationService.assertActiveMember(clubId, userId);
+        clubAuthService.assertActiveMember(clubId, userId);
 
         List<Schedules> schedules = scheduleRepository.findByClubId(clubId);
 
@@ -69,9 +69,9 @@ public class ScheduleService {
         // 권한 체크: 참가비가 있으면 총무 이상, 없으면 운영진 이상
         boolean hasEntryFee = request.entryFee() != null && request.entryFee().compareTo(java.math.BigDecimal.ZERO) > 0;
         if (hasEntryFee) {
-            clubsAuthorizationService.assertAtLeastAccountant(clubId, userId);
+            clubAuthService.assertAtLeastAccountant(clubId, userId);
         } else {
-            clubsAuthorizationService.assertAtLeastManager(clubId, userId);
+            clubAuthService.assertAtLeastManager(clubId, userId);
         }
 
         // 날짜 검증: endDate는 eventDate보다 이후여야 함
@@ -149,7 +149,7 @@ public class ScheduleService {
     @Transactional(readOnly = true)
     public ScheduleResponse getScheduleById(Long clubId, Long scheduleId, Long userId) {
         // 권한 체크: ACTIVE 멤버만 조회 가능
-        clubsAuthorizationService.assertActiveMember(clubId, userId);
+        clubAuthService.assertActiveMember(clubId, userId);
 
         Schedules schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(ScheduleException.NotFound::new);
@@ -188,9 +188,9 @@ public class ScheduleService {
 
         // 권한 체크: 참가비 필드를 변경하면 총무 이상, 그 외 수정은 운영진 이상
         if (isEntryFeeChanged) {
-            clubsAuthorizationService.assertAtLeastAccountant(clubId, userId);
+            clubAuthService.assertAtLeastAccountant(clubId, userId);
         } else {
-            clubsAuthorizationService.assertAtLeastManager(clubId, userId);
+            clubAuthService.assertAtLeastManager(clubId, userId);
         }
 
         // 이미 종료되거나 취소된 일정은 수정 불가
@@ -236,9 +236,9 @@ public class ScheduleService {
         // 권한 체크: 참가비가 있으면 총무 이상, 없으면 운영진 이상
         boolean hasEntryFee = schedule.getEntryFee() != null && schedule.getEntryFee().compareTo(java.math.BigDecimal.ZERO) > 0;
         if (hasEntryFee) {
-            clubsAuthorizationService.assertAtLeastAccountant(clubId, userId);
+            clubAuthService.assertAtLeastAccountant(clubId, userId);
         } else {
-            clubsAuthorizationService.assertAtLeastManager(clubId, userId);
+            clubAuthService.assertAtLeastManager(clubId, userId);
         }
 
         // 이미 종료되거나 취소된 일정인지 확인
@@ -276,9 +276,9 @@ public class ScheduleService {
         // 권한 체크: 참가비가 있으면 총무 이상 (환불 문제), 없으면 운영진 이상
         boolean hasEntryFee = schedule.getEntryFee() != null && schedule.getEntryFee().compareTo(java.math.BigDecimal.ZERO) > 0;
         if (hasEntryFee) {
-            clubsAuthorizationService.assertAtLeastAccountant(clubId, userId);
+            clubAuthService.assertAtLeastAccountant(clubId, userId);
         } else {
-            clubsAuthorizationService.assertAtLeastManager(clubId, userId);
+            clubAuthService.assertAtLeastManager(clubId, userId);
         }
 
         // 이미 취소된 일정인지 확인
@@ -312,7 +312,7 @@ public class ScheduleService {
     @Transactional
     public ScheduleResponse updateSettlement(Long clubId, Long scheduleId, Long userId, ScheduleSettlementRequest request) {
         // 권한 체크: 정산은 무조건 총무 이상만 가능 (돈 관련)
-        clubsAuthorizationService.assertAtLeastAccountant(clubId, userId);
+        clubAuthService.assertAtLeastAccountant(clubId, userId);
 
         Schedules schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(ScheduleException.NotFound::new);
@@ -338,7 +338,7 @@ public class ScheduleService {
     @Transactional(readOnly = true)
     public List<ScheduleParticipantResponse> getScheduleParticipants(Long clubId, Long scheduleId, Long userId) {
         // 권한 체크: ACTIVE 멤버만 조회 가능
-        clubsAuthorizationService.assertActiveMember(clubId, userId);
+        clubAuthService.assertActiveMember(clubId, userId);
 
         Schedules schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(ScheduleException.NotFound::new);
