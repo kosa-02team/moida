@@ -26,6 +26,16 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- 1-1. status, visibility 컬럼에 NOT NULL 제약조건 추가 (기존 데이터 보호)
+-- 기존 NULL 값을 기본값으로 먼저 채움
+UPDATE clubs SET status = 'ACTIVE' WHERE status IS NULL;
+UPDATE clubs SET visibility = 'PUBLIC' WHERE visibility IS NULL;
+
+-- NOT NULL 제약조건 적용
+ALTER TABLE clubs 
+  MODIFY COLUMN status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE: 활성, INACTIVE: 비활성',
+  MODIFY COLUMN visibility VARCHAR(20) NOT NULL DEFAULT 'PUBLIC' COMMENT 'PUBLIC: 공개, PRIVATE: 비공개';
+
 -- 2. owner_id에 KEY 인덱스 추가
 SET @idx_exists = (
     SELECT COUNT(*)

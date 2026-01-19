@@ -44,9 +44,8 @@ public class ClubService {
         boolean isMember = viewerId != null && 
                 clubMemberRepository.existsByClubIdAndUserIdAndStatus(clubId, viewerId, ClubMembers.Status.ACTIVE);
 
-        Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE);
-
         if (isPublic || isMember) {
+            Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE);
             return ClubResponse.full(club, currentMembers);
         } else {
             return ClubResponse.limited(club);
