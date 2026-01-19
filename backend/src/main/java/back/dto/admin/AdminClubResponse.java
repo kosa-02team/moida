@@ -1,6 +1,6 @@
 package back.dto.admin;
 
-import back.domain.Clubs;
+import back.domain.club.Clubs;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -21,10 +21,10 @@ public class AdminClubResponse {
     public static AdminClubResponse of(Clubs club, String ownerName) {
         return AdminClubResponse.builder()
                 .clubId(club.getClubId())
-                .name(club.getName())
+                .name(club.getClubName()) // Changed from getName() to getClubName()
                 .ownerId(club.getOwnerId())
                 .ownerName(ownerName)
-                .status(club.getStatus())
+                .status(club.getStatus().name()) // Enum to String
                 .createdAt(club.getCreatedAt())
                 .closedAt(club.getClosedAt())
                 .build();

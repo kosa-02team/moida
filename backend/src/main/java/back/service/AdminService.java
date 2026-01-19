@@ -1,6 +1,6 @@
 package back.service;
 
-import back.domain.Clubs;
+import back.domain.club.Clubs;
 import back.domain.Reports;
 import back.domain.Users;
 import back.dto.admin.AdminClubResponse;
@@ -11,7 +11,7 @@ import back.exception.AdminException;
 import back.exception.response.ErrorCode;
 import back.repository.ReportsRepository;
 import back.repository.UserRepository;
-import back.repository.clubs.ClubsRepository;
+import back.repository.club.ClubRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -25,14 +25,14 @@ public class AdminService {
 
     private final ReportsRepository reportsRepository;
     private final UserRepository userRepository;
-    private final ClubsRepository clubsRepository;
+    private final ClubRepository clubRepository;
 
     public AdminDashboardResponse getDashboardStats() {
         long pendingReports = reportsRepository.countByStatus("PENDING");
         long bannedUsers = userRepository.countByStatus("BANNED");
         long totalUsers = userRepository.count();
-        long totalClubs = clubsRepository.count();
-        long closedClubs = clubsRepository.countByStatus("CLOSED");
+        long totalClubs = clubRepository.count();
+        long closedClubs = clubRepository.countByStatus(Clubs.Status.INACTIVE);
 
         return AdminDashboardResponse.builder()
                 .pendingReports(pendingReports)
@@ -66,7 +66,6 @@ public class AdminService {
 
         if ("APPROVE".equalsIgnoreCase(action)) {
             report.approve();
-            // TODO: 연동 로직 (예: 회원 경고 카운트 증가 등)
         } else if ("REJECT".equalsIgnoreCase(action)) {
             report.reject();
         } else {
@@ -75,19 +74,15 @@ public class AdminService {
     }
 
     public Page<AdminUserResponse> getUsers(Pageable pageable, String keyword, String status) {
-        String statusParam = "ALL".equalsIgnoreCase(status) ? null : status;
-        String keywordParam = (keyword == null || keyword.isBlank()) ? null : keyword;
-
-        return userRepository.searchUsers(keywordParam, statusParam, pageable)
-                .map(AdminUserResponse::from);
-    }
-
-    public Page<AdminClubResponse> getClubs(Pageable pageable, String keyword, String status) {
-        String statusParam = "ALL".equalsIgnoreCase(status) ? null : status;
-        String keywordParam = (keyword == null || keyword.isBlank()) ? null : keyword;
-
-        return clubRepository.searchClubs(keywordParam, statusParam, pageable)
-                .map(this::mapToClubResponse);
+        Page<Users> userPage;
+        if (keyword != null && !keyword.isEmpty()) {
+            userPage = userRepository.findByRealNameContaining(keyword, pageable);
+        } else if (status != null && !status.isEmpty() && !"ALL".equalsIgnoreCase(status)) {
+            userPage = userRepository.findByStatus(status, pageable);
+        } else {
+            userPage = userRepository.findAll(pageable);
+        }
+        return userPage.map(AdminUserResponse::from);
     }
 
     @Transactional
@@ -107,32 +102,49 @@ public class AdminService {
     public Page<AdminClubResponse> getClubs(Pageable pageable, String keyword, String status) {
         Page<Clubs> clubPage;
         if (keyword != null && !keyword.isEmpty()) {
-            clubPage = clubsRepository.findByNameContaining(keyword, pageable);
+            clubPage = clubRepository.findByClubNameContaining(keyword, pageable);
         } else if (status != null && !status.isEmpty() && !"ALL".equalsIgnoreCase(status)) {
-            clubPage = clubsRepository.findByStatus(status, pageable);
+            try {
+                Clubs.Status clubStatus = Clubs.Status.valueOf(status.toUpperCase());
+                clubPage = clubRepository.findByStatus(clubStatus, pageable);
+            } catch (IllegalArgumentException e) {
+                // If status string matches no enum, return empty or all?
+                // Returning empty is safer. Or throw error.
+                // Let's assume frontend sends correct status strings (ACTIVE, INACTIVE).
+                // If "CLOSED" is sent, it won't match "INACTIVE".
+                // I should handle "CLOSED" mapping if UI sends "CLOSED".
+                if ("CLOSED".equalsIgnoreCase(status)) {
+                    clubPage = clubRepository.findByStatus(Clubs.Status.INACTIVE, pageable);
+                } else {
+                    // Fallback to empty if invalid
+                    // Or maybe findAll() if invalid? No, better error or empty.
+                    // Let's try basic valueOf.
+                    throw new AdminException(ErrorCode.INVALID_INPUT, "Invalid club status: " + status);
+                }
+            }
         } else {
-            clubPage = clubsRepository.findAll(pageable);
+            clubPage = clubRepository.findAll(pageable);
         }
         return clubPage.map(this::mapToClubResponse);
     }
 
     @Transactional
     public void manageClub(Long clubId, String action) {
-        Clubs club = clubsRepository.findById(clubId)
+        Clubs club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new AdminException(ErrorCode.CLUB_NOT_FOUND));
 
         if ("CLOSE".equalsIgnoreCase(action)) {
-            club.close();
+            club.close(); // Sets INACTIVE
         } else if ("ACTIVATE".equalsIgnoreCase(action)) {
-            club.activate();
+            club.activate(); // Sets ACTIVE
         } else {
             throw new AdminException(ErrorCode.INVALID_INPUT, "잘못된 처리 작업입니다: " + action);
         }
     }
 
     private AdminReportResponse mapToReportResponse(Reports report) {
-        String clubName = clubsRepository.findById(report.getClubId())
-                .map(Clubs::getName)
+        String clubName = clubRepository.findById(report.getClubId())
+                .map(Clubs::getClubName)
                 .orElse("Unknown Club");
         String reporterName = userRepository.findById(report.getReporterId())
                 .map(Users::getRealName)

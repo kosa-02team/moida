@@ -1,6 +1,6 @@
 package back.service;
 
-import back.domain.Clubs;
+import back.domain.club.Clubs;
 import back.domain.Reports;
 import back.domain.Users;
 import back.dto.admin.AdminClubResponse;
@@ -10,7 +10,7 @@ import back.dto.admin.AdminUserResponse;
 import back.exception.AdminException;
 import back.repository.ReportsRepository;
 import back.repository.UserRepository;
-import back.repository.clubs.ClubsRepository;
+import back.repository.club.ClubRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -41,7 +41,7 @@ class AdminServiceTest {
     private UserRepository userRepository;
 
     @Mock
-    private ClubsRepository clubsRepository;
+    private ClubRepository clubRepository;
 
     @InjectMocks
     private AdminService adminService;
@@ -74,12 +74,12 @@ class AdminServiceTest {
         return u;
     }
 
-    private Clubs club(Long id, String status) {
+    private Clubs club(Long id, Clubs.Status status) {
         Clubs c = newEntity(Clubs.class);
         ReflectionTestUtils.setField(c, "clubId", id);
         ReflectionTestUtils.setField(c, "status", status);
         ReflectionTestUtils.setField(c, "ownerId", 4L);
-        ReflectionTestUtils.setField(c, "name", "Club" + id);
+        ReflectionTestUtils.setField(c, "clubName", "Club" + id);
         return c;
     }
 
@@ -90,8 +90,8 @@ class AdminServiceTest {
         given(reportsRepository.countByStatus("PENDING")).willReturn(5L);
         given(userRepository.countByStatus("BANNED")).willReturn(3L);
         given(userRepository.count()).willReturn(100L);
-        given(clubsRepository.count()).willReturn(20L);
-        given(clubsRepository.countByStatus("CLOSED")).willReturn(1L);
+        given(clubRepository.count()).willReturn(20L);
+        given(clubRepository.countByStatus(Clubs.Status.INACTIVE)).willReturn(1L);
 
         // when
         AdminDashboardResponse result = adminService.getDashboardStats();
@@ -113,7 +113,7 @@ class AdminServiceTest {
             // given
             Reports r1 = report(1L, "PENDING");
             given(reportsRepository.findAll(any(Pageable.class))).willReturn(new PageImpl<>(List.of(r1)));
-            given(clubsRepository.findById(1L)).willReturn(Optional.of(club(1L, "ACTIVE")));
+            given(clubRepository.findById(1L)).willReturn(Optional.of(club(1L, Clubs.Status.ACTIVE)));
             given(userRepository.findById(2L)).willReturn(Optional.of(user(2L, "ACTIVE")));
             given(userRepository.findById(3L)).willReturn(Optional.of(user(3L, "ACTIVE")));
 
@@ -138,13 +138,17 @@ class AdminServiceTest {
             // then
             assertThat(r1.getStatus()).isEqualTo("APPROVED");
         }
+    }
 
+    @Nested
+    @DisplayName("모임 관리")
+    class ClubManagement {
         @Test
         @DisplayName("모임 목록 조회 성공")
         void get_clubs_success() {
             // given
-            Clubs c1 = club(1L, "ACTIVE");
-            given(clubsRepository.findAll(any(Pageable.class))).willReturn(new PageImpl<>(List.of(c1)));
+            Clubs c1 = club(1L, Clubs.Status.ACTIVE);
+            given(clubRepository.findAll(any(Pageable.class))).willReturn(new PageImpl<>(List.of(c1)));
             given(userRepository.findById(4L)).willReturn(Optional.of(user(4L, "ACTIVE")));
 
             // when
@@ -155,6 +159,38 @@ class AdminServiceTest {
             assertThat(result.getContent().get(0).getClubId()).isEqualTo(1L);
         }
 
+        @Test
+        @DisplayName("모임 폐쇄 성공")
+        void close_club_success() {
+            // given
+            Clubs c1 = club(1L, Clubs.Status.ACTIVE);
+            given(clubRepository.findById(1L)).willReturn(Optional.of(c1));
+
+            // when
+            adminService.manageClub(1L, "CLOSE");
+
+            // then
+            assertThat(c1.getStatus()).isEqualTo(Clubs.Status.INACTIVE);
+        }
+
+        @Test
+        @DisplayName("모임 활성화 성공")
+        void activate_club_success() {
+            // given
+            Clubs c1 = club(1L, Clubs.Status.INACTIVE);
+            given(clubRepository.findById(1L)).willReturn(Optional.of(c1));
+
+            // when
+            adminService.manageClub(1L, "ACTIVATE");
+
+            // then
+            assertThat(c1.getStatus()).isEqualTo(Clubs.Status.ACTIVE);
+        }
+    }
+
+    @Nested
+    @DisplayName("회원 관리")
+    class UserManagement {
         @Test
         @DisplayName("회원 목록 조회 성공")
         void get_users_success() {
