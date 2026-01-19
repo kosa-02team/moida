@@ -75,15 +75,19 @@ public class AdminService {
     }
 
     public Page<AdminUserResponse> getUsers(Pageable pageable, String keyword, String status) {
-        Page<Users> userPage;
-        if (keyword != null && !keyword.isEmpty()) {
-            userPage = userRepository.findByRealNameContaining(keyword, pageable);
-        } else if (status != null && !status.isEmpty() && !"ALL".equalsIgnoreCase(status)) {
-            userPage = userRepository.findByStatus(status, pageable);
-        } else {
-            userPage = userRepository.findAll(pageable);
-        }
-        return userPage.map(AdminUserResponse::from);
+        String statusParam = "ALL".equalsIgnoreCase(status) ? null : status;
+        String keywordParam = (keyword == null || keyword.isBlank()) ? null : keyword;
+
+        return userRepository.searchUsers(keywordParam, statusParam, pageable)
+                .map(AdminUserResponse::from);
+    }
+
+    public Page<AdminClubResponse> getClubs(Pageable pageable, String keyword, String status) {
+        String statusParam = "ALL".equalsIgnoreCase(status) ? null : status;
+        String keywordParam = (keyword == null || keyword.isBlank()) ? null : keyword;
+
+        return clubRepository.searchClubs(keywordParam, statusParam, pageable)
+                .map(this::mapToClubResponse);
     }
 
     @Transactional
