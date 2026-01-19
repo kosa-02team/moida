@@ -2,13 +2,12 @@ package back.service.ledger;
 
 import back.bank.domain.BankTransactionHistory;
 import back.domain.ledger.PaymentRequest;
-import back.repository.ClubMemberRepository;
-import back.repository.clubs.MemberNameView;
+import back.repository.club.ClubMemberRepository;
+import back.repository.club.ClubRepository;
+import back.repository.club.projection.NameView;
 import back.bank.repository.BankTransactionHistoryRepository;
 import back.repository.ledger.PaymentRequestRepository;
-import back.repository.clubs.ClubsRepository;
 import back.repository.ledger.TransactionLogRepository;
-import back.domain.Clubs;
 import back.domain.ledger.TransactionLog;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,7 +18,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Map;
@@ -40,7 +38,7 @@ public class TransactionMatchingServiceTest {
     @Mock
     private ClubMemberRepository clubMemberRepository;
     @Mock
-    private ClubsRepository clubsRepository;
+    private ClubRepository clubRepository;
     @Mock
     private TransactionLogRepository transactionLogRepository;
 
@@ -79,7 +77,7 @@ public class TransactionMatchingServiceTest {
         // If we want to test scheduleId update, we need a FAIR_SETTLEMENT club
 
         // Club Member Name Mocking (for name matching)
-        var memberView = mock(MemberNameView.class);
+        var memberView = mock(NameView.class);
         when(memberView.getRealName()).thenReturn("홍길동");
         when(memberView.getClubNickname()).thenReturn("길동이");
         when(clubMemberRepository.findNameView(clubId, memberId)).thenReturn(Optional.of(memberView));

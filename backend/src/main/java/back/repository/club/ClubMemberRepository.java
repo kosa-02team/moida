@@ -1,7 +1,10 @@
 package back.repository.club;
 
 import back.domain.club.ClubMembers;
+import back.repository.club.projection.NameView;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -27,4 +30,41 @@ public interface ClubMemberRepository extends JpaRepository<ClubMembers, Long> {
     long countByClubIdAndStatus(Long clubId, ClubMembers.Status status);
 
     List<ClubMembers> findByClubIdAndStatus(Long clubId, ClubMembers.Status status);
+
+    @Query("""
+    select u.realName as realName,
+           cm.nickname as clubNickname
+    from ClubMembers cm
+    join Users u on u.id = cm.userId
+    where cm.clubId = :clubId
+      and cm.memberId = :memberId
+""")
+    Optional<NameView> findNameView(
+            @Param("clubId") Long clubId,
+            @Param("memberId") Long memberId
+    );
+
+
+    @Query("""
+    select count(cm)
+    from ClubMembers cm
+    join Users u on u.id = cm.userId
+    where cm.clubId = :clubId
+      and u.realName = :realName
+""")
+    Long countByClubIdAndRealName(
+            @Param("clubId") Long clubId,
+            @Param("realName") String realName
+    );
+    @Query("""
+    select count(cm)
+    from ClubMembers cm
+    where cm.clubId = :clubId
+      and cm.nickname = :nickname
+""")
+    Long countByClubIdAndClubNickname(
+            @Param("clubId") Long clubId,
+            @Param("nickname") String nickname
+    );
+
 }

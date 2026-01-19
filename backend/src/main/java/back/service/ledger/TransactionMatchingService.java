@@ -1,10 +1,14 @@
 package back.service.ledger;
 
 import back.bank.domain.BankTransactionHistory;
+import back.domain.club.Clubs;
 import back.domain.ledger.PaymentRequest;
 import back.bank.repository.BankTransactionHistoryRepository;
+import back.domain.ledger.TransactionLog;
 import back.repository.club.ClubMemberRepository;
+import back.repository.club.ClubRepository;
 import back.repository.ledger.PaymentRequestRepository;
+import back.repository.ledger.TransactionLogRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 거래내역 매칭 서비스
@@ -23,18 +28,18 @@ public class TransactionMatchingService {
     private final PaymentRequestRepository paymentRequestRepository;
     private final BankTransactionHistoryRepository transactionHistoryRepository;
     private final ClubMemberRepository clubMemberRepository;
-    private final ClubsRepository clubsRepository;
+    private final ClubRepository clubRepository;
     private final TransactionLogRepository transactionLogRepository;
 
     public TransactionMatchingService(PaymentRequestRepository paymentRequestRepository,
             BankTransactionHistoryRepository transactionHistoryRepository,
             ClubMemberRepository clubMemberRepository,
-            ClubsRepository clubsRepository,
+            ClubRepository clubRepository,
             TransactionLogRepository transactionLogRepository) {
         this.paymentRequestRepository = paymentRequestRepository;
         this.transactionHistoryRepository = transactionHistoryRepository;
         this.clubMemberRepository = clubMemberRepository;
-        this.clubsRepository = clubsRepository;
+        this.clubRepository = clubRepository;
         this.transactionLogRepository = transactionLogRepository;
     }
 
@@ -49,8 +54,8 @@ public class TransactionMatchingService {
         List<PaymentRequest> matchableRequests = paymentRequestRepository.findMatchableRequests(clubId);
 
         // 클럽 정보 조회 (운영 타입 확인용)
-        Clubs club = clubsRepository.findById(clubId).orElse(null);
-        boolean isFairSettlement = club != null && club.getType() == Clubs.ClubType.FAIR_SETTLEMENT;
+        Clubs club = clubRepository.findById(clubId).orElse(null);
+        boolean isFairSettlement = club != null && club.getType() == Clubs.Type.FAIR_SETTLEMENT;
 
         for (BankTransactionHistory transaction : newTransactions) {
 
