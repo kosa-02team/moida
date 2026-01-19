@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -90,6 +91,7 @@ public class AdminController {
         return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK));
     }
 
+    @Setter
     @Getter
     @NoArgsConstructor
     public static class ActionRequest {
