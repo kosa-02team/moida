@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Badge } from '../ui/badge';
-import { Separator } from '../ui/separator';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,6 +15,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '../ui/alert-dialog';
+
+interface MenuItem {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  description?: string;
+  href: string;
+}
+
+interface MenuSection {
+  section: string;
+  items: MenuItem[];
+}
 
 export function ProfileView() {
   const navigate = useNavigate();
@@ -33,7 +44,7 @@ export function ProfileView() {
     totalDuesPaid: 180000,
   };
 
-  const menuItems = [
+  const menuItems: MenuSection[] = [
     {
       section: '모임',
       items: [
