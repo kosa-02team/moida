@@ -39,6 +39,7 @@ interface Post {
   dateDisplay: string;
   isMyPost?: boolean;
   isLiked?: boolean;
+  writerId?: number;
 }
 
 export function StoriesView() {
@@ -171,18 +172,6 @@ export function StoriesView() {
       console.error('좋아요 처리 실패:', error);
       toast.error('좋아요 처리에 실패했습니다.');
     }
-  };
-
-  const handleReportPost = () => {
-    if (!reportReason) {
-      toast.error('신고 사유를 선택해주세요');
-      return;
-    }
-    toast.success('신고가 접수되었습니다');
-    setShowReportDialog(false);
-    setSelectedPost(null);
-    setReportReason('');
-    setReportDetail('');
   };
 
   const canDeletePost = (post: Post) => {

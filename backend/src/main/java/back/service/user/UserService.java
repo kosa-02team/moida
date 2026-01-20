@@ -37,4 +37,20 @@ public class UserService {
         
         return UserResponse.from(user);
     }
+
+    /**
+     * 회원 탈퇴 (소프트 삭제)
+     */
+    @Transactional
+    public void deleteUser(Long userId) {
+        Users user = userRepository.findById(userId)
+                .orElseThrow(AuthException.UserNotFound::new);
+        
+        // 이미 탈퇴한 사용자인 경우
+        if ("DELETED".equals(user.getStatus())) {
+            return;
+        }
+        
+        user.delete(); // status를 DELETED로 변경하고 deletedAt 설정
+    }
 }

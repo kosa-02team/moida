@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, Clock, MapPin, Users, MessageCircle, Share2, Edit3, Trash2, Check, X, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -80,7 +80,7 @@ export function ScheduleDetailView() {
   }, []);
 
   // 일정과 연결된 게시글 찾기 및 댓글 조회
-  const fetchLinkedPostComments = async () => {
+  const fetchLinkedPostComments = useCallback(async () => {
     if (!groupId || !scheduleId) return;
     try {
       // 일정과 연결된 게시글 찾기
@@ -104,7 +104,7 @@ export function ScheduleDetailView() {
     } finally {
       setLoadingComments(false);
     }
-  };
+  }, [groupId, scheduleId]);
 
   useEffect(() => {
     async function fetchData() {
@@ -210,7 +210,7 @@ export function ScheduleDetailView() {
     }, 5000);
     
     return () => clearInterval(interval);
-  }, [groupId, scheduleId, navigate, currentUserId]);
+  }, [groupId, scheduleId, navigate, currentUserId, fetchLinkedPostComments]);
 
   if (loading || !schedule) {
     return (
@@ -312,23 +312,6 @@ export function ScheduleDetailView() {
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
     toast.success('링크가 복사되었습니다');
-  };
-
-  const handleCollectFee = async () => {
-    if (!groupId || !scheduleId) return;
-    try {
-      setIsCollectingFee(true);
-      await collectScheduleFee(Number(groupId), Number(scheduleId));
-      toast.success('참가비 일괄 걷기 요청이 생성되었습니다.');
-      // 일정 정보 새로고침
-      const scheduleData = await getSchedule(Number(groupId), Number(scheduleId));
-      setSchedule(scheduleData);
-    } catch (error) {
-      console.error('참가비 일괄 걷기 실패:', error);
-      toast.error('참가비 일괄 걷기에 실패했습니다.');
-    } finally {
-      setIsCollectingFee(false);
-    }
   };
 
   const handleSettle = async () => {

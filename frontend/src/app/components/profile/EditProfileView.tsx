@@ -68,12 +68,20 @@ export function EditProfileView() {
     }
   };
 
-  const handleDeleteAccount = () => {
-    // TODO: 회원 탈퇴 API 구현 필요
-    removeToken();
-    localStorage.removeItem('refreshToken');
-    toast.success('회원 탈퇴가 완료되었습니다');
-    navigate('/login');
+  const handleDeleteAccount = async () => {
+    try {
+      setIsLoading(true);
+      await deleteAccount();
+      removeToken();
+      localStorage.removeItem('refreshToken');
+      toast.success('회원 탈퇴가 완료되었습니다');
+      navigate('/login');
+    } catch (error) {
+      console.error('회원 탈퇴 실패:', error);
+      toast.error('회원 탈퇴에 실패했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (initialLoading) {

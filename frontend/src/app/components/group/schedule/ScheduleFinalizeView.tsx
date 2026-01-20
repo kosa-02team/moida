@@ -94,11 +94,11 @@ export function ScheduleFinalizeView() {
 
   // 통계
   const stats = {
-    totalAttended: participants.filter(p => p.actualStatus === 'attended').length,
-    totalAbsent: participants.filter(p => p.actualStatus === 'absent').length,
-    totalPending: participants.filter(p => p.actualStatus === 'pending').length,
-    totalRefund: participants.filter(p => p.amountDue < 0).reduce((sum, p) => sum + Math.abs(p.amountDue), 0),
-    totalCollect: participants.filter(p => p.amountDue > 0).reduce((sum, p) => sum + p.amountDue, 0),
+    totalAttended: participantsDisplay.filter(p => p.actualStatus === 'attended').length,
+    totalAbsent: participantsDisplay.filter(p => p.actualStatus === 'absent').length,
+    totalPending: participantsDisplay.filter(p => p.actualStatus === 'pending').length,
+    totalRefund: participantsDisplay.filter(p => p.amountDue < 0).reduce((sum, p) => sum + Math.abs(p.amountDue), 0),
+    totalCollect: participantsDisplay.filter(p => p.amountDue > 0).reduce((sum, p) => sum + p.amountDue, 0),
   };
 
   // 이상 케이스 분류

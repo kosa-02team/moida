@@ -45,3 +45,10 @@ export interface RefreshTokenRequest {
 export const refreshToken = async (request: RefreshTokenRequest): Promise<RefreshTokenResponse> => {
   return post<RefreshTokenResponse>('/api/auth/refresh', request, false);
 };
+
+/**
+ * 회원 탈퇴
+ */
+export const deleteAccount = async (): Promise<void> => {
+  return del<void>('/api/users/me');
+};

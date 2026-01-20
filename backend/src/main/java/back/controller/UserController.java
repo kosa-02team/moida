@@ -90,4 +90,16 @@ public class UserController {
         
         return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK, responses));
     }
+
+    /**
+     * 회원 탈퇴 (소프트 삭제)
+     * DELETE /api/users/me
+     */
+    @DeleteMapping("/me")
+    public ResponseEntity<SuccessResponse<Void>> deleteMyAccount(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        Long userId = principal.getUserId();
+        userService.deleteUser(userId);
+        return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK, null));
+    }
 }

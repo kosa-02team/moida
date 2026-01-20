@@ -53,38 +53,6 @@ export function CreateGroupView() {
     }
   };
 
-  const handleImageUpload = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      
-      if (!file.type.startsWith('image/')) {
-        toast.error('이미지 파일만 업로드 가능합니다');
-        return;
-      }
-      
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        if (result) {
-          setImage(result);
-        }
-      };
-      reader.onerror = () => {
-        toast.error('이미지 읽기에 실패했습니다');
-      };
-      reader.readAsDataURL(file);
-    };
-    input.click();
-  };
-
-  const removeImage = () => {
-    setImage(null);
-  };
-
   const handleSubmit = async () => {
     if (isSubmitting) return;
 
@@ -143,31 +111,6 @@ export function CreateGroupView() {
         {/* Step 1: Basic Info */}
         {step === 1 && (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-            {/* Image Upload */}
-            <div className="flex justify-center py-4">
-              {image ? (
-                <div className="relative">
-                  <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-orange-100">
-                    <img src={image} alt="모임 대표 이미지" className="w-full h-full object-cover" />
-                  </div>
-                  <button
-                    onClick={removeImage}
-                    className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-colors"
-                  >
-                    <span className="text-xs">×</span>
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={handleImageUpload}
-                  className="w-28 h-28 bg-stone-100 rounded-full flex flex-col items-center justify-center border-2 border-dashed border-stone-300 text-stone-400 cursor-pointer hover:bg-stone-50 hover:border-orange-300 transition-colors"
-                >
-                  <Camera className="w-8 h-8 mb-1" />
-                  <span className="text-xs">대표 이미지</span>
-                </button>
-              )}
-            </div>
-
             {/* Name */}
             <div className="space-y-2">
               <Label htmlFor="name" className="text-base font-medium">모임 이름 <span className="text-red-500">*</span></Label>
@@ -198,6 +141,31 @@ export function CreateGroupView() {
                   </div>
                 ))}
               </RadioGroup>
+            </div>
+
+            {/* Image Upload */}
+            <div className="flex justify-center py-4">
+              {image ? (
+                <div className="relative">
+                  <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-orange-100">
+                    <img src={image} alt="모임 대표 이미지" className="w-full h-full object-cover" />
+                  </div>
+                  <button
+                    onClick={removeImage}
+                    className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-colors"
+                  >
+                    <span className="text-xs">×</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleImageUpload}
+                  className="w-28 h-28 bg-stone-100 rounded-full flex flex-col items-center justify-center border-2 border-dashed border-stone-300 text-stone-400 cursor-pointer hover:bg-stone-50 hover:border-orange-300 transition-colors"
+                >
+                  <Camera className="w-8 h-8 mb-1" />
+                  <span className="text-xs">대표 이미지</span>
+                </button>
+              )}
             </div>
 
             <Button onClick={handleNext} className="w-full h-12 text-lg bg-stone-900 hover:bg-stone-800 mt-8 rounded-xl">

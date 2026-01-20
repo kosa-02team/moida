@@ -49,7 +49,7 @@ export function VoteDetailView() {
   const deadline = vote.deadline ? new Date(vote.deadline) : null;
   const daysLeft = deadline ? Math.ceil((deadline.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
   const totalParticipants = vote.options.reduce((sum, opt) => sum + (opt.voteCount || 0), 0);
-  const maxVotes = Math.max(...vote.options.map(o => o.voteCount || 0));
+  const maxVotes = vote.options.length > 0 ? Math.max(...vote.options.map(o => o.voteCount || 0)) : 0;
 
   const toggleOption = (optionId: number) => {
     if (hasVoted) return;
