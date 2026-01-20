@@ -1,8 +1,8 @@
 package back.service.post;
 
+import back.domain.club.ClubMembers;
 import back.domain.club.Clubs;
 import back.domain.schedule.Schedules;
-import back.domain.Users;
 import back.domain.post.PostImages;
 import back.domain.post.PostMemberTags;
 import back.domain.post.Posts;
@@ -13,13 +13,13 @@ import back.dto.post.story.request.StoryCreateRequest;
 import back.dto.post.story.request.StoryUpdateRequest;
 import back.dto.post.story.response.*;
 import back.exception.PostsException;
+import back.repository.club.ClubMemberRepository;
 import back.repository.schedule.ScheduleRepository;
 import back.repository.club.ClubRepository;
 import back.repository.post.PostImageRepository;
 import back.repository.post.PostMemberTagRepository;
 import back.repository.post.PostRepository;
 import back.repository.post.projection.RecentAlbumRow;
-import back.repository.UserRepository;
 import back.service.club.ClubAuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -41,7 +41,7 @@ public class PostService {
     private final ClubAuthService clubAuthorizationService;
 
     private final ClubRepository clubsRepository;
-    private final UserRepository userRepository;
+    private final ClubMemberRepository clubMemberRepository;
     private final ScheduleRepository scheduleRepository;
 
     private final PostRepository postRepository;
@@ -183,7 +183,7 @@ public class PostService {
 
     private Posts buildStoryPost(Long clubId, Long writerId, StoryCreateRequest request) {
         Clubs clubRef = clubsRepository.getReferenceById(clubId);
-        Users writerRef = userRepository.getReferenceById(writerId);
+        ClubMembers writerRef = clubMemberRepository.getReferenceById(writerId);
         Schedules scheduleRef = getScheduleRefOrNull(request.scheduleId());
 
         return Posts.story(clubRef, writerRef, scheduleRef, request.content());
@@ -275,4 +275,6 @@ public class PostService {
 
         postMemberTagRepository.saveAll(tags);
     }
+
+
 }

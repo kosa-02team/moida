@@ -21,7 +21,7 @@ public interface PostRepository extends JpaRepository<Posts, Long> {
           p.club.clubId,
           p.postId,
           p.writer.userId,
-          p.writer.realName,
+          p.writer.nickname,
           p.title,
           p.content,
           coalesce(count(distinct l.likeId), 0L),
@@ -33,7 +33,7 @@ public interface PostRepository extends JpaRepository<Posts, Long> {
       left join Comments c on c.post.postId = p.postId and c.deletedAt is null
       where p.club.clubId = :clubId
         and p.deletedAt is null
-      group by p.club.clubId, p.postId, p.writer.userId, p.writer.realName, p.title, p.content, p.createdAt
+      group by p.club.clubId, p.postId, p.writer.userId, p.writer.nickname, p.title, p.content, p.createdAt
       """)
   Page<PostCardBase> findPostCards(@Param("clubId") Long clubId, Pageable pageable);
 

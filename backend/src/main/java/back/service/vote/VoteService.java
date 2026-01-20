@@ -41,7 +41,6 @@ public class VoteService {
     private final VoteRecordRepository voteRecordRepository;
     private final ClubMemberRepository clubMembersRepository;
     private final ClubRepository clubsRepository;
-    private final UserRepository userRepository;
     private final ClubAuthService clubsAuthorizationService;
 
     /**
@@ -154,7 +153,7 @@ public class VoteService {
         }
 
         Clubs clubRef = clubsRepository.getReferenceById(clubId);
-        Users writerRef = userRepository.getReferenceById(userId);
+        ClubMembers writerRef = clubMembersRepository.getReferenceById(userId);
         // 이미 조회한 schedule 객체를 재사용 (중복 조회 방지)
         Schedules scheduleRef = schedule;
 

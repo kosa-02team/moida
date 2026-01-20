@@ -18,7 +18,7 @@ configurations {
 	compileOnly {
 		extendsFrom annotationProcessor
 	}
-    mockitoAgent
+	mockitoAgent
 }
 
 repositories {
@@ -30,9 +30,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.14'
-    implementation 'org.flywaydb:flyway-core'
-    implementation 'org.flywaydb:flyway-mysql'
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.14'
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-mysql'
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly "com.mysql:mysql-connector-j:8.4.0"
@@ -46,14 +46,14 @@ dependencies {
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
-    //mock 관련 라이브러리
-    mockitoAgent('org.mockito:mockito-core') {
-        transitive = false
-    }
+	//mock 관련 라이브러리
+	mockitoAgent('org.mockito:mockito-core') {
+		transitive = false
+	}
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
 
-    jvmArgs "-javaagent:${configurations.mockitoAgent.singleFile.absolutePath}"
+	jvmArgs "-javaagent:${configurations.mockitoAgent.singleFile.absolutePath}"
 }

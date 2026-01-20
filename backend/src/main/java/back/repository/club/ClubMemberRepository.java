@@ -67,4 +67,10 @@ public interface ClubMemberRepository extends JpaRepository<ClubMembers, Long> {
             @Param("nickname") String nickname
     );
 
+    @Query("""
+    select cm.nickname
+    from ClubMembers cm
+    where cm.memberId = :memberId
+""")
+    String findNicknameByMemberId(@Param("memberId") Long memberId);
 }

@@ -26,7 +26,7 @@ VALUES
 
 -- 모임 (club_id = 1)
 INSERT INTO clubs
-(club_id, name, owner_id, main_account_id, invite_code, status, visibility, created_at, updated_at, closed_at)
+(club_id, club_name, owner_id, main_account_id, invite_code, status, visibility, created_at, updated_at, closed_at)
 VALUES
 (1, '1번 모임', 1, 1, 'MOIDA0001', 'ACTIVE', 'PUBLIC', NOW(), NOW(), NULL);
 
@@ -38,7 +38,7 @@ VALUES
 
 -- 모임장 멤버십 등록 (member_id는 auto_increment라 생략 권장)
 INSERT INTO club_members
-(club_id, user_id, club_nickname, role, status, joined_at, created_at, updated_at)
+(club_id, user_id, nickname, role, status, joined_at, created_at, updated_at)
 VALUES
 (1, 1, '두효정', 'OWNER', 'ACTIVE', NOW(), NOW(), NOW());
 
@@ -74,7 +74,7 @@ VALUES
 
 -- club_id=1에 멤버십 등록 (role/status는 필요에 맞게 조정)
 INSERT INTO club_members
-(club_id, user_id, club_nickname, role, status, joined_at, created_at, updated_at)
+(club_id, user_id, nickname, role, status, joined_at, created_at, updated_at)
 VALUES
 (1, 2,  '김민준', 'MEMBER', 'ACTIVE', NOW(), NOW(), NOW()),
 (1, 3,  '이서준', 'MEMBER', 'ACTIVE', NOW(), NOW(), NOW()),
