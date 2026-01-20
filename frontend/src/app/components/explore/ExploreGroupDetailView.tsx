@@ -1,14 +1,29 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { 
   ArrowLeft, MapPin, Users, Calendar, Eye, Lock, Heart, MessageCircle, 
   ChevronRight, Flag, Share2, UserPlus
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { toast } from 'sonner';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 import { ReportDialog } from '../report/ReportDialog';
+import { getClub } from '@/api/club-full';
+import { get } from '@/api/client';
+import { PostCardResponse } from '@/api/post';
+import { joinClub } from '@/api/member';
+import { getToken } from '@/api/client';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
 
 interface PublicGroup {
   id: string;
@@ -20,6 +35,7 @@ interface PublicGroup {
   maxMembers: number;
   type: 'club' | 'meetup' | 'study';
   location?: string;
+  ownerId?: number; // 모임 신고를 위한 owner ID
   isPostPublic: boolean;
   nextEvent?: {
     title: string;
@@ -37,73 +53,122 @@ interface PublicGroup {
   }[];
 }
 
-// Mock data
-const MOCK_GROUPS: Record<string, PublicGroup> = {
-  '1': {
-    id: '1',
-    name: '주말 등산 클럽',
-    image: 'https://images.unsplash.com/photo-1551632811-561732d1e306?w=800&auto=format&fit=crop',
-    description: '매주 토요일 서울 근교 산행합니다. 초보자도 환영합니다! 함께 건강한 주말을 보내요.',
-    tags: ['등산', '운동', '친목', '주말'],
-    memberCount: 15,
-    maxMembers: 50,
-    type: 'club',
-    location: '서울',
-    isPostPublic: true,
-    nextEvent: { 
-      title: '관악산 정기 산행', 
-      date: '2025-04-12',
-      location: '사당역 4번 출구'
-    },
-    recentPosts: [
-      {
-        id: '1',
-        user: '김산악',
-        image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&auto=format&fit=crop',
-        content: '날씨가 너무 좋았던 하루! 다들 고생하셨습니다 ㅎㅎ',
-        likes: 12,
-        comments: 4,
-        date: '2시간 전',
-      },
-      {
-        id: '2',
-        user: '이영희',
-        image: 'https://images.unsplash.com/photo-1502224562085-639556652f33?w=400&auto=format&fit=crop',
-        content: '정말 즐거웠어요! 다음 모임도 기대됩니다 🎉',
-        likes: 8,
-        comments: 2,
-        date: '5시간 전',
-      },
-    ],
-  },
-  '2': {
-    id: '2',
-    name: '프라이빗 독서 모임',
-    image: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=800&auto=format&fit=crop',
-    description: '비공개로 진행되는 프리미엄 독서 모임입니다. 매달 1권의 책을 선정하여 깊이 있는 토론을 진행합니다.',
-    tags: ['독서', '토론', '인문학'],
-    memberCount: 8,
-    maxMembers: 15,
-    type: 'study',
-    location: '강남',
-    isPostPublic: false,
-    nextEvent: { 
-      title: '4월 독서 토론', 
-      date: '2025-04-18',
-      location: '강남 스터디카페'
-    },
-  },
-};
-
 export function ExploreGroupDetailView() {
   const { groupId } = useParams();
   const navigate = useNavigate();
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [showJoinDialog, setShowJoinDialog] = useState(false);
+  const [joinNickname, setJoinNickname] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [group, setGroup] = useState<PublicGroup | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const group = MOCK_GROUPS[groupId || '1'] || MOCK_GROUPS['1'];
+  // 로그인 상태 확인
+  useEffect(() => {
+    const token = getToken();
+    setIsLoggedIn(!!token);
+  }, []);
 
-  const handleJoinRequest = () => {
-    toast.success('가입 신청이 완료되었습니다. 승인을 기다려주세요.');
+  useEffect(() => {
+    async function fetchGroup() {
+      if (!groupId) {
+        toast.error('모임 ID가 없습니다.');
+        navigate('/explore');
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const clubId = parseInt(groupId);
+        const clubData = await getClub(clubId);
+        
+        // 최근 게시글 조회 (게시글 공개 모임인 경우)
+        let recentPosts: PublicGroup['recentPosts'] = undefined;
+        if (clubData.visibility === 'PUBLIC') {
+          try {
+            const postsData = await get<PostCardResponse[]>(`/api/clubs/${clubId}/posts/recent?page=0&size=3`);
+            recentPosts = postsData.slice(0, 3).map(post => ({
+              id: post.postId.toString(),
+              user: post.writerName || '익명',
+              image: post.imagesUrl && post.imagesUrl.length > 0 ? post.imagesUrl[0] : '',
+              content: post.content || '',
+              likes: post.postLikes || 0,
+              comments: post.commentCount || 0,
+              date: post.createdAt ? new Date(post.createdAt).toLocaleDateString('ko-KR') : '',
+            }));
+          } catch (error) {
+            console.error('게시글 조회 실패:', error);
+          }
+        }
+
+        const groupData: PublicGroup = {
+          id: clubData.clubId.toString(),
+          name: clubData.clubName,
+          image: '',
+          description: '', // 백엔드에 description 필드가 없음
+          tags: [], // 백엔드에 tags 필드가 없음
+          memberCount: clubData.currentMembers || 0,
+          maxMembers: clubData.maxMembers || 100,
+          type: clubData.type === 'OPERATION_FEE' ? 'meetup' : clubData.type === 'FAIR_SETTLEMENT' ? 'club' : 'study',
+          location: '', // 백엔드에 location 필드가 없음
+          isPostPublic: clubData.visibility === 'PUBLIC',
+          nextEvent: undefined, // 백엔드에 nextEvent 필드가 없음
+          recentPosts,
+        };
+
+        setGroup(groupData);
+      } catch (error) {
+        console.error('모임 정보 불러오기 실패:', error);
+        toast.error('모임 정보를 불러오는데 실패했습니다.');
+        navigate('/explore');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchGroup();
+  }, [groupId, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="text-stone-500">로딩 중...</div>
+      </div>
+    );
+  }
+
+  if (!group) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="text-stone-500">모임을 찾을 수 없습니다.</div>
+      </div>
+    );
+  }
+
+  const handleJoinRequest = async () => {
+    if (!joinNickname.trim()) {
+      toast.error('닉네임을 입력해주세요.');
+      return;
+    }
+    if (!groupId) return;
+    
+    try {
+      setIsJoining(true);
+      await joinClub(Number(groupId), {
+        nickname: joinNickname.trim()
+      });
+      toast.success('가입 신청이 완료되었습니다. 승인을 기다려주세요.');
+      setShowJoinDialog(false);
+      setJoinNickname('');
+      // 모임 페이지로 이동
+      navigate(`/group/${groupId}`);
+    } catch (error) {
+      console.error('가입 신청 실패:', error);
+      toast.error('가입 신청에 실패했습니다.');
+    } finally {
+      setIsJoining(false);
+    }
   };
 
   const handleShare = () => {
@@ -269,46 +334,103 @@ export function ExploreGroupDetailView() {
         ) : null}
 
         {/* Login Prompt */}
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-4">
-            <h3 className="font-medium text-blue-800 mb-2">로그인이 필요합니다</h3>
-            <p className="text-sm text-blue-700 mb-4">
-              모임에 가입하려면 먼저 로그인해주세요.
-            </p>
-            <div className="flex gap-2">
-              <Link to="/login" className="flex-1">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                  로그인
-                </Button>
-              </Link>
-              <Link to="/signup" className="flex-1">
-                <Button variant="outline" className="w-full border-blue-300 text-blue-600">
-                  회원가입
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+        {!isLoggedIn && (
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="p-4">
+              <h3 className="font-medium text-blue-800 mb-2">로그인이 필요합니다</h3>
+              <p className="text-sm text-blue-700 mb-4">
+                모임에 가입하려면 먼저 로그인해주세요.
+              </p>
+              <div className="flex gap-2">
+                <Link to="/login" className="flex-1">
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                    로그인
+                  </Button>
+                </Link>
+                <Link to="/signup" className="flex-1">
+                  <Button variant="outline" className="w-full border-blue-300 text-blue-600">
+                    회원가입
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Fixed Bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-100 p-4">
-        <div className="max-w-[500px] mx-auto">
-          <Link to="/login">
-            <Button className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-lg">
+      {isLoggedIn ? (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-100 p-4">
+          <div className="max-w-[500px] mx-auto">
+            <Button 
+              onClick={() => setShowJoinDialog(true)}
+              className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-lg"
+            >
               <UserPlus className="w-5 h-5 mr-2" />
-              로그인하고 가입 신청하기
+              가입 신청하기
             </Button>
-          </Link>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-100 p-4">
+          <div className="max-w-[500px] mx-auto">
+            <Link to="/login">
+              <Button className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-lg">
+                <UserPlus className="w-5 h-5 mr-2" />
+                로그인하고 가입 신청하기
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* 가입 다이얼로그 */}
+      <Dialog open={showJoinDialog} onOpenChange={setShowJoinDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>모임 가입 신청</DialogTitle>
+            <DialogDescription>
+              이 모임에 가입하시겠습니까? 가입 후 관리자 승인을 기다려주세요.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="nickname">모임 내 닉네임</Label>
+              <Input
+                id="nickname"
+                placeholder="닉네임을 입력하세요 (최대 10자)"
+                value={joinNickname}
+                onChange={(e) => setJoinNickname(e.target.value)}
+                maxLength={10}
+              />
+              <p className="text-xs text-stone-500">
+                모임 내에서 사용할 닉네임을 입력해주세요.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowJoinDialog(false)}>
+              취소
+            </Button>
+            <Button 
+              onClick={handleJoinRequest}
+              disabled={!joinNickname.trim() || isJoining}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              {isJoining ? '가입 중...' : '가입 신청'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Report Dialog */}
       <ReportDialog
         open={showReportDialog}
         onOpenChange={setShowReportDialog}
         type="group"
+        targetId={group.ownerId || parseInt(group.id)}
         targetName={group.name}
+        clubId={parseInt(group.id)}
       />
     </div>
   );

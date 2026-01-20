@@ -6,14 +6,15 @@ import { get, post } from './client';
 
 export interface VoteListResponse {
   voteId: number;
+  postId?: number;
   voteType: string;
+  scheduleId?: number;
   title: string;
-  description?: string;
-  isAnonymous: boolean;
-  allowMultiple: boolean;
-  deadline?: string;
   status: string;
+  deadline?: string;
+  closedAt?: string;
   createdAt: string;
+  totalVoteCount: number;
 }
 
 export interface VoteDetailResponse {

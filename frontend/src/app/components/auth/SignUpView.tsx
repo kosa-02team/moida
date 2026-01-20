@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Checkbox } from '../ui/checkbox';
+import { signup } from '@/api/auth';
 
 export function SignUpView() {
   const navigate = useNavigate();
@@ -27,8 +28,13 @@ export function SignUpView() {
     { label: '특수문자 포함', met: /[!@#$%^&*]/.test(password) },
   ];
 
+  // 이름 검증: 2-10글자 한글 이름
+  const isValidName = /^[가-힣]{2,10}$/.test(name);
+  // 이메일 형식 검증
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
   const canProceed = step === 1 
-    ? name && email && password && confirmPassword && password === confirmPassword && passwordRequirements.every(r => r.met)
+    ? isValidName && isValidEmail && password && confirmPassword && password === confirmPassword && passwordRequirements.every(r => r.met)
     : agreeTerms && agreePrivacy;
 
   const handleNext = () => {
@@ -43,12 +49,26 @@ export function SignUpView() {
     if (!canProceed) return;
 
     setIsLoading(true);
-    // 실제로는 API 호출
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await signup({
+        loginId: email.trim(),
+        password: password.trim(),
+        realName: name.trim(),
+      });
       toast.success('회원가입이 완료되었습니다!');
-      navigate('/welcome');
-    }, 1000);
+      navigate('/login');
+    } catch (error: any) {
+      console.error('회원가입 실패:', error);
+      if (error?.message?.includes('이미 존재')) {
+        toast.error('이미 가입된 이메일입니다.');
+      } else if (error?.message?.includes('이름')) {
+        toast.error('이름은 2-10글자 한글만 가능합니다.');
+      } else {
+        toast.error(error?.message || '회원가입에 실패했습니다.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleAgreeAll = (checked: boolean) => {
@@ -96,28 +116,38 @@ export function SignUpView() {
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
                 <Input
                   id="name"
-                  placeholder="이름을 입력하세요"
-                  className="pl-10 h-12 bg-stone-50 border-stone-200 rounded-xl"
+                  placeholder="이름을 입력하세요 (한글 2-10자)"
+                  className={`pl-10 h-12 bg-stone-50 border-stone-200 rounded-xl ${
+                    name && !isValidName ? 'border-red-500' : ''
+                  }`}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
+              {name && !isValidName && (
+                <p className="text-xs text-red-500">이름은 2-10글자 한글만 입력 가능합니다</p>
+              )}
             </div>
 
             {/* Email */}
             <div className="space-y-2">
-              <Label htmlFor="email">이메일</Label>
+              <Label htmlFor="email">이메일 (로그인 ID로 사용됩니다)</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
                 <Input
                   id="email"
                   type="email"
                   placeholder="example@email.com"
-                  className="pl-10 h-12 bg-stone-50 border-stone-200 rounded-xl"
+                  className={`pl-10 h-12 bg-stone-50 border-stone-200 rounded-xl ${
+                    email && !isValidEmail ? 'border-red-500' : ''
+                  }`}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
+              {email && !isValidEmail && (
+                <p className="text-xs text-red-500">올바른 이메일 형식을 입력해주세요</p>
+              )}
             </div>
 
             {/* Password */}

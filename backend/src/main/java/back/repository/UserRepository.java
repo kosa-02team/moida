@@ -13,6 +13,9 @@ public interface UserRepository extends JpaRepository<Users, Long> {
     Optional<Users> findByLoginId(String loginId);
 
     boolean existsByLoginId(String loginId);
+    
+    @Query("SELECT COUNT(u) > 0 FROM Users u WHERE u.loginId = :loginId AND u.status != 'DELETED'")
+    boolean existsActiveByLoginId(@Param("loginId") String loginId);
 
     long countByStatus(String status);
 

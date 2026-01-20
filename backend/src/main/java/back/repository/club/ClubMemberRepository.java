@@ -31,6 +31,8 @@ public interface ClubMemberRepository extends JpaRepository<ClubMembers, Long> {
 
     List<ClubMembers> findByClubIdAndStatus(Long clubId, ClubMembers.Status status);
 
+    List<ClubMembers> findByUserIdAndStatus(Long userId, ClubMembers.Status status);
+
     @Query("""
     select u.realName as realName,
            cm.nickname as clubNickname

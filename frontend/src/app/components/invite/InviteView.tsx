@@ -12,23 +12,23 @@ export function InviteView() {
   const [status, setStatus] = useState<'pending' | 'accepted' | 'declined'>('pending');
   const [isLoggedIn] = useState(false);
 
-  // Mock data - 실제로는 inviteCode로 초대 정보 조회
+  // TODO: inviteCode로 초대 정보 조회 API 연동 필요
   const invite = {
     code: inviteCode,
     group: {
       id: '1',
-      name: '주말 등산 클럽',
-      image: 'https://images.unsplash.com/photo-1551632811-561732d1e306?w=500&auto=format&fit=crop&q=60',
-      description: '매주 토요일 서울 근교 산행합니다. 초보자 환영!',
-      memberCount: 15,
-      maxMembers: 50,
-      location: '서울',
+      name: '',
+      image: '',
+      description: '',
+      memberCount: 0,
+      maxMembers: 0,
+      location: '',
     },
     inviter: {
-      name: '홍길동',
+      name: '',
       avatar: '',
     },
-    expiresAt: '2024.04.30',
+    expiresAt: '',
   };
 
   const handleAccept = () => {
@@ -96,13 +96,25 @@ export function InviteView() {
         {/* Invite Card */}
         <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-stone-100">
           {/* Group Image */}
-          <div className="h-40 bg-stone-200 relative">
-            <img
-              src={invite.group.image}
-              alt={invite.group.name}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+          <div className="h-40 bg-gradient-to-br from-orange-100 to-orange-50 relative flex items-center justify-center">
+            {invite.group.image ? (
+              <>
+                <img
+                  src={invite.group.image}
+                  alt={invite.group.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+              </>
+            ) : (
+              <div className="text-5xl font-bold text-orange-200">
+                {invite.group.name ? invite.group.name[0] : '모'}
+              </div>
+            )}
           </div>
 
           {/* Content */}

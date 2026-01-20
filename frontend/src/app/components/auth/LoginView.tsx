@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, ShieldAlert } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Checkbox } from '../ui/checkbox';
+import { login } from '@/api/auth';
+import { setToken, AuthenticationError } from '@/api/client';
 
 export function LoginView() {
   const navigate = useNavigate();
@@ -14,6 +16,11 @@ export function LoginView() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // 로그인 페이지 진입 시 이전 토스트 메시지 제거
+  useEffect(() => {
+    toast.dismiss();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,28 +32,28 @@ export function LoginView() {
 
     setIsLoading(true);
     
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // 시스템 관리자 계정 확인
-      if (email === 'admin@moim.com' && password === 'admin1234') {
-        localStorage.setItem('userRole', 'admin');
-        localStorage.setItem('userEmail', email);
-        localStorage.setItem('isSystemAdmin', 'true');
-        toast.success('시스템 관리자로 로그인되었습니다!', {
-          description: '모든 모임과 회원을 관리할 수 있습니다.'
-        });
-        navigate('/system-admin');
-        return;
-      }
-      
-      // 일반 로그인
-      localStorage.setItem('userRole', 'member');
-      localStorage.setItem('userEmail', email);
-      localStorage.setItem('isSystemAdmin', 'false');
+    try {
+      console.log('로그인 시도:', { loginId: email.trim(), passwordLength: password.trim().length });
+      const response = await login({ loginId: email.trim(), password: password.trim() });
+      setToken(response.accessToken);
+      // refreshToken은 필요시 별도로 저장
+      localStorage.setItem('refreshToken', response.refreshToken);
       toast.success('로그인 성공!');
       navigate('/');
-    }, 1000);
+    } catch (error: any) {
+      console.error('로그인 실패 상세:', {
+        error,
+        message: error?.message,
+        name: error?.name,
+        stack: error?.stack
+      });
+      // 백엔드에서 전달된 에러 메시지 표시 (없으면 기본 메시지)
+      const errorMessage = error?.message || '로그인에 실패했습니다.';
+      console.log('표시할 에러 메시지:', errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -150,17 +157,6 @@ export function LoginView() {
             >
               🔍 로그인 없이 모임 둘러보기
             </Link>
-          </div>
-
-          {/* Admin Login Info */}
-          <div className="mt-8 pt-6 border-t border-stone-200">
-            <div className="flex items-center gap-2 mb-3 justify-center">
-              <ShieldAlert className="w-4 h-4 text-red-500" />
-              <span className="text-xs text-stone-500">시스템 관리자</span>
-            </div>
-            <p className="text-xs text-center text-stone-400">
-              admin@moim.com / admin1234
-            </p>
           </div>
         </div>
       </div>

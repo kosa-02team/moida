@@ -1,10 +1,16 @@
 package back.service.club;
 
+import back.bank.domain.BankAccounts;
+import back.bank.dto.request.AccountCreateRequest;
+import back.bank.service.BankService;
+import back.domain.Users;
 import back.domain.club.ClubMembers;
 import back.domain.club.Clubs;
 import back.dto.club.ClubRequest;
 import back.dto.club.ClubResponse;
+import back.exception.AuthException;
 import back.exception.ClubException;
+import back.repository.UserRepository;
 import back.repository.club.ClubMemberRepository;
 import back.repository.club.ClubRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,12 +26,18 @@ public class ClubService {
 
     private final ClubRepository clubRepository;
     private final ClubMemberRepository clubMemberRepository;
+    private final UserRepository userRepository;
+    private final BankService bankService;
 
     @Transactional
     public ClubResponse createClub(ClubRequest request, Long ownerId) {
         if (clubRepository.existsByClubName(request.getClubName())) {
             throw new ClubException.AlreadyExists();
         }
+
+        // 사용자 정보 조회 (닉네임 생성을 위해)
+        Users owner = userRepository.findById(ownerId)
+                .orElseThrow(AuthException.UserNotFound::new);
 
         Clubs club = new Clubs(
                 request.getClubName(),
@@ -36,7 +48,33 @@ public class ClubService {
         club.setVisibility(request.getVisibilityEnum());
         club.setCategory(request.getCategoryEnum());
         Clubs savedClub = clubRepository.save(club);
-        return ClubResponse.from(savedClub, 0);
+        
+        // 모임 생성 시 자동으로 가상 계좌 생성
+        BankAccounts bankAccount = bankService.createAccount(
+                savedClub.getClubId(),
+                new AccountCreateRequest(
+                        ownerId,
+                        "STUB", // 기본값으로 STUB 은행 사용 (개발 환경)
+                        null, // accountNumber는 null로 하면 자동 생성
+                        owner.getRealName() // 예금주명은 모임장 이름
+                )
+        );
+        
+        // 생성된 계좌 ID를 모임의 main_account_id에 저장
+        savedClub.changeMainAccount(bankAccount.getAccountId().toString());
+        clubRepository.save(savedClub);
+        
+        // 모임 생성자를 OWNER로 자동 가입 (사용자 이름을 닉네임으로 사용)
+        ClubMembers ownerMember = ClubMembers.builder()
+                .clubId(savedClub.getClubId())
+                .userId(ownerId)
+                .nickname(owner.getRealName()) // 사용자 실제 이름을 닉네임으로 사용
+                .build();
+        ownerMember.approve(); // PENDING -> ACTIVE로 변경
+        ownerMember.promoteToOwner(); // OWNER 권한 부여
+        clubMemberRepository.save(ownerMember);
+        
+        return ClubResponse.from(savedClub, 1); // 현재 멤버 수 1명 (owner)
     }
 
     public ClubResponse getClub(Long clubId, Long viewerId) {
@@ -149,5 +187,16 @@ public class ClubService {
                             club.getClubId(), ClubMembers.Status.ACTIVE);
                     return ClubResponse.from(club, currentMembers);
                 });
+    }
+
+    // 초대 코드로 모임 조회
+    public ClubResponse getClubByInviteCode(String inviteCode, Long viewerId) {
+        Clubs club = clubRepository.findByInviteCode(inviteCode)
+                .orElseThrow(ClubException.NotFound::new);
+        return getClub(club.getClubId(), viewerId);
+    }
+
+    public ClubResponse getClubByInviteCode(String inviteCode) {
+        return getClubByInviteCode(inviteCode, null);
     }
 }

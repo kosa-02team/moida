@@ -1,20 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Clock, Users, Check, BarChart2 } from 'lucide-react';
+import { ArrowLeft, Clock, Users, Check, BarChart2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
 import { Badge } from '../../ui/badge';
 import { Progress } from '../../ui/progress';
-import { getVote, answerVote, type VoteDetailResponse } from '../../../../api/vote';
+import { getVote, answerVote, closeVote, type VoteDetailResponse } from '../../../../api/vote';
+import { useUserPermissions } from '../../../data/userRoles';
 
 export function VoteDetailView() {
   const navigate = useNavigate();
   const { groupId, voteId } = useParams();
+  const permissions = useUserPermissions(groupId || '1');
   const [vote, setVote] = useState<VoteDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedOptions, setSelectedOptions] = useState<number[]>([]);
   const [hasVoted, setHasVoted] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
 
   useEffect(() => {
     async function fetchVote() {
@@ -91,16 +94,30 @@ export function VoteDetailView() {
     <div className="min-h-screen bg-stone-50 pb-24">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-stone-100">
-        <div className="flex items-center px-4 py-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(-1)}
-            className="-ml-2"
-          >
-            <ArrowLeft className="w-6 h-6 text-stone-800" />
-          </Button>
-          <h1 className="ml-2 text-lg font-semibold text-stone-800">투표</h1>
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(-1)}
+              className="-ml-2"
+            >
+              <ArrowLeft className="w-6 h-6 text-stone-800" />
+            </Button>
+            <h1 className="ml-2 text-lg font-semibold text-stone-800">투표</h1>
+          </div>
+          {permissions.canManageGroup && vote.status === 'OPEN' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCloseVote}
+              disabled={isClosing}
+              className="text-red-600 border-red-200 hover:bg-red-50"
+            >
+              <XCircle className="w-4 h-4 mr-1" />
+              {isClosing ? '종료 중...' : '투표 종료'}
+            </Button>
+          )}
         </div>
       </header>
 

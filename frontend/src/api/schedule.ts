@@ -14,6 +14,8 @@ export interface ScheduleResponse {
   entryFee?: number;
   totalSpent?: number;
   refundPerPerson?: number;
+  collectedEntryFee?: number; // 집계된 참가비 (입금된 금액)
+  paidParticipantsCount?: number; // 참가비 납부한 인원 수
   status: string;
   closedAt?: string;
   cancelReason?: string;

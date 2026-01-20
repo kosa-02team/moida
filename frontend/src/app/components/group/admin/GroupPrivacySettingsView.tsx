@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Globe, Lock, Search, Eye, EyeOff, Users, KeyRound, Info } from 'lucide-react';
+import { ArrowLeft, Globe, Lock, Search, Eye, Users, KeyRound, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
 import { Switch } from '../../ui/switch';
@@ -13,11 +13,8 @@ export function GroupPrivacySettingsView() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
 
-  // 공개 설정 상태
+  // 공개 설정 상태 - 통합된 3가지 옵션만 사용
   const [visibility, setVisibility] = useState<GroupVisibility>('searchable');
-  const [allowSearch, setAllowSearch] = useState(true);
-  const [showPostsToNonMembers, setShowPostsToNonMembers] = useState(false);
-  const [showMembersToNonMembers, setShowMembersToNonMembers] = useState(false);
   const [requireApproval, setRequireApproval] = useState(true);
   const [allowInviteCode, setAllowInviteCode] = useState(true);
 
@@ -42,9 +39,11 @@ export function GroupPrivacySettingsView() {
     },
   ];
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsLoading(true);
-    // 실제로는 API 호출
+    // TODO: API 호출 - updateClub with visibility
+    // const { groupId } = useParams();
+    // await updateClub(Number(groupId), { visibility: visibility === 'private' ? 'PRIVATE' : visibility === 'public' ? 'PUBLIC' : 'SEARCHABLE' });
     setTimeout(() => {
       setIsLoading(false);
       toast.success('공개 설정이 저장되었습니다');
@@ -53,7 +52,7 @@ export function GroupPrivacySettingsView() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 pb-24">
+    <div className="min-h-screen bg-stone-50 pb-24" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-stone-100">
         <div className="flex items-center justify-between px-4 py-3">
@@ -113,40 +112,18 @@ export function GroupPrivacySettingsView() {
           </RadioGroup>
         </div>
 
-        {/* Detailed Settings */}
-        {visibility !== 'private' && (
+        {/* 완전 공개일 때만 게시글/멤버 목록 공개 옵션 표시 */}
+        {visibility === 'public' && (
           <div className="bg-white rounded-2xl border border-stone-100 divide-y divide-stone-100">
             <div className="px-4 py-3 bg-stone-50">
-              <h3 className="font-medium text-stone-700">세부 공개 설정</h3>
+              <h3 className="font-medium text-stone-700">완전 공개 설정</h3>
             </div>
 
-            {/* Search */}
-            <div className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Search className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-stone-900">검색 허용</p>
-                  <p className="text-xs text-stone-500">모임 검색 결과에 표시</p>
-                </div>
-              </div>
-              <Switch
-                checked={allowSearch}
-                onCheckedChange={setAllowSearch}
-                className="data-[state=checked]:bg-orange-500"
-              />
-            </div>
-
-            {/* Show Posts */}
+            {/* Show Posts - 완전 공개일 때만 활성화 */}
             <div className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                  {showPostsToNonMembers ? (
-                    <Eye className="w-5 h-5 text-purple-600" />
-                  ) : (
-                    <EyeOff className="w-5 h-5 text-purple-600" />
-                  )}
+                  <Eye className="w-5 h-5 text-purple-600" />
                 </div>
                 <div>
                   <p className="font-medium text-stone-900">게시글 공개</p>
@@ -154,13 +131,12 @@ export function GroupPrivacySettingsView() {
                 </div>
               </div>
               <Switch
-                checked={showPostsToNonMembers}
-                onCheckedChange={setShowPostsToNonMembers}
+                defaultChecked
                 className="data-[state=checked]:bg-orange-500"
               />
             </div>
 
-            {/* Show Members */}
+            {/* Show Members - 완전 공개일 때만 활성화 */}
             <div className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
@@ -172,8 +148,7 @@ export function GroupPrivacySettingsView() {
                 </div>
               </div>
               <Switch
-                checked={showMembersToNonMembers}
-                onCheckedChange={setShowMembersToNonMembers}
+                defaultChecked
                 className="data-[state=checked]:bg-orange-500"
               />
             </div>

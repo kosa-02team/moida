@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, Settings, Edit3, Users, Calendar, Wallet, LogOut, Shield, Bell, HelpCircle, FileText } from 'lucide-react';
 import { toast } from 'sonner';
@@ -15,6 +16,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '../ui/alert-dialog';
+import { getMyInfo, UserResponse, getMyClubs, MyClubResponse } from '@/api/user';
+import { removeToken, AuthenticationError } from '@/api/client';
 
 interface MenuItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -30,27 +33,42 @@ interface MenuSection {
 
 export function ProfileView() {
   const navigate = useNavigate();
+  const [user, setUser] = useState<UserResponse | null>(null);
+  const [clubs, setClubs] = useState<MyClubResponse[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock user data
-  const user = {
-    id: '1',
-    name: '홍길동',
-    email: 'hong@example.com',
-    avatar: '',
-    phone: '010-1234-5678',
-    joinDate: '2024.01.15',
-    groupCount: 3,
-    totalEvents: 24,
-    totalDuesPaid: 180000,
-  };
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        const [userInfo, myClubs] = await Promise.all([
+          getMyInfo(),
+          getMyClubs()
+        ]);
+        setUser(userInfo);
+        setClubs(myClubs);
+      } catch (error) {
+        console.error('프로필 조회 실패:', error);
+        // 인증 에러면 조용히 로그인 페이지로 리다이렉트
+        if (error instanceof AuthenticationError) {
+          navigate('/login');
+        } else {
+          // 일반 에러는 토스트만 표시
+          toast.error('프로필을 불러오는데 실패했습니다.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, [navigate]);
 
   const menuItems: MenuSection[] = [
     {
       section: '모임',
       items: [
-        { icon: Users, label: '내 모임', description: '3개 모임 활동 중', href: '/' },
-        { icon: Calendar, label: '내 일정', description: '다가오는 일정 2개', href: '/my-schedule' },
-        { icon: Wallet, label: '회비 납부 내역', description: '총 180,000원', href: '/my-dues' },
+        { icon: Users, label: '내 모임', description: `${clubs.length}개 모임 활동 중`, href: '/' },
+        { icon: Calendar, label: '내 일정', href: '/' },
       ],
     },
     {
@@ -71,9 +89,27 @@ export function ProfileView() {
   ];
 
   const handleLogout = () => {
+    removeToken();
+    localStorage.removeItem('refreshToken');
     toast.success('로그아웃 되었습니다');
     navigate('/login');
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="text-stone-500">로딩 중...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="text-stone-500">프로필을 불러올 수 없습니다.</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-stone-50 pb-20">
@@ -104,35 +140,28 @@ export function ProfileView() {
         <div className="bg-white rounded-2xl p-6 border border-stone-100 shadow-sm">
           <div className="flex items-center gap-4">
             <Avatar className="w-20 h-20 border-4 border-orange-100">
-              <AvatarImage src={user.avatar} />
               <AvatarFallback className="text-2xl bg-orange-100 text-orange-600">
-                {user.name[0]}
+                {user.realName?.[0] || '?'}
               </AvatarFallback>
             </Avatar>
             <div>
-              <h2 className="text-xl font-bold text-stone-900">{user.name}</h2>
-              <p className="text-sm text-stone-500">{user.email}</p>
+              <h2 className="text-xl font-bold text-stone-900">{user.realName}</h2>
+              <p className="text-sm text-stone-500">{user.loginId}</p>
               <Badge variant="secondary" className="mt-2 bg-orange-100 text-orange-700">
-                가입일 {user.joinDate}
+                가입일 {new Date(user.createdAt).toLocaleDateString('ko-KR')}
               </Badge>
             </div>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-stone-100">
+          <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-stone-100">
             <div className="text-center">
-              <p className="text-2xl font-bold text-orange-600">{user.groupCount}</p>
+              <p className="text-2xl font-bold text-orange-600">{clubs.length}</p>
               <p className="text-xs text-stone-500">활동 모임</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-orange-600">{user.totalEvents}</p>
-              <p className="text-xs text-stone-500">참여 일정</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-orange-600">
-                {(user.totalDuesPaid / 10000).toFixed(0)}만
-              </p>
-              <p className="text-xs text-stone-500">납부 회비</p>
+              <p className="text-2xl font-bold text-orange-600">{user.status === 'ACTIVE' ? '정상' : '정지'}</p>
+              <p className="text-xs text-stone-500">계정 상태</p>
             </div>
           </div>
         </div>

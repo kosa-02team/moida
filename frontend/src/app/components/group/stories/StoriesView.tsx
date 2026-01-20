@@ -22,18 +22,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../../ui/dialog';
-import { Label } from '../../ui/label';
-import { Textarea } from '../../ui/textarea';
-import { RadioGroup, RadioGroupItem } from '../../ui/radio-group';
 import { useUserPermissions } from '../../../data/userRoles';
+import { ReportDialog } from '../../report/ReportDialog';
 
 type SortType = 'latest' | 'oldest' | 'popular';
 
@@ -58,8 +48,6 @@ export function StoriesView() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [reportReason, setReportReason] = useState('');
-  const [reportDetail, setReportDetail] = useState('');
 
   const [albums, setAlbums] = useState<AlbumCardResponse[]>([]);
   
@@ -99,6 +87,7 @@ export function StoriesView() {
           dateDisplay: formatDateDisplay(p.createdAt),
           isMyPost: false,
           isLiked: false,
+          writerId: p.writerId, // 신고를 위한 작성자 ID
         }));
         setAllPosts(convertedPosts);
       } catch (error) {
@@ -145,13 +134,6 @@ export function StoriesView() {
     popular: '인기순',
   };
 
-  const reportReasons = [
-    { value: 'spam', label: '스팸/광고' },
-    { value: 'inappropriate', label: '부적절한 콘텐츠' },
-    { value: 'harassment', label: '괴롭힘/혐오 발언' },
-    { value: 'copyright', label: '저작권 침해' },
-    { value: 'other', label: '기타' },
-  ];
 
   const handleDeletePost = async () => {
     if (!selectedPost || !groupId) return;
@@ -209,13 +191,13 @@ export function StoriesView() {
 
   return (
     <div className="space-y-8 pb-20">
-      {/* Create Story Button */}
+      {/* Create Album Button */}
       <div className="flex justify-between items-center px-1">
-        <h3 className="font-bold text-lg text-stone-800">스토리</h3>
+        <h3 className="font-bold text-lg text-stone-800">앨범</h3>
         <Link to="create">
           <Button className="bg-orange-500 hover:bg-orange-600 rounded-full">
             <Camera className="w-4 h-4 mr-2" />
-            스토리 작성
+            앨범 작성
           </Button>
         </Link>
       </div>
@@ -329,9 +311,17 @@ export function StoriesView() {
               </div>
               
               <Link to={post.id}>
-                <div className="aspect-[4/3] bg-stone-100">
-                  <img src={post.image} alt="" className="w-full h-full object-cover" />
-                </div>
+                {post.image ? (
+                  <div className="aspect-[4/3] bg-stone-100">
+                    <img src={post.image} alt="" className="w-full h-full object-cover" onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      if (target.parentElement) {
+                        target.parentElement.style.display = 'none';
+                      }
+                    }} />
+                  </div>
+                ) : null}
                 <div className="p-4 space-y-3">
                   <div className="flex gap-4">
                     <span className="flex items-center gap-1 text-stone-600">
@@ -399,51 +389,18 @@ export function StoriesView() {
       </AlertDialog>
 
       {/* 신고 다이얼로그 */}
-      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Flag className="w-5 h-5 text-orange-500" />
-              게시글 신고
-            </DialogTitle>
-            <DialogDescription>
-              신고 사유를 선택하고 상세 내용을 입력해주세요.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
-            <div className="space-y-3">
-              <Label>신고 사유</Label>
-              <RadioGroup value={reportReason} onValueChange={setReportReason}>
-                {reportReasons.map(reason => (
-                  <div key={reason.value} className="flex items-center space-x-2">
-                    <RadioGroupItem value={reason.value} id={reason.value} />
-                    <Label htmlFor={reason.value} className="cursor-pointer">
-                      {reason.label}
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            </div>
-            <div className="space-y-2">
-              <Label>상세 내용 (선택)</Label>
-              <Textarea
-                placeholder="추가로 알려주실 내용이 있다면 입력해주세요"
-                value={reportDetail}
-                onChange={(e) => setReportDetail(e.target.value)}
-                className="min-h-[100px]"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowReportDialog(false)}>
-              취소
-            </Button>
-            <Button onClick={handleReportPost} className="bg-orange-500 hover:bg-orange-600">
-              신고하기
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {selectedPost && (
+        <ReportDialog
+          open={showReportDialog}
+          onOpenChange={(open) => {
+            setShowReportDialog(open);
+            if (!open) setSelectedPost(null);
+          }}
+          type="post"
+          targetId={selectedPost.writerId || Number(selectedPost.id)}
+          targetName={selectedPost.user}
+        />
+      )}
     </div>
   );
 }

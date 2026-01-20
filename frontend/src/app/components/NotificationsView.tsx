@@ -4,7 +4,7 @@ import { ArrowLeft, Bell, Users, Calendar, Trash2, MessageSquare } from 'lucide-
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { getNotifications, markAsRead, deleteNotification, getUnreadCount, type NotificationResponse } from '../../../api/notification';
+import { getNotifications, markAsRead, deleteNotification, getUnreadCount, type NotificationResponse } from '@/api/notification';
 
 export function NotificationsView() {
   const navigate = useNavigate();

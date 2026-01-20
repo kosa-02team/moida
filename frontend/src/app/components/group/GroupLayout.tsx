@@ -1,21 +1,74 @@
 import { Outlet, NavLink, useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Menu } from 'lucide-react';
 import { Button } from '../ui/button';
+import { useState, useEffect } from 'react';
+import { getClub, ClubDetailResponse } from '@/api/club-full';
+import { getMembers } from '@/api/member';
+import { getMyInfo } from '@/api/user';
+import { Badge } from '../ui/badge';
 
 export function GroupLayout() {
   const { groupId } = useParams();
-  
+  const [club, setClub] = useState<ClubDetailResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string>('회원');
+  const [roleColor, setRoleColor] = useState<string>('bg-stone-500 text-white');
+
+  useEffect(() => {
+    const fetchClub = async () => {
+      if (!groupId) return;
+
+      try {
+        setLoading(true);
+        const response = await getClub(Number(groupId));
+        setClub(response);
+
+        // 현재 사용자의 역할 가져오기
+        try {
+          const [myInfo, members] = await Promise.all([
+            getMyInfo(),
+            getMembers(Number(groupId), 'ACTIVE')
+          ]);
+          const currentMember = members.find(m => m.userId === myInfo.userId);
+          if (currentMember) {
+            const roles = currentMember.roles || [];
+            if (roles.includes('OWNER')) {
+              setUserRole('모임장');
+              setRoleColor('bg-orange-500 text-white');
+            } else if (roles.includes('ACCOUNTANT')) {
+              setUserRole('총무');
+              setRoleColor('bg-green-500 text-white');
+            } else if (roles.includes('STAFF')) {
+              setUserRole('운영진');
+              setRoleColor('bg-blue-500 text-white');
+            } else {
+              setUserRole('회원');
+              setRoleColor('bg-stone-500 text-white');
+            }
+          }
+        } catch (error) {
+          console.error('사용자 역할 조회 실패:', error);
+        }
+      } catch (error) {
+        console.error('모임 정보 조회 실패:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchClub();
+  }, [groupId]);
+
   const tabs = [
-    { label: '홈', path: '' }, // Relative path to /group/:id
+    { label: '홈', path: '' },
     { label: '일정', path: 'schedule' },
-    { label: '회비', path: 'dues' },
-    { label: '스토리', path: 'stories' },
+    { label: '게시글', path: 'posts' }, // 스토리 -> 게시글
     { label: '통계', path: 'stats' },
     { label: '관리', path: 'admin' },
   ];
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900 font-sans">
+    <div className="min-h-screen bg-stone-50 text-stone-900 font-sans" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       <div className="max-w-md md:max-w-2xl lg:max-w-4xl mx-auto min-h-screen bg-white shadow-xl relative flex flex-col">
         {/* Top Navigation Bar */}
         <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-stone-100 sticky top-0 z-30 backdrop-blur-sm bg-white/95">
@@ -24,24 +77,32 @@ export function GroupLayout() {
               <ArrowLeft className="w-6 h-6 text-stone-800" />
             </Button>
           </Link>
-          <h1 className="font-bold text-lg text-stone-800 truncate px-2">주말 등산 클럽</h1>
+          <h1 className="font-bold text-lg text-stone-800 truncate px-2">
+            {loading ? '로딩 중...' : club?.clubName || '모임'}
+          </h1>
           <Button variant="ghost" size="icon" className="-mr-2" aria-label="메뉴">
             <Menu className="w-6 h-6 text-stone-800" />
           </Button>
         </header>
 
+        {/* 역할 배지 */}
+        <div className="flex justify-end px-4 py-2 bg-white border-b border-stone-100 sticky top-[57px] z-20">
+          <Badge className={`${roleColor} text-xs`}>
+            {userRole}
+          </Badge>
+        </div>
+
         {/* Scrollable Tabs */}
-        <div className="flex overflow-x-auto scrollbar-hide border-b border-stone-100 bg-white sticky top-[57px] z-20 md:justify-center">
+        <div className="flex overflow-x-auto scrollbar-hide border-b border-stone-100 bg-white sticky top-[97px] z-20 md:justify-center">
           {tabs.map((tab) => (
             <NavLink
               key={tab.path}
-              to={tab.path} // Relative path
-              end={tab.path === ''} // Only match exact for home
+              to={tab.path}
+              end={tab.path === ''}
               className={({ isActive }) =>
-                `flex-none px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
-                  isActive
-                    ? 'border-orange-500 text-orange-600'
-                    : 'border-transparent text-stone-500 hover:text-stone-700'
+                `flex-none px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${isActive
+                  ? 'border-orange-500 text-orange-600'
+                  : 'border-transparent text-stone-500 hover:text-stone-700'
                 }`
               }
             >
@@ -52,7 +113,7 @@ export function GroupLayout() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto bg-stone-50 p-4 md:p-6">
-          <Outlet />
+          <Outlet context={{ club, loading }} />
         </main>
       </div>
     </div>

@@ -29,6 +29,7 @@ public class PostCommentService {
         private final PostRepository postRepository;
         private final ClubAuthService clubsAuthorizationService;
         private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+        private final CommentLikeService commentLikeService;
 
         @Transactional
         public PostCommentsIdResponse createComment(
@@ -77,8 +78,11 @@ public class PostCommentService {
                                 .findAllByPost_PostIdAndPost_Club_ClubIdAndDeletedAtIsNull(
                                                 postId, clubId, pageable);
 
-                List<PostCommentsResponse.Item> items = page.getContent().stream().map(PostCommentsResponse.Item::from)
-                                .toList();
+                List<PostCommentsResponse.Item> items = page.getContent().stream().map(comment -> {
+                    Long likeCount = commentLikeService.getLikeCount(comment.getCommentId());
+                    Boolean isLiked = commentLikeService.isLiked(comment.getCommentId(), viewerId);
+                    return PostCommentsResponse.Item.from(comment, likeCount, isLiked);
+                }).toList();
 
                 return new PostCommentsResponse(
                                 items,

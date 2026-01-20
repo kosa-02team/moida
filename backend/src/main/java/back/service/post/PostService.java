@@ -75,7 +75,12 @@ public class PostService {
 
         Posts post = getActivePostOrThrow(postId, clubId);
 
-        return PostDetailResponse.from(post);
+        // 게시글 이미지 조회
+        List<String> imagesUrl = postImageRepository.findByPostIdIn(List.of(postId)).stream()
+                .map(PostImages::getImageUrl)
+                .toList();
+
+        return PostDetailResponse.from(post, imagesUrl);
     }
 
     // 스토리 페이지에 게시글 박스

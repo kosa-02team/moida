@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Shield, Crown, Wallet, Users, UserCircle, ChevronRight, Search, Check, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
@@ -27,6 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../ui/alert-dialog';
+import { getMembers, MemberListResponse, updateMemberRole } from '@/api/member';
 
 // 역할 타입 (중복 가능)
 type RoleType = 'treasurer' | 'manager';
@@ -54,23 +55,52 @@ const ROLE_COLORS: Record<RoleType | 'owner' | 'member', string> = {
   member: 'bg-stone-100 text-stone-600',
 };
 
+// API 응답을 UI Member 형식으로 변환
+function mapApiToMember(apiMember: MemberListResponse): Member {
+  const roles: RoleType[] = [];
+  if (apiMember.roles.includes('ACCOUNTANT')) roles.push('treasurer');
+  if (apiMember.roles.includes('STAFF')) roles.push('manager');
+
+  return {
+    id: apiMember.memberId.toString(),
+    name: apiMember.realName || apiMember.clubNickname || '회원',
+    isOwner: apiMember.roles.includes('OWNER'),
+    roles,
+    joinedDate: new Date(apiMember.joinedAt).toLocaleDateString('ko-KR'),
+  };
+}
+
 export function RoleManagementView() {
   const navigate = useNavigate();
+  const { groupId } = useParams();
+  const clubId = groupId ? parseInt(groupId) : 0;
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [showRoleDialog, setShowRoleDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [selectedRoles, setSelectedRoles] = useState<RoleType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [members, setMembers] = useState<Member[]>([]);
 
-  // Mock data - 권한 중복 가능
-  const [members, setMembers] = useState<Member[]>([
-    { id: '1', name: '홍길동', avatar: '', isOwner: true, roles: ['treasurer'], joinedDate: '2024.01.15' },
-    { id: '2', name: '김철수', avatar: '', isOwner: false, roles: ['treasurer'], joinedDate: '2024.01.20' },
-    { id: '3', name: '이영희', avatar: '', isOwner: false, roles: ['manager'], joinedDate: '2024.02.01' },
-    { id: '4', name: '박민수', avatar: '', isOwner: false, roles: ['treasurer', 'manager'], joinedDate: '2024.02.15' }, // 중복 권한
-    { id: '5', name: '정지훈', avatar: '', isOwner: false, roles: [], joinedDate: '2024.03.01' },
-    { id: '6', name: '최유진', avatar: '', isOwner: false, roles: [], joinedDate: '2024.03.10' },
-  ]);
+  // API로 멤버 목록 불러오기
+  const fetchMembers = async () => {
+    if (!clubId) return;
+    
+    try {
+      setLoading(true);
+      const activeMembers = await getMembers(clubId, 'ACTIVE');
+      setMembers(activeMembers.map(mapApiToMember));
+    } catch (error) {
+      console.error('멤버 목록 조회 실패:', error);
+      toast.error('멤버 목록을 불러오는데 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMembers();
+  }, [clubId]);
 
   const roleIcons: Record<RoleType | 'owner' | 'member', React.ReactNode> = {
     owner: <Crown className="w-4 h-4" />,
@@ -110,30 +140,37 @@ export function RoleManagementView() {
     );
   };
 
-  const handleSaveRoles = () => {
+  const handleSaveRoles = async () => {
     if (!selectedMember) return;
 
-    setMembers(members.map(m => 
-      m.id === selectedMember.id ? { ...m, roles: selectedRoles } : m
-    ));
-    setShowRoleDialog(false);
-    
-    const roleNames = selectedRoles.length > 0 
-      ? selectedRoles.map(r => ROLE_LABELS[r]).join(', ')
-      : '일반 회원';
-    toast.success(`${selectedMember.name}님의 권한이 ${roleNames}(으)로 변경되었습니다`);
+    // 현재 백엔드는 단일 역할만 지원하므로 가장 높은 권한을 적용
+    let newRole = 'MEMBER';
+    if (selectedRoles.includes('treasurer')) {
+      newRole = 'ACCOUNTANT';
+    } else if (selectedRoles.includes('manager')) {
+      newRole = 'STAFF';
+    }
+
+    try {
+      await updateMemberRole(clubId, parseInt(selectedMember.id), newRole);
+      const roleNames = selectedRoles.length > 0 
+        ? selectedRoles.map(r => ROLE_LABELS[r]).join(', ')
+        : '일반 회원';
+      toast.success(`${selectedMember.name}님의 권한이 ${roleNames}(으)로 변경되었습니다`);
+      setShowRoleDialog(false);
+      fetchMembers(); // 목록 새로고침
+    } catch (error) {
+      console.error('권한 변경 실패:', error);
+      toast.error('권한 변경에 실패했습니다.');
+    }
   };
 
   const handleTransferOwnership = () => {
     if (!selectedMember) return;
 
-    setMembers(members.map(m => {
-      if (m.id === selectedMember.id) return { ...m, isOwner: true };
-      if (m.isOwner) return { ...m, isOwner: false };
-      return m;
-    }));
+    // TODO: 모임장 위임 API가 없어서 구현 필요
+    toast.info('모임장 위임 기능은 준비 중입니다.');
     setShowTransferDialog(false);
-    toast.success(`${selectedMember.name}님에게 모임장 권한이 위임되었습니다`);
   };
 
   const getDisplayRoles = (member: Member) => {
@@ -145,6 +182,14 @@ export function RoleManagementView() {
     }
     return roles as (RoleType | 'owner' | 'member')[];
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="text-stone-500">로딩 중...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-stone-50 pb-20">

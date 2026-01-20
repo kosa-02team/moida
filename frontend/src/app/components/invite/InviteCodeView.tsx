@@ -6,47 +6,77 @@ import { Button } from '../ui/button';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '../ui/input-otp';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { getClubByInviteCode } from '@/api/club-full';
+import { joinClub } from '@/api/member';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
 
 export function InviteCodeView() {
   const navigate = useNavigate();
   const [inviteCode, setInviteCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
+  const [showJoinDialog, setShowJoinDialog] = useState(false);
+  const [joinNickname, setJoinNickname] = useState('');
   const [foundGroup, setFoundGroup] = useState<{
     id: string;
     name: string;
     image: string;
     memberCount: number;
+    clubId: number;
   } | null>(null);
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (inviteCode.length < 6) {
       toast.error('초대 코드 6자리를 입력해주세요');
       return;
     }
 
-    setIsLoading(true);
-    // 실제로는 API 호출
-    setTimeout(() => {
-      setIsLoading(false);
-      // Mock 데이터
+    try {
+      setIsLoading(true);
+      const clubData = await getClubByInviteCode(inviteCode.toUpperCase());
       setFoundGroup({
-        id: '1',
-        name: '주말 등산 클럽',
-        image: 'https://images.unsplash.com/photo-1551632811-561732d1e306?w=400&h=400&fit=crop',
-        memberCount: 15,
+        id: clubData.clubId.toString(),
+        name: clubData.clubName,
+        image: '',
+        memberCount: clubData.currentMembers || 0,
+        clubId: clubData.clubId,
       });
-    }, 1000);
+    } catch (error) {
+      console.error('모임 조회 실패:', error);
+      toast.error('초대 코드에 해당하는 모임을 찾을 수 없습니다.');
+      setFoundGroup(null);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleJoin = () => {
-    if (!foundGroup) return;
+  const handleJoin = async () => {
+    if (!foundGroup || !joinNickname.trim()) {
+      toast.error('닉네임을 입력해주세요.');
+      return;
+    }
     
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      toast.success('모임에 가입되었습니다!');
+    try {
+      setIsJoining(true);
+      await joinClub(foundGroup.clubId, {
+        nickname: joinNickname.trim()
+      });
+      toast.success('가입 신청이 완료되었습니다. 승인을 기다려주세요.');
+      setShowJoinDialog(false);
       navigate(`/group/${foundGroup.id}`);
-    }, 1000);
+    } catch (error) {
+      console.error('가입 신청 실패:', error);
+      toast.error('가입 신청에 실패했습니다.');
+    } finally {
+      setIsJoining(false);
+    }
   };
 
   const handleReset = () => {
@@ -145,12 +175,22 @@ export function InviteCodeView() {
             </div>
 
             <div className="bg-stone-50 rounded-2xl p-6 text-center">
-              <div className="w-24 h-24 rounded-2xl overflow-hidden mx-auto mb-4">
-                <img
-                  src={foundGroup.image}
-                  alt={foundGroup.name}
-                  className="w-full h-full object-cover"
-                />
+              <div className="w-24 h-24 rounded-2xl overflow-hidden mx-auto mb-4 bg-gradient-to-br from-orange-100 to-orange-50 flex items-center justify-center">
+                {foundGroup.image ? (
+                  <img
+                    src={foundGroup.image}
+                    alt={foundGroup.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="text-3xl font-bold text-orange-300">
+                    {foundGroup.name[0]}
+                  </div>
+                )}
               </div>
               <h3 className="text-xl font-bold text-stone-900 mb-2">
                 {foundGroup.name}
@@ -163,11 +203,11 @@ export function InviteCodeView() {
 
             <div className="space-y-3">
               <Button
-                onClick={handleJoin}
+                onClick={() => setShowJoinDialog(true)}
                 disabled={isLoading}
                 className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white text-lg font-medium rounded-xl"
               >
-                {isLoading ? '가입 중...' : '가입하기'}
+                가입하기
               </Button>
               <Button
                 variant="outline"
@@ -177,6 +217,45 @@ export function InviteCodeView() {
                 다른 코드 입력
               </Button>
             </div>
+
+            {/* 가입 다이얼로그 */}
+            <Dialog open={showJoinDialog} onOpenChange={setShowJoinDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>모임 가입 신청</DialogTitle>
+                  <DialogDescription>
+                    이 모임에 가입하시겠습니까? 가입 후 관리자 승인을 기다려주세요.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="join-nickname">모임 내 닉네임</Label>
+                    <Input
+                      id="join-nickname"
+                      placeholder="닉네임을 입력하세요 (최대 10자)"
+                      value={joinNickname}
+                      onChange={(e) => setJoinNickname(e.target.value)}
+                      maxLength={10}
+                    />
+                    <p className="text-xs text-stone-500">
+                      모임 내에서 사용할 닉네임을 입력해주세요.
+                    </p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowJoinDialog(false)}>
+                    취소
+                  </Button>
+                  <Button 
+                    onClick={handleJoin}
+                    disabled={!joinNickname.trim() || isJoining}
+                    className="bg-orange-500 hover:bg-orange-600"
+                  >
+                    {isJoining ? '가입 중...' : '가입 신청'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         )}
       </div>

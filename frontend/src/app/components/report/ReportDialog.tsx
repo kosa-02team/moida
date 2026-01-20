@@ -14,13 +14,18 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 
+import { createReport } from '../../../api/report';
+import { useParams } from 'react-router-dom';
+
 export type ReportType = 'post' | 'comment' | 'user' | 'group';
 
 interface ReportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   type: ReportType;
+  targetId: number; // 신고 대상 ID (사용자 ID, 게시글 ID, 댓글 ID 등)
   targetName?: string;
+  clubId?: number; // clubId가 명시적으로 전달되지 않으면 URL 파라미터에서 가져옴
 }
 
 const REPORT_REASONS: Record<ReportType, { value: string; label: string }[]> = {
@@ -134,8 +139,12 @@ export function ReportDialog({ open, onOpenChange, type, targetName }: ReportDia
           <Button variant="outline" onClick={handleClose}>
             취소
           </Button>
-          <Button onClick={handleReport} className="bg-orange-500 hover:bg-orange-600">
-            신고하기
+          <Button 
+            onClick={handleReport} 
+            disabled={isSubmitting}
+            className="bg-orange-500 hover:bg-orange-600"
+          >
+            {isSubmitting ? '신고 중...' : '신고하기'}
           </Button>
         </DialogFooter>
       </DialogContent>

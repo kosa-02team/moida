@@ -1,6 +1,7 @@
 package back.service.schedule;
 
 import back.domain.Users;
+import back.domain.ledger.TransactionLog;
 import back.domain.schedule.ScheduleParticipants;
 import back.domain.schedule.Schedules;
 import back.domain.vote.VoteOptions;
@@ -9,6 +10,7 @@ import back.dto.schedule.*;
 import back.event.ScheduleRegisteredEvent;
 import back.exception.ScheduleException;
 import back.repository.UserRepository;
+import back.repository.ledger.TransactionLogRepository;
 import back.repository.schedule.ScheduleParticipantRepository;
 import back.repository.schedule.ScheduleRepository;
 import back.repository.vote.VoteOptionRepository;
@@ -19,6 +21,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -33,6 +36,7 @@ public class ScheduleService {
     private final VoteOptionRepository voteOptionRepository;
     private final ClubAuthService clubAuthService;
     private final UserRepository userRepository;
+    private final TransactionLogRepository transactionLogRepository;
 
     // 알림 전송을 위해 의존성 추가
     private final ApplicationEventPublisher eventPublisher;
@@ -374,6 +378,24 @@ public class ScheduleService {
     }
 
     private ScheduleResponse toResponse(Schedules schedule) {
+        // 참가비 집계: 해당 일정의 입금(DEPOSIT) 거래 내역 집계
+        BigDecimal collectedEntryFee = BigDecimal.ZERO;
+        int paidParticipantsCount = 0;
+        
+        if (schedule.getEntryFee() != null && schedule.getEntryFee().compareTo(BigDecimal.ZERO) > 0) {
+            List<TransactionLog> deposits = transactionLogRepository.findByScheduleId(schedule.getScheduleId())
+                    .stream()
+                    .filter(tx -> "DEPOSIT".equalsIgnoreCase(tx.getType()))
+                    .filter(tx -> tx.getAmount() != null && tx.getAmount().compareTo(BigDecimal.ZERO) > 0)
+                    .collect(Collectors.toList());
+            
+            collectedEntryFee = deposits.stream()
+                    .map(TransactionLog::getAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            paidParticipantsCount = deposits.size();
+        }
+        
         return new ScheduleResponse(
                 schedule.getScheduleId(),
                 schedule.getScheduleName(),
@@ -384,6 +406,8 @@ public class ScheduleService {
                 schedule.getEntryFee(),
                 schedule.getTotalSpent(),
                 schedule.getRefundPerPerson(),
+                collectedEntryFee,
+                paidParticipantsCount,
                 schedule.getStatus(),
                 schedule.getClosedAt(),
                 schedule.getCancelReason(),

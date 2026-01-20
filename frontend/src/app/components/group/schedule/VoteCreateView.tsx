@@ -1,325 +1,272 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Calendar, MapPin, HelpCircle, Info } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Clock, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Textarea } from '../../ui/textarea';
-import { RadioGroup, RadioGroupItem } from '../../ui/radio-group';
-import { Switch } from '../../ui/switch';
-import { Card, CardContent } from '../../ui/card';
-import { createVote, type VoteCreateRequest } from '../../../../api/vote';
-
-type VoteType = 'schedule' | 'location' | 'both';
-
-interface DateOption {
-  id: string;
-  datetime: string;
-}
-
-interface LocationOption {
-  id: string;
-  name: string;
-  address: string;
-}
+import { createSchedule, ScheduleCreateRequest } from '../../../../api/schedule';
+import { useUserPermissions } from '../../../data/userRoles';
+import { NoPermissionView } from '../../common/NoPermissionView';
 
 export function VoteCreateView() {
   const navigate = useNavigate();
   const { groupId } = useParams();
+  const permissions = useUserPermissions(groupId || '1');
+
+  // 폼 상태
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [voteType, setVoteType] = useState<VoteType>('schedule');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [location, setLocation] = useState('');
+  const [voteDeadline, setVoteDeadline] = useState('');
+  const [entryFee, setEntryFee] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // 일정 옵션
-  const [dateOptions, setDateOptions] = useState<DateOption[]>([
-    { id: '1', datetime: '' }
-  ]);
-  
-  // 장소 옵션
-  const [locationOptions, setLocationOptions] = useState<LocationOption[]>([
-    { id: '1', name: '', address: '' }
-  ]);
-  
-  const [deadline, setDeadline] = useState('');
-  const [allowMultiple, setAllowMultiple] = useState(true);
-  const [isAnonymous, setIsAnonymous] = useState(false);
 
-  // 일정 옵션 관리
-  const addDateOption = () => {
-    setDateOptions([...dateOptions, { id: Date.now().toString(), datetime: '' }]);
-  };
-  
-  const removeDateOption = (id: string) => {
-    if (dateOptions.length > 1) {
-      setDateOptions(dateOptions.filter(d => d.id !== id));
+  // 권한 체크: 일정 생성은 운영진 이상만 가능
+  useEffect(() => {
+    if (!permissions.canFinalizeSchedule && !permissions.canManageGroup) {
+      // 운영진 이상 권한이 없으면 접근 불가
     }
-  };
-  
-  const updateDateOption = (id: string, datetime: string) => {
-    setDateOptions(dateOptions.map(d => d.id === id ? { ...d, datetime } : d));
-  };
+  }, [permissions]);
 
-  // 장소 옵션 관리
-  const addLocationOption = () => {
-    setLocationOptions([...locationOptions, { id: Date.now().toString(), name: '', address: '' }]);
-  };
-  
-  const removeLocationOption = (id: string) => {
-    if (locationOptions.length > 1) {
-      setLocationOptions(locationOptions.filter(l => l.id !== id));
-    }
-  };
-  
-  const updateLocationOption = (id: string, field: 'name' | 'address', value: string) => {
-    setLocationOptions(locationOptions.map(l => l.id === id ? { ...l, [field]: value } : l));
-  };
+  if (!permissions.canFinalizeSchedule && !permissions.canManageGroup) {
+    return <NoPermissionView message="일정 생성은 운영진 이상만 가능합니다." />;
+  }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    // 1. 유효성 검사
     if (!title.trim()) {
-      toast.error('투표 제목을 입력해주세요');
+      toast.error('일정 제목을 입력해주세요');
+      return;
+    }
+    if (!startDate) {
+      toast.error('시작 일시를 선택해주세요');
+      return;
+    }
+    if (!endDate) {
+      toast.error('종료 일시를 선택해주세요');
+      return;
+    }
+    if (!location.trim()) {
+      toast.error('장소를 입력해주세요');
+      return;
+    }
+    if (!voteDeadline) {
+      toast.error('투표 마감일을 선택해주세요');
       return;
     }
 
-    if ((voteType === 'schedule' || voteType === 'both') && dateOptions.every(d => !d.datetime)) {
-      toast.error('최소 1개 이상의 일정 후보를 입력해주세요');
+    // 날짜 논리 검사
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const deadline = new Date(voteDeadline);
+    const now = new Date();
+
+    if (end <= start) {
+      toast.error('종료 일시는 시작 일시보다 뒤여야 합니다');
       return;
     }
 
-    if ((voteType === 'location' || voteType === 'both') && locationOptions.every(l => !l.name)) {
-      toast.error('최소 1개 이상의 장소 후보를 입력해주세요');
+    if (deadline >= start) {
+      toast.error('투표 마감일은 일정 시작 전이어야 합니다');
       return;
     }
 
-    toast.success('투표가 생성되었습니다');
-    navigate('..');
+    if (deadline <= now) {
+      toast.error('투표 마감일은 현재 시간보다 미래여야 합니다');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      if (!groupId) return;
+
+      // 참가비 권한 체크: 총무 이상만 설정 가능
+      const feeAmount = entryFee.trim() ? parseFloat(entryFee) : 0;
+      if (feeAmount > 0 && !permissions.canWithdraw) {
+        toast.error('참가비 설정은 총무 이상만 가능합니다');
+        return;
+      }
+
+      // 2. 일정 생성 API 호출 (투표 마감일을 포함하면 자동으로 참/불 투표가 생성됨)
+      const request: ScheduleCreateRequest = {
+        scheduleName: title,
+        eventDate: startDate, // "YYYY-MM-DDTHH:mm" 형식 그대로 전송
+        endDate: endDate,
+        location: location,
+        description: description,
+        voteDeadline: voteDeadline,
+        entryFee: feeAmount
+      };
+
+      await createSchedule(Number(groupId), request);
+
+      toast.success('일정 및 투표가 생성되었습니다');
+      navigate('..'); // 목록으로 돌아가기
+
+    } catch (error) {
+      console.error('Failed to create schedule/vote:', error);
+      toast.error('일정 생성에 실패했습니다');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="bg-white min-h-screen pb-20">
+    <div className="bg-white min-h-screen pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       <header className="flex items-center p-4 border-b border-stone-100 sticky top-0 bg-white z-10">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="-ml-2">
           <ArrowLeft className="w-5 h-5 text-stone-600" />
         </Button>
-        <h1 className="text-lg font-semibold ml-2 text-stone-800">투표 만들기</h1>
+        <h1 className="text-lg font-semibold ml-2 text-stone-800">일정 투표 만들기</h1>
       </header>
 
-      <div className="p-6 space-y-8">
+      <div className="p-6 space-y-6">
+        {/* 안내 메시지 */}
+        <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 flex gap-3">
+          <AlertCircle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+          <div className="text-sm text-orange-800">
+            <p className="font-medium mb-1">참석 여부 투표가 자동으로 생성됩니다</p>
+            <p className="text-orange-700/80">일정을 확정하고 멤버들의 참석 여부를 조사합니다.</p>
+          </div>
+        </div>
+
         {/* 기본 정보 */}
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="title" className="text-base font-medium">
-              투표 제목 <span className="text-red-500">*</span>
+              일정 제목 <span className="text-red-500">*</span>
             </Label>
-            <Input 
-              id="title" 
-              placeholder="예: 5월 정기모임 날짜 정하기" 
+            <Input
+              id="title"
+              placeholder="예: 4월 정기 산행"
               className="h-12 bg-stone-50 border-stone-200 rounded-xl"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
+
           <div className="space-y-2">
-            <Label htmlFor="description" className="text-base font-medium">설명 (선택)</Label>
-            <Textarea
-              id="description"
-              placeholder="투표에 대한 추가 설명을 입력하세요"
-              className="bg-stone-50 border-stone-200 rounded-xl resize-none"
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
+            <Label htmlFor="location" className="text-base font-medium">
+              장소 <span className="text-red-500">*</span>
+            </Label>
+            <div className="relative">
+              <MapPin className="absolute left-4 top-3.5 w-5 h-5 text-stone-400" />
+              <Input
+                id="location"
+                placeholder="모임 장소를 입력하세요"
+                className="h-12 pl-12 bg-stone-50 border-stone-200 rounded-xl"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+              />
+            </div>
           </div>
         </div>
 
-        {/* 투표 유형 선택 */}
-        <div className="space-y-4">
-          <Label className="text-base font-medium">투표 유형</Label>
-          <RadioGroup value={voteType} onValueChange={(v) => setVoteType(v as VoteType)} className="grid grid-cols-1 gap-3">
-            <Card className={`border-2 transition-all cursor-pointer ${voteType === 'schedule' ? 'border-orange-500 bg-orange-50' : 'border-stone-200'}`}>
-              <CardContent className="p-4 flex items-center gap-3">
-                <RadioGroupItem value="schedule" id="schedule" />
-                <Label htmlFor="schedule" className="flex-1 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-orange-600" />
-                    <span className="font-medium">일정 투표</span>
-                  </div>
-                  <p className="text-sm text-stone-500 mt-1">날짜/시간을 선택합니다</p>
-                </Label>
-              </CardContent>
-            </Card>
-            
-            <Card className={`border-2 transition-all cursor-pointer ${voteType === 'location' ? 'border-blue-500 bg-blue-50' : 'border-stone-200'}`}>
-              <CardContent className="p-4 flex items-center gap-3">
-                <RadioGroupItem value="location" id="location" />
-                <Label htmlFor="location" className="flex-1 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-5 h-5 text-blue-600" />
-                    <span className="font-medium">장소 투표</span>
-                  </div>
-                  <p className="text-sm text-stone-500 mt-1">장소를 선택합니다</p>
-                </Label>
-              </CardContent>
-            </Card>
+        {/* 일시 설정 */}
+        <div className="space-y-4 pt-2">
+          <h3 className="font-medium text-stone-900 flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-stone-500" />
+            일시 설정
+          </h3>
 
-            <Card className={`border-2 transition-all cursor-pointer ${voteType === 'both' ? 'border-purple-500 bg-purple-50' : 'border-stone-200'}`}>
-              <CardContent className="p-4 flex items-center gap-3">
-                <RadioGroupItem value="both" id="both" />
-                <Label htmlFor="both" className="flex-1 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <HelpCircle className="w-5 h-5 text-purple-600" />
-                    <span className="font-medium">일정 + 장소</span>
-                  </div>
-                  <p className="text-sm text-stone-500 mt-1">날짜와 장소를 함께 투표합니다</p>
-                </Label>
-              </CardContent>
-            </Card>
-          </RadioGroup>
-        </div>
-
-        {/* 일정 옵션 (일정 또는 둘 다 선택 시) */}
-        {(voteType === 'schedule' || voteType === 'both') && (
-          <div className="space-y-3">
-            <Label className="text-base font-medium flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-orange-600" />
-              후보 날짜/시간
-            </Label>
-            {dateOptions.map((option, index) => (
-              <div key={option.id} className="flex gap-2">
-                <Input 
-                  type="datetime-local" 
-                  value={option.datetime} 
-                  onChange={(e) => updateDateOption(option.id, e.target.value)}
-                  className="h-12 bg-stone-50 border-stone-200 rounded-xl flex-1"
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm text-stone-600">시작 시간</Label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400 pointer-events-none z-10" />
+                <Input
+                  type="datetime-local"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="h-12 bg-stone-50 border-stone-200 rounded-xl pl-11 [&::-webkit-datetime-edit-text]:opacity-0 [&::-webkit-datetime-edit-month-field]:opacity-0 [&::-webkit-datetime-edit-day-field]:opacity-0 [&::-webkit-datetime-edit-year-field]:opacity-0 [&::-webkit-datetime-edit-hour-field]:opacity-0 [&::-webkit-datetime-edit-minute-field]:opacity-0 [&::-webkit-datetime-edit-second-field]:opacity-0 [&::-webkit-datetime-edit-ampm-field]:opacity-0 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:relative [&::-webkit-calendar-picker-indicator]:z-20"
+                  style={{ color: startDate ? 'inherit' : 'transparent' }}
                 />
-                {dateOptions.length > 1 && (
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => removeDateOption(option.id)} 
-                    className="text-red-400 hover:text-red-500 hover:bg-red-50"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </Button>
-                )}
               </div>
-            ))}
-            <Button 
-              variant="outline" 
-              onClick={addDateOption} 
-              className="w-full border-dashed border-orange-300 text-orange-600 hover:bg-orange-50 rounded-xl h-12"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              일정 후보 추가
-            </Button>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm text-stone-600">종료 시간</Label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400 pointer-events-none z-10" />
+                <Input
+                  type="datetime-local"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="h-12 bg-stone-50 border-stone-200 rounded-xl pl-11 [&::-webkit-datetime-edit-text]:opacity-0 [&::-webkit-datetime-edit-month-field]:opacity-0 [&::-webkit-datetime-edit-day-field]:opacity-0 [&::-webkit-datetime-edit-year-field]:opacity-0 [&::-webkit-datetime-edit-hour-field]:opacity-0 [&::-webkit-datetime-edit-minute-field]:opacity-0 [&::-webkit-datetime-edit-second-field]:opacity-0 [&::-webkit-datetime-edit-ampm-field]:opacity-0 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:relative [&::-webkit-calendar-picker-indicator]:z-20"
+                  style={{ color: endDate ? 'inherit' : 'transparent' }}
+                />
+              </div>
+            </div>
           </div>
-        )}
-
-        {/* 장소 옵션 (장소 또는 둘 다 선택 시) */}
-        {(voteType === 'location' || voteType === 'both') && (
-          <div className="space-y-3">
-            <Label className="text-base font-medium flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-blue-600" />
-              후보 장소
-            </Label>
-            {locationOptions.map((option, index) => (
-              <Card key={option.id} className="border-stone-200">
-                <CardContent className="p-3 space-y-2">
-                  <div className="flex gap-2">
-                    <Input 
-                      placeholder="장소 이름 (예: 강남역 스타벅스)"
-                      value={option.name} 
-                      onChange={(e) => updateLocationOption(option.id, 'name', e.target.value)}
-                      className="h-10 bg-stone-50 border-stone-200 rounded-lg flex-1"
-                    />
-                    {locationOptions.length > 1 && (
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => removeLocationOption(option.id)} 
-                        className="text-red-400 hover:text-red-500 hover:bg-red-50 h-10 w-10"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                  <Input 
-                    placeholder="주소 또는 상세 설명 (선택)"
-                    value={option.address} 
-                    onChange={(e) => updateLocationOption(option.id, 'address', e.target.value)}
-                    className="h-10 bg-stone-50 border-stone-200 rounded-lg"
-                  />
-                </CardContent>
-              </Card>
-            ))}
-            <Button 
-              variant="outline" 
-              onClick={addLocationOption} 
-              className="w-full border-dashed border-blue-300 text-blue-600 hover:bg-blue-50 rounded-xl h-12"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              장소 후보 추가
-            </Button>
-          </div>
-        )}
-
-        {/* 장소+일정 안내 */}
-        {voteType === 'both' && (
-          <Card className="border-purple-200 bg-purple-50">
-            <CardContent className="p-4 flex gap-3">
-              <Info className="w-5 h-5 text-purple-600 shrink-0" />
-              <p className="text-sm text-purple-700">
-                일정과 장소를 각각 투표받은 뒤, 가장 많은 표를 받은 조합으로 결정됩니다.
-                장소에 따라 참여 가능 여부가 달라질 수 있으므로 함께 투표하면 좋습니다.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        </div>
 
         {/* 투표 마감일 */}
-        <div className="space-y-2">
-          <Label className="text-base font-medium">투표 마감일</Label>
-          <Input 
-            type="datetime-local" 
-            value={deadline}
-            onChange={(e) => setDeadline(e.target.value)}
-            className="h-12 bg-stone-50 border-stone-200 rounded-xl"
-          />
+        <div className="space-y-4 pt-2">
+          <h3 className="font-medium text-stone-900 flex items-center gap-2">
+            <Clock className="w-5 h-5 text-stone-500" />
+            투표 마감일
+          </h3>
+
+          <div className="space-y-2">
+            <Label className="text-sm text-stone-600">언제까지 투표를 받을까요?</Label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400 pointer-events-none z-10" />
+              <Input
+                type="datetime-local"
+                value={voteDeadline}
+                onChange={(e) => setVoteDeadline(e.target.value)}
+                className="h-12 bg-stone-50 border-stone-200 rounded-xl pl-11 [&::-webkit-datetime-edit-text]:opacity-0 [&::-webkit-datetime-edit-month-field]:opacity-0 [&::-webkit-datetime-edit-day-field]:opacity-0 [&::-webkit-datetime-edit-year-field]:opacity-0 [&::-webkit-datetime-edit-hour-field]:opacity-0 [&::-webkit-datetime-edit-minute-field]:opacity-0 [&::-webkit-datetime-edit-second-field]:opacity-0 [&::-webkit-datetime-edit-ampm-field]:opacity-0 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:relative [&::-webkit-calendar-picker-indicator]:z-20"
+                style={{ color: voteDeadline ? 'inherit' : 'transparent' }}
+              />
+            </div>
+            <p className="text-xs text-stone-500 pl-1">
+              * 투표 마감일은 일정 시작 시간보다 전이어야 합니다.
+            </p>
+          </div>
         </div>
 
-        {/* 추가 설정 */}
-        <div className="space-y-4">
-          <Label className="text-base font-medium">추가 설정</Label>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm text-stone-900">복수 선택 허용</Label>
-                <p className="text-xs text-stone-500">여러 항목에 투표할 수 있습니다</p>
-              </div>
-              <Switch 
-                checked={allowMultiple} 
-                onCheckedChange={setAllowMultiple}
-                className="data-[state=checked]:bg-orange-500"
+        {/* 참가비 설정 */}
+        {permissions.canWithdraw && (
+          <div className="space-y-2">
+            <Label htmlFor="entryFee" className="text-base font-medium">
+              참가비 (선택) <span className="text-xs text-stone-500">총무 이상만 설정 가능</span>
+            </Label>
+            <div className="relative">
+              <Input
+                id="entryFee"
+                type="number"
+                placeholder="0"
+                className="h-12 bg-stone-50 border-stone-200 rounded-xl pr-12"
+                value={entryFee}
+                onChange={(e) => setEntryFee(e.target.value)}
+                min="0"
               />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-500">원</span>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm text-stone-900">익명 투표</Label>
-                <p className="text-xs text-stone-500">누가 투표했는지 공개하지 않습니다</p>
-              </div>
-              <Switch 
-                checked={isAnonymous} 
-                onCheckedChange={setIsAnonymous}
-                className="data-[state=checked]:bg-orange-500"
-              />
-            </div>
+            <p className="text-xs text-stone-500 pl-1">
+              참가비를 설정하면 일정 참석 시 자동으로 입금 요청이 생성됩니다.
+            </p>
           </div>
+        )}
+
+        {/* 설명 */}
+        <div className="space-y-2">
+          <Label htmlFor="description" className="text-base font-medium">설명 (선택)</Label>
+          <Textarea
+            id="description"
+            placeholder="일정에 대한 상세 설명을 입력하세요"
+            className="bg-stone-50 border-stone-200 rounded-xl resize-none min-h-[100px]"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
         </div>
 
         {/* 제출 버튼 */}
         <div className="pt-4">
-          <Button 
+          <Button
             onClick={handleSubmit}
             disabled={isSubmitting}
             className="w-full h-12 text-lg bg-orange-500 hover:bg-orange-600 rounded-xl text-white shadow-md disabled:opacity-50"

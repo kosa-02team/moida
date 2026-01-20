@@ -35,6 +35,7 @@ interface RequestOptions extends RequestInit {
 
 /**
  * 인증 에러 클래스
+ * 401, 403 에러 발생 시 사용됩니다. 이 에러가 발생하면 로그인 페이지로 리다이렉트해야 합니다.
  */
 export class AuthenticationError extends Error {
   constructor(message: string) {
@@ -44,11 +45,38 @@ export class AuthenticationError extends Error {
 }
 
 /**
+ * Refresh Token을 사용하여 Access Token 갱신
+ */
+const refreshAccessToken = async (): Promise<string | null> => {
+  try {
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (!refreshToken) {
+      return null;
+    }
+
+    const { refreshToken: refreshTokenAPI } = await import('./auth');
+    const response = await refreshTokenAPI({ refreshToken });
+    
+    // 새 토큰 저장
+    setToken(response.accessToken);
+    localStorage.setItem('refreshToken', response.refreshToken);
+    
+    return response.accessToken;
+  } catch (error) {
+    // Refresh Token도 만료된 경우
+    removeToken();
+    localStorage.removeItem('refreshToken');
+    return null;
+  }
+};
+
+/**
  * API 호출 함수
  */
 export const apiClient = async <T>(
   endpoint: string,
-  options: RequestOptions = {}
+  options: RequestOptions = {},
+  retryOn401: boolean = true
 ): Promise<T> => {
   const { requiresAuth = true, ...fetchOptions } = options;
 
@@ -77,30 +105,81 @@ export const apiClient = async <T>(
 
     // 응답이 성공이 아닌 경우 에러 처리
     if (!response.ok) {
-      // 401, 403은 인증 에러로 처리 (조용히 처리)
-      if (response.status === 401 || response.status === 403) {
-        throw new AuthenticationError('인증이 필요합니다');
+      // 401 에러이고 retryOn401이 true인 경우 토큰 갱신 시도
+      if (response.status === 401 && requiresAuth && retryOn401) {
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+          // 새 토큰으로 재시도 (무한 루프 방지를 위해 retryOn401을 false로)
+          headers['Authorization'] = `Bearer ${newToken}`;
+          const retryResponse = await fetch(url, {
+            ...fetchOptions,
+            headers,
+          });
+          
+          if (!retryResponse.ok) {
+            const retryErrorData = await retryResponse.json().catch(() => ({}));
+            if (retryResponse.status === 401 || retryResponse.status === 403) {
+              const errorMessage = retryErrorData.message || '인증이 필요합니다';
+              throw new AuthenticationError(errorMessage);
+            }
+            const errorMessage = retryErrorData.message || retryErrorData.error || `HTTP error! status: ${retryResponse.status}`;
+            throw new Error(errorMessage);
+          }
+          
+          const retryData = await retryResponse.json();
+          if (retryData.data !== undefined) {
+            return retryData.data as T;
+          }
+          return retryData as T;
+        } else {
+          // 토큰 갱신 실패
+          throw new AuthenticationError('인증이 필요합니다');
+        }
       }
       
+      // 에러 응답 한 번만 읽기
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      
+      // 에러 응답 상세 로깅
+      console.error('API Error Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: url,
+        method: fetchOptions.method,
+        requiresAuth: requiresAuth,
+        errorData: errorData
+      });
+      
+      // 401, 403은 인증 에러로 처리 (단, requiresAuth가 false인 경우는 일반 에러로 처리)
+      if ((response.status === 401 || response.status === 403) && requiresAuth) {
+        const errorMessage = errorData.message || '인증이 필요합니다';
+        throw new AuthenticationError(errorMessage);
+      }
+
+      // requiresAuth가 false인 경우 (로그인 API 등)에도 백엔드 메시지 전달
+      const errorMessage = errorData.message || errorData.error || `HTTP error! status: ${response.status}`;
+      throw new Error(errorMessage);
     }
 
     // 응답 데이터 파싱
     const data = await response.json();
-    
+
     // SuccessResponse 형식인 경우 data 필드 추출
     if (data.data !== undefined) {
       return data.data as T;
     }
-    
+
     return data as T;
   } catch (error) {
     // AuthenticationError는 그대로 전달 (조용히 처리)
     if (error instanceof AuthenticationError) {
       throw error;
     }
-    console.error('API request failed:', error);
+    console.error('API request failed:', {
+      url,
+      method: fetchOptions.method,
+      error: error
+    });
     throw error;
   }
 };
@@ -112,7 +191,7 @@ export const get = <T>(endpoint: string, requiresAuth = true): Promise<T> => {
   return apiClient<T>(endpoint, {
     method: 'GET',
     requiresAuth,
-  });
+  }, true);
 };
 
 /**
@@ -127,7 +206,7 @@ export const post = <T>(
     method: 'POST',
     body: body ? JSON.stringify(body) : undefined,
     requiresAuth,
-  });
+  }, true);
 };
 
 /**
@@ -142,7 +221,7 @@ export const put = <T>(
     method: 'PUT',
     body: body ? JSON.stringify(body) : undefined,
     requiresAuth,
-  });
+  }, true);
 };
 
 /**
@@ -157,7 +236,7 @@ export const patch = <T>(
     method: 'PATCH',
     body: body ? JSON.stringify(body) : undefined,
     requiresAuth,
-  });
+  }, true);
 };
 
 /**
@@ -167,5 +246,5 @@ export const del = <T>(endpoint: string, requiresAuth = true): Promise<T> => {
   return apiClient<T>(endpoint, {
     method: 'DELETE',
     requiresAuth,
-  });
+  }, true);
 };

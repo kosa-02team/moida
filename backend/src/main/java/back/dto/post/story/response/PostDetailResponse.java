@@ -3,6 +3,7 @@ package back.dto.post.story.response;
 import back.domain.post.PostCategory;
 import back.domain.post.Posts;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record PostDetailResponse(
         Long postId,
@@ -14,8 +15,9 @@ public record PostDetailResponse(
         Long scheduleId,
         String place,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt){
-    public static PostDetailResponse from(Posts post) {
+        LocalDateTime updatedAt,
+        List<String> imagesUrl){
+    public static PostDetailResponse from(Posts post, List<String> imagesUrl) {
         Long scheduleId = (post.getSchedule() == null) ? null : post.getSchedule().getScheduleId();
 
         return new PostDetailResponse(
@@ -28,6 +30,7 @@ public record PostDetailResponse(
                 scheduleId,
                 post.getPlace(),
                 post.getCreatedAt(),
-                post.getUpdatedAt());
+                post.getUpdatedAt(),
+                imagesUrl);
     }
 }

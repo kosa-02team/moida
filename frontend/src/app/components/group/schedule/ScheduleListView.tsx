@@ -13,7 +13,6 @@ import {
   getRoleColor,
 } from '../../../data/userRoles';
 import { getSchedules, type ScheduleResponse } from '../../../../api/schedule';
-import { getVotes, type VoteListResponse } from '../../../../api/vote';
 
 interface Schedule {
   id: number;
@@ -23,7 +22,7 @@ interface Schedule {
   attendees: number;
   status: 'voting' | 'confirmed' | 'ongoing' | 'completed';
   dDay: number | null;
-  type: 'schedule' | 'vote';
+  type: 'schedule';
   isToday: boolean;
   isPast: boolean;
 }
@@ -45,66 +44,42 @@ export function ScheduleListView() {
       if (!groupId) return;
       try {
         setLoading(true);
-        const [scheduleData, voteData] = await Promise.all([
-          getSchedules(Number(groupId)),
-          getVotes(Number(groupId))
-        ]);
+        const scheduleData = await getSchedules(Number(groupId));
 
         const now = new Date();
-        const combined: Schedule[] = [
-          ...scheduleData.map(s => {
-            const eventDate = new Date(s.eventDate);
-            const endDate = new Date(s.endDate);
-            const diffTime = eventDate.getTime() - now.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            const isToday = diffDays === 0;
-            const isPast = endDate < now;
-            
-            let status: 'voting' | 'confirmed' | 'ongoing' | 'completed' = 'confirmed';
-            if (s.status === 'CLOSED') status = 'completed';
-            else if (s.status === 'CANCELLED') status = 'completed';
-            else if (isToday && !isPast) status = 'ongoing';
-            
-            return {
-              id: s.scheduleId,
-              title: s.scheduleName,
-              date: formatScheduleDate(s.eventDate, s.endDate),
-              location: s.location || '미정',
-              attendees: 0, // TODO: participants API 필요
-              status,
-              dDay: diffDays > 0 ? diffDays : null,
-              type: 'schedule' as const,
-              isToday,
-              isPast,
-            };
-          }),
-          ...voteData.map(v => {
-            const deadline = v.deadline ? new Date(v.deadline) : null;
-            const daysLeft = deadline ? Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
-            
-            return {
-              id: v.voteId,
-              title: v.title,
-              date: deadline ? `투표 진행중 (~${formatDate(deadline)})` : '투표 진행중',
-              location: '미정',
-              attendees: 0, // TODO: vote participants API 필요
-              status: v.status === 'CLOSED' ? 'completed' as const : 'voting' as const,
-              dDay: daysLeft,
-              type: 'vote' as const,
-              isToday: false,
-              isPast: deadline ? deadline < now : false,
-            };
-          })
-        ];
-        
-        // 날짜순 정렬 (최신순)
-        combined.sort((a, b) => {
-          if (a.type === 'vote' && b.type === 'schedule') return -1;
-          if (a.type === 'schedule' && b.type === 'vote') return 1;
-          return b.id - a.id;
+        const schedules: Schedule[] = scheduleData.map(s => {
+          const eventDate = new Date(s.eventDate);
+          const endDate = new Date(s.endDate);
+          const diffTime = eventDate.getTime() - now.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          const isToday = diffDays === 0;
+          const isPast = endDate < now;
+          
+          // voteDeadline이 있고 아직 마감 전이면 투표중 상태
+          let status: 'voting' | 'confirmed' | 'ongoing' | 'completed' = 'confirmed';
+          if (s.status === 'CLOSED') status = 'completed';
+          else if (s.status === 'CANCELLED') status = 'completed';
+          else if (isToday && !isPast) status = 'ongoing';
+          else if (s.voteDeadline && new Date(s.voteDeadline) > now) status = 'voting';
+          
+          return {
+            id: s.scheduleId,
+            title: s.scheduleName,
+            date: formatScheduleDate(s.eventDate, s.endDate),
+            location: s.location || '미정',
+            attendees: 0, // TODO: participants API 필요
+            status,
+            dDay: diffDays > 0 ? diffDays : null,
+            type: 'schedule' as const,
+            isToday,
+            isPast,
+          };
         });
         
-        setSchedules(combined);
+        // 날짜순 정렬 (최신순)
+        schedules.sort((a, b) => b.id - a.id);
+        
+        setSchedules(schedules);
       } catch (error) {
         console.error('일정 목록 불러오기 실패:', error);
         toast.error('일정 목록을 불러오는데 실패했습니다.');
@@ -159,7 +134,7 @@ export function ScheduleListView() {
   };
 
   return (
-    <div className="space-y-4 pb-20">
+    <div className="space-y-4 pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       {/* User Role Badge */}
       <div className="flex justify-end">
         <Badge className={`${getRoleColor(groupId || '1')} text-xs`}>
@@ -169,8 +144,6 @@ export function ScheduleListView() {
 
       {schedules.length > 0 ? (
         schedules.map((item) => {
-        const linkTo = item.type === 'vote' ? `../vote/${item.id}` : `${item.id}`;
-        
         return (
           <Card 
             key={item.id}
@@ -191,7 +164,7 @@ export function ScheduleListView() {
                 </div>
               </div>
               
-              <Link to={linkTo}>
+              <Link to={`${item.id}`}>
                 <h3 className="text-lg font-bold text-stone-900 mb-3 hover:text-orange-600 transition-colors">
                   {item.title}
                 </h3>
@@ -229,7 +202,7 @@ export function ScheduleListView() {
                   )}
                 </div>
                 
-                <Link to={linkTo}>
+                <Link to={`${item.id}`}>
                   <Button 
                     size="sm" 
                     variant={item.status === 'voting' ? 'default' : 'outline'} 

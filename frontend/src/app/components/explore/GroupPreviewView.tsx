@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { ArrowLeft, MapPin, Users, Calendar, Share2, Heart, MessageCircle, Lock, Eye, Flag } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,6 +17,9 @@ import {
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import { ReportDialog } from '../report/ReportDialog';
+import { getClub } from '@/api/club-full';
+import { getRecentPosts, PostCardResponse } from '@/api/post';
+import { get } from '@/api/client';
 
 export function GroupPreviewView() {
   const navigate = useNavigate();
@@ -26,85 +29,105 @@ export function GroupPreviewView() {
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [joinMessage, setJoinMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [group, setGroup] = useState<{
+    id: string | undefined;
+    name: string;
+    image: string;
+    description: string;
+    tags: string[];
+    memberCount: number;
+    maxMembers: number;
+    type: 'club' | 'meetup' | 'study';
+    location: string;
+    createdAt: string;
+    ownerId?: number; // 모임 신고를 위한 owner ID
+    leader: { name: string; avatar: string };
+    recentMembers: Array<{ id: string; name: string; avatar: string }>;
+    upcomingEvents: Array<{ id: string; title: string; date: string; location: string }>;
+    privacySettings: { showPostsToNonMembers: boolean; showMembersToNonMembers: boolean };
+    publicPosts: Array<{ id: string; title: string; content: string; image: string; author: string; date: string; likes: number; comments: number }>;
+    gallery: string[];
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // 비공개 모임 ID 목록 (실제로는 API에서 받아옴)
-  const privateGroupIds = ['2', '5', '8', '10'];
-  const isPrivateGroup = privateGroupIds.includes(groupId || '');
+  useEffect(() => {
+    async function fetchGroup() {
+      if (!groupId) {
+        toast.error('모임 ID가 없습니다.');
+        navigate('/explore');
+        return;
+      }
 
-  // Mock data - 실제로는 API에서 가져옴
-  const groupData: Record<string, any> = {
-    '1': { name: '주말 등산 클럽', description: '매주 토요일 서울 근교 산행합니다. 초보자 환영!', tags: ['등산', '운동', '친목'], image: 'https://images.unsplash.com/photo-1551632811-561732d1e306?w=800' },
-    '2': { name: '프라이빗 독서 모임', description: '비공개로 진행되는 프리미엄 독서 모임입니다.', tags: ['독서', '토론', '인문학'], image: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=800' },
-    '3': { name: '개발자 네트워킹', description: 'IT 업계 종사자들의 네트워킹 모임입니다.', tags: ['개발', 'IT', '네트워킹'], image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800' },
-    '4': { name: '요가 & 명상 클럽', description: '바쁜 일상 속 마음의 평화를 찾아요.', tags: ['요가', '명상', '건강'], image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800' },
-    '5': { name: '비밀 투자 스터디', description: '소수 정예로 진행하는 투자 전략 스터디입니다.', tags: ['주식', '투자', '재테크'], image: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800' },
-    '6': { name: '주말 러닝 크루', description: '함께 뛰면 더 즐거워요! 러닝 크루', tags: ['러닝', '운동', '건강'], image: 'https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=800' },
-    '7': { name: '사진 동호회', description: '출사와 사진 리뷰를 함께하는 모임', tags: ['사진', '출사', '취미'], image: 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=800' },
-    '8': { name: '프리미엄 와인 모임', description: '와인 애호가들의 비공개 테이스팅 모임', tags: ['와인', '테이스팅', '프리미엄'], image: 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=800' },
-    '9': { name: '영어 회화 스터디', description: '영어로 자유롭게 대화하는 스터디입니다.', tags: ['영어', '회화', '스터디'], image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800' },
-    '10': { name: 'VIP 골프 모임', description: '골프를 사랑하는 분들의 프라이빗 모임', tags: ['골프', '운동', 'VIP'], image: 'https://images.unsplash.com/photo-1535131749006-b7f58c99034b?w=800' },
-  };
+      try {
+        setLoading(true);
+        const clubId = parseInt(groupId);
+        const clubData = await getClub(clubId);
+        
+        // 최근 게시글 조회 (게시글 공개 모임인 경우)
+        let publicPosts: Array<{ id: string; title: string; content: string; image: string; author: string; date: string; likes: number; comments: number }> = [];
+        if (clubData.visibility === 'PUBLIC') {
+          try {
+            const postsData = await getRecentPosts(clubId, 0, 3);
+            publicPosts = postsData.slice(0, 3).map(post => ({
+              id: post.postId.toString(),
+              title: post.title || '',
+              content: post.content || '',
+              image: post.imagesUrl && post.imagesUrl.length > 0 ? post.imagesUrl[0] : 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=300&fit=crop',
+              author: post.writerName || '익명',
+              date: post.createdAt ? new Date(post.createdAt).toLocaleDateString('ko-KR') : '',
+              likes: post.postLikes || 0,
+              comments: post.commentCount || 0,
+            }));
+          } catch (error) {
+            console.error('게시글 조회 실패:', error);
+          }
+        }
 
-  const currentGroupData = groupData[groupId || '1'] || groupData['1'];
+        const isPrivateGroup = clubData.visibility === 'PRIVATE';
 
-  const group = {
-    id: groupId,
-    name: currentGroupData.name,
-    image: currentGroupData.image + '&auto=format&fit=crop&q=60',
-    description: currentGroupData.description + ' 산을 좋아하는 분들과 함께 건강하고 즐거운 주말을 보내요.',
-    tags: currentGroupData.tags,
-    memberCount: 15,
-    maxMembers: 50,
-    type: 'club',
-    location: '서울',
-    createdAt: '2024.01.15',
-    leader: {
-      name: '홍길동',
-      avatar: '',
-    },
-    recentMembers: [
-      { id: '1', name: '김철수', avatar: '' },
-      { id: '2', name: '이영희', avatar: '' },
-      { id: '3', name: '박민수', avatar: '' },
-    ],
-    upcomingEvents: [
-      { id: '1', title: '4월 정기 모임', date: '4월 12일 (토) 10:00', location: '강남역' },
-      { id: '2', title: '5월 특별 모임', date: '5월 10일 (토) 09:00', location: '홍대입구역' },
-    ],
-    // 공개 설정 - 비공개 모임인 경우 게시글 비공개
-    privacySettings: {
-      showPostsToNonMembers: !isPrivateGroup, // 비공개 모임이면 false
-      showMembersToNonMembers: !isPrivateGroup,
-    },
-    // 공개된 게시글 (showPostsToNonMembers가 true일 때만 표시)
-    publicPosts: [
-      {
-        id: '1',
-        title: '4월 정기 산행 후기',
-        content: '날씨가 너무 좋았던 하루! 다음에도 참여하세요~',
-        image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=300&fit=crop',
-        author: '홍길동',
-        date: '2024.04.12',
-        likes: 12,
-        comments: 5,
-      },
-      {
-        id: '2',
-        title: '3월 신입 환영회',
-        content: '새로운 멤버분들 환영합니다!',
-        image: 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=400&h=300&fit=crop',
-        author: '김철수',
-        date: '2024.03.20',
-        likes: 8,
-        comments: 3,
-      },
-    ],
-    gallery: [
-      'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=300&h=300&fit=crop',
-      'https://images.unsplash.com/photo-1483728642387-6c3bdd6c93e5?w=300&h=300&fit=crop',
-      'https://images.unsplash.com/photo-1502224562085-639556652f33?w=300&h=300&fit=crop',
-    ],
-  };
+        setGroup({
+          id: groupId,
+          name: clubData.clubName,
+          image: '',
+          description: '', // 백엔드에 description 필드가 없음
+          tags: [], // 백엔드에 tags 필드가 없음
+          memberCount: clubData.currentMembers || 0,
+          maxMembers: clubData.maxMembers || 100,
+          type: clubData.type === 'OPERATION_FEE' ? 'meetup' : clubData.type === 'FAIR_SETTLEMENT' ? 'club' : 'study',
+          location: '', // 백엔드에 location 필드가 없음
+          createdAt: clubData.createdAt ? new Date(clubData.createdAt).toLocaleDateString('ko-KR') : '',
+          leader: {
+            name: '', // 백엔드에 ownerName이 없을 수 있음
+            avatar: '',
+          },
+          recentMembers: [], // 백엔드에 멤버 목록 API가 필요
+          upcomingEvents: [], // 백엔드에 일정 목록 API가 필요
+          privacySettings: {
+            showPostsToNonMembers: !isPrivateGroup,
+            showMembersToNonMembers: !isPrivateGroup,
+          },
+          publicPosts,
+          gallery: [], // 백엔드에 갤러리 API가 필요
+        });
+      } catch (error) {
+        console.error('모임 정보 불러오기 실패:', error);
+        toast.error('모임 정보를 불러오는데 실패했습니다.');
+        navigate('/explore');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchGroup();
+  }, [groupId, navigate]);
+
+  if (loading || !group) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="text-stone-500">로딩 중...</div>
+      </div>
+    );
+  }
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -454,7 +477,9 @@ export function GroupPreviewView() {
         open={showReportDialog}
         onOpenChange={setShowReportDialog}
         type="group"
+        targetId={group.ownerId || parseInt(group.id)}
         targetName={group.name}
+        clubId={parseInt(group.id)}
       />
     </div>
   );

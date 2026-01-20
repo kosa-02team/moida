@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Post/Story API
  */
 
@@ -21,22 +21,25 @@ export interface PostCardResponse {
 }
 
 export interface PostDetailResponse {
+  // 백엔드 DTO 필수 필드
   postId: number;
   clubId: number;
   writerId: number;
-  writerName: string;
-  writerProfileImageUrl: string | null;
   category: string;
   title: string;
   content: string;
-  imagesUrl: string[];
   scheduleId: number | null;
   place: string | null;
-  postLikes: number;
-  isLiked?: boolean;
-  isMyPost?: boolean;
   createdAt: string;
   updatedAt: string;
+  imagesUrl: string[]; // 백엔드에서 이제 포함됨
+  // 아래 필드들은 백엔드 DTO에 없으므로 optional로 처리 (별도 조회 필요)
+  writerName?: string;
+  writerProfileImageUrl?: string | null;
+  postLikes?: number;
+  isLiked?: boolean;
+  isMyPost?: boolean;
+  taggedMemberIds?: number[];
 }
 
 export interface StoryCreateRequest {

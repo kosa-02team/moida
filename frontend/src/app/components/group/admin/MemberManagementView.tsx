@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Search, MoreVertical, UserCheck, UserX, Crown, Shield, Flag, Wallet, Ban, PauseCircle, PlayCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -36,6 +36,7 @@ import {
 } from '../../ui/dialog';
 import { ReportDialog } from '../../report/ReportDialog';
 import { useUserPermissions } from '../../../data/userRoles';
+import { getMembers, MemberListResponse, updateMemberRole, approveMember, rejectMember, kickMember } from '@/api/member';
 
 type SuspendDuration = '1day' | '3days' | '7days' | '30days' | 'permanent';
 
@@ -45,18 +46,48 @@ interface Member {
   avatar?: string;
   role: 'owner' | 'treasurer' | 'manager' | 'member' | 'pending';
   joinedDate: string;
-  duesStatus: 'paid' | 'unpaid' | 'overdue';
-  contribution?: number;
-  share?: number;
-  // 제재 상태
   status: 'active' | 'suspended' | 'banned';
   suspendedUntil?: string;
   suspendReason?: string;
 }
 
+// API 응답을 UI Member 형식으로 변환
+function mapApiToMember(apiMember: MemberListResponse): Member {
+  // roles 배열에서 가장 높은 권한 찾기
+  const roleMap: Record<string, 'owner' | 'treasurer' | 'manager' | 'member'> = {
+    'OWNER': 'owner',
+    'ACCOUNTANT': 'treasurer',
+    'STAFF': 'manager',
+    'MEMBER': 'member',
+  };
+  
+  let role: Member['role'] = 'member';
+  if (apiMember.status === 'PENDING') {
+    role = 'pending';
+  } else if (apiMember.roles.includes('OWNER')) {
+    role = 'owner';
+  } else if (apiMember.roles.includes('ACCOUNTANT')) {
+    role = 'treasurer';
+  } else if (apiMember.roles.includes('STAFF')) {
+    role = 'manager';
+  }
+
+  return {
+    id: apiMember.memberId.toString(),
+    name: apiMember.realName || apiMember.clubNickname || '회원',
+    role,
+    joinedDate: new Date(apiMember.joinedAt).toLocaleDateString('ko-KR'),
+    status: apiMember.status === 'ACTIVE' ? 'active' : 
+            apiMember.status === 'SUSPENDED' ? 'suspended' : 
+            apiMember.status === 'BANNED' ? 'banned' : 'active',
+    userId: apiMember.userId, // 신고를 위한 사용자 ID
+  };
+}
+
 export function MemberManagementView() {
   const navigate = useNavigate();
   const { groupId } = useParams();
+  const clubId = groupId ? parseInt(groupId) : 0;
   const permissions = useUserPermissions(groupId || '1');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
@@ -67,17 +98,44 @@ export function MemberManagementView() {
   const [newRole, setNewRole] = useState<'treasurer' | 'manager' | 'member'>('member');
   const [suspendDuration, setSuspendDuration] = useState<SuspendDuration>('7days');
   const [suspendReason, setSuspendReason] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [members, setMembers] = useState<Member[]>([]);
 
-  // Mock data
-  const [members, setMembers] = useState<Member[]>([
-    { id: '1', name: '홍길동', role: 'owner', joinedDate: '2024.01.15', duesStatus: 'paid', contribution: 150000, share: 83333, status: 'active' },
-    { id: '2', name: '김철수', role: 'treasurer', joinedDate: '2024.02.10', duesStatus: 'paid', contribution: 100000, share: 83333, status: 'active' },
-    { id: '3', name: '이영희', role: 'manager', joinedDate: '2024.03.05', duesStatus: 'unpaid', contribution: 80000, share: 83333, status: 'active' },
-    { id: '4', name: '박민수', role: 'member', joinedDate: '2024.03.20', duesStatus: 'overdue', contribution: 50000, share: 83333, status: 'suspended', suspendedUntil: '2024-04-25', suspendReason: '회비 연체' },
-    { id: '5', name: '정수진', role: 'pending', joinedDate: '2024.04.01', duesStatus: 'unpaid', status: 'active' },
-    { id: '6', name: '최영진', role: 'member', joinedDate: '2024.04.05', duesStatus: 'paid', contribution: 100000, share: 83333, status: 'active' },
-    { id: '7', name: '악성유저', role: 'member', joinedDate: '2024.04.08', duesStatus: 'unpaid', status: 'banned', suspendReason: '지속적인 규칙 위반' },
-  ]);
+  // API로 멤버 목록 불러오기
+  const fetchMembers = async () => {
+    if (!clubId) return;
+    
+    try {
+      setLoading(true);
+      // 활성 멤버와 대기 멤버 모두 조회
+      const [activeMembers, pendingMembers] = await Promise.all([
+        getMembers(clubId, 'ACTIVE').catch((err) => {
+          console.error('활성 멤버 조회 실패:', err);
+          return [] as MemberListResponse[];
+        }),
+        getMembers(clubId, 'PENDING').catch((err) => {
+          console.error('대기 멤버 조회 실패:', err);
+          return [] as MemberListResponse[];
+        })
+      ]);
+      
+      const allMembers = [...activeMembers, ...pendingMembers].map(mapApiToMember);
+      setMembers(allMembers);
+    } catch (error) {
+      // 예상치 못한 에러만 표시
+      console.error('멤버 목록 조회 실패:', error);
+      // 실제 네트워크 에러나 서버 에러인 경우에만 토스트 표시
+      if (error instanceof Error && !error.message.includes('404')) {
+        toast.error('멤버 목록을 불러오는데 실패했습니다.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMembers();
+  }, [clubId]);
 
   const filteredMembers = members.filter(member =>
     member.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -91,38 +149,64 @@ export function MemberManagementView() {
     'permanent': '영구',
   };
 
-  const handleApprove = (memberId: string) => {
+  const handleApprove = async (memberId: string) => {
     const member = members.find(m => m.id === memberId);
-    setMembers(members.map(m => 
-      m.id === memberId ? { ...m, role: 'member' as const } : m
-    ));
-    toast.success(`${member?.name}님의 가입을 승인했습니다`);
-  };
-
-  const handleReject = (memberId: string) => {
-    const member = members.find(m => m.id === memberId);
-    setMembers(members.filter(m => m.id !== memberId));
-    toast.info(`${member?.name}님의 가입을 거절했습니다`);
-  };
-
-  const handleKickMember = () => {
-    if (selectedMember) {
-      setMembers(members.filter(m => m.id !== selectedMember.id));
-      toast.success(`${selectedMember.name}님을 추방했습니다`);
-      setShowKickDialog(false);
-      setSelectedMember(null);
+    try {
+      await approveMember(clubId, parseInt(memberId));
+      toast.success(`${member?.name}님의 가입을 승인했습니다`);
+      fetchMembers(); // 목록 새로고침
+    } catch (error) {
+      console.error('가입 승인 실패:', error);
+      toast.error('가입 승인에 실패했습니다.');
     }
   };
 
-  const handleChangeRole = () => {
+  const handleReject = async (memberId: string) => {
+    const member = members.find(m => m.id === memberId);
+    try {
+      await rejectMember(clubId, parseInt(memberId));
+      toast.info(`${member?.name}님의 가입을 거절했습니다`);
+      fetchMembers(); // 목록 새로고침
+    } catch (error) {
+      console.error('가입 거절 실패:', error);
+      toast.error('가입 거절에 실패했습니다.');
+    }
+  };
+
+  const handleKickMember = async () => {
     if (selectedMember) {
-      setMembers(members.map(m => 
-        m.id === selectedMember.id ? { ...m, role: newRole } : m
-      ));
-      const roleLabels = { treasurer: '총무', manager: '운영진', member: '일반 회원' };
-      toast.success(`${selectedMember.name}님의 권한이 ${roleLabels[newRole]}로 변경되었습니다`);
-      setShowRoleDialog(false);
-      setSelectedMember(null);
+      try {
+        await kickMember(clubId, parseInt(selectedMember.id));
+        toast.success(`${selectedMember.name}님을 추방했습니다`);
+        setShowKickDialog(false);
+        setSelectedMember(null);
+        fetchMembers(); // 목록 새로고침
+      } catch (error) {
+        console.error('멤버 추방 실패:', error);
+        toast.error('멤버 추방에 실패했습니다.');
+      }
+    }
+  };
+
+  const handleChangeRole = async () => {
+    if (selectedMember) {
+      const roleMap: Record<string, string> = {
+        treasurer: 'ACCOUNTANT',
+        manager: 'STAFF',
+        member: 'MEMBER',
+      };
+      
+      try {
+        await updateMemberRole(clubId, parseInt(selectedMember.id), roleMap[newRole]);
+        const roleLabels = { treasurer: '총무', manager: '운영진', member: '일반 회원' };
+        toast.success(`${selectedMember.name}님의 권한이 ${roleLabels[newRole]}로 변경되었습니다`);
+        setShowRoleDialog(false);
+        setSelectedMember(null);
+        fetchMembers(); // 목록 새로고침
+      } catch (error) {
+        console.error('권한 변경 실패:', error);
+        toast.error('권한 변경에 실패했습니다.');
+      }
     }
   };
 
@@ -132,17 +216,8 @@ export function MemberManagementView() {
       return;
     }
 
-    const newStatus = suspendDuration === 'permanent' ? 'banned' : 'suspended';
-    const suspendedUntil = suspendDuration === 'permanent' ? undefined : calculateSuspendDate(suspendDuration);
-
-    setMembers(members.map(m => 
-      m.id === selectedMember.id 
-        ? { ...m, status: newStatus, suspendedUntil, suspendReason } 
-        : m
-    ));
-
-    const action = suspendDuration === 'permanent' ? '영구차단' : `${durationLabels[suspendDuration]} 정지`;
-    toast.success(`${selectedMember.name}님이 ${action} 처리되었습니다`);
+    // TODO: 백엔드에 정지 API가 없어서 구현 필요
+    toast.info('정지 기능은 준비 중입니다.');
     setShowSuspendDialog(false);
     setSelectedMember(null);
     setSuspendReason('');
@@ -150,12 +225,8 @@ export function MemberManagementView() {
   };
 
   const handleActivateMember = (member: Member) => {
-    setMembers(members.map(m => 
-      m.id === member.id 
-        ? { ...m, status: 'active', suspendedUntil: undefined, suspendReason: undefined } 
-        : m
-    ));
-    toast.success(`${member.name}님의 정지가 해제되었습니다`);
+    // TODO: 백엔드에 정지 해제 API가 없어서 구현 필요
+    toast.info('정지 해제 기능은 준비 중입니다.');
   };
 
   const calculateSuspendDate = (duration: SuspendDuration): string => {
@@ -201,16 +272,6 @@ export function MemberManagementView() {
     }
   };
 
-  const getDuesBadge = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return <Badge className="bg-green-100 text-green-700">납부완료</Badge>;
-      case 'overdue':
-        return <Badge className="bg-red-100 text-red-700">연체</Badge>;
-      default:
-        return <Badge variant="secondary" className="bg-stone-100 text-stone-600">미납</Badge>;
-    }
-  };
 
   const pendingMembers = filteredMembers.filter(m => m.role === 'pending');
   const activeMembers = filteredMembers.filter(m => m.role !== 'pending' && m.status === 'active');
@@ -222,8 +283,16 @@ export function MemberManagementView() {
     return (order[a.role] || 4) - (order[b.role] || 4);
   });
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="text-stone-500">로딩 중...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-stone-50 pb-20">
+    <div className="min-h-screen bg-stone-50 pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-stone-100 backdrop-blur-sm bg-white/95">
         <div className="flex items-center justify-between px-4 py-3">
@@ -275,8 +344,8 @@ export function MemberManagementView() {
               {pendingMembers.map((member) => (
                 <div key={member.id} className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Avatar className="w-12 h-12">
-                      <AvatarImage src={member.avatar} />
+                    <Avatar className="w-12 h-12" draggable={false}>
+                      <AvatarImage src={member.avatar} draggable={false} />
                       <AvatarFallback>{member.name[0]}</AvatarFallback>
                     </Avatar>
                     <div>
@@ -373,15 +442,7 @@ export function MemberManagementView() {
                       <p className="font-medium text-stone-900">{member.name}</p>
                       {getRoleBadge(member.role)}
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-xs text-stone-500">가입일: {member.joinedDate}</p>
-                      {getDuesBadge(member.duesStatus)}
-                    </div>
-                    {permissions.canManageShares && member.share !== undefined && (
-                      <p className="text-xs text-green-600 mt-1">
-                        지분: {member.share.toLocaleString()}원
-                      </p>
-                    )}
+                    <p className="text-xs text-stone-500">가입일: {member.joinedDate}</p>
                   </div>
                 </div>
                 <DropdownMenu>
@@ -623,6 +684,7 @@ export function MemberManagementView() {
         open={showReportDialog}
         onOpenChange={setShowReportDialog}
         type="user"
+        targetId={selectedMember?.userId || (selectedMember ? parseInt(selectedMember.id) : 0)}
         targetName={selectedMember?.name}
       />
     </div>

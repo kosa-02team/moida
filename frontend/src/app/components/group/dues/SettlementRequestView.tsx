@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Receipt, Trash2, Upload, Calculator, Users, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
@@ -17,6 +17,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../ui/dialog';
+import { getMembers, type MemberListResponse } from '../../../../api/member';
+import { createPaymentRequests, type PaymentRequestCreateRequest, type PaymentRequestItem } from '../../../../api/payment-request';
+import { useUserPermissions } from '../../../data/userRoles';
 
 interface ExpenseItem {
   id: string;
@@ -27,6 +30,7 @@ interface ExpenseItem {
 
 interface Member {
   id: string;
+  memberId: number;
   name: string;
   avatar?: string;
   selected: boolean;
@@ -34,6 +38,8 @@ interface Member {
 
 export function SettlementRequestView() {
   const navigate = useNavigate();
+  const { groupId } = useParams();
+  const permissions = useUserPermissions(groupId || '1');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [items, setItems] = useState<ExpenseItem[]>([
@@ -42,16 +48,31 @@ export function SettlementRequestView() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showMemberSelector, setShowMemberSelector] = useState(false);
   const [splitMethod, setSplitMethod] = useState<'equal' | 'custom'>('equal');
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
 
-  // 멤버 목록 (실제로는 API에서)
-  const [members, setMembers] = useState<Member[]>([
-    { id: '1', name: '홍길동', avatar: '', selected: true },
-    { id: '2', name: '김철수', avatar: '', selected: true },
-    { id: '3', name: '이영희', avatar: '', selected: true },
-    { id: '4', name: '박민수', avatar: '', selected: false },
-    { id: '5', name: '정지훈', avatar: '', selected: false },
-    { id: '6', name: '최유진', avatar: '', selected: true },
-  ]);
+  // 멤버 목록 조회
+  useEffect(() => {
+    async function fetchMembers() {
+      if (!groupId) return;
+      try {
+        setLoadingMembers(true);
+        const activeMembers = await getMembers(Number(groupId), 'ACTIVE');
+        setMembers(activeMembers.map(m => ({
+          id: m.memberId.toString(),
+          memberId: m.memberId,
+          name: m.clubNickname || m.realName,
+          selected: false,
+        })));
+      } catch (error) {
+        console.error('멤버 목록 조회 실패:', error);
+        toast.error('멤버 목록을 불러오는데 실패했습니다.');
+      } finally {
+        setLoadingMembers(false);
+      }
+    }
+    fetchMembers();
+  }, [groupId]);
 
   const totalAmount = items.reduce((sum, item) => sum + (item.amount || 0), 0);
   const selectedMembers = members.filter(m => m.selected);
@@ -91,7 +112,7 @@ export function SettlementRequestView() {
     setMembers(members.map(m => ({ ...m, selected: false })));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!title.trim()) {
       toast.error('정산 제목을 입력해주세요');
       return;
@@ -104,17 +125,58 @@ export function SettlementRequestView() {
       toast.error('정산 대상자를 선택해주세요');
       return;
     }
+    if (!groupId) {
+      toast.error('모임 ID가 없습니다');
+      return;
+    }
 
-    setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      setIsSubmitting(true);
+      
+      // 입금 요청 생성
+      const requestItems: PaymentRequestItem[] = selectedMembers.map(member => ({
+        memberId: member.memberId,
+        memberName: member.name,
+        requestType: 'SETTLEMENT',
+        expectedAmount: perPersonAmount,
+        expectedDate: new Date().toISOString().split('T')[0],
+        matchDaysRange: 10,
+        expiresInDays: 30,
+        scheduleId: null,
+        billingPeriod: null,
+      }));
+
+      const request: PaymentRequestCreateRequest = {
+        requests: requestItems,
+      };
+
+      await createPaymentRequests(Number(groupId), request);
       toast.success('정산 요청이 등록되었습니다');
       navigate(-1);
-    }, 1000);
+    } catch (error) {
+      console.error('정산 요청 실패:', error);
+      toast.error('정산 요청에 실패했습니다.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
+  // 권한 체크
+  if (!permissions.canWithdraw) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-stone-500">정산 요청은 총무 이상만 가능합니다.</p>
+          <Button onClick={() => navigate(-1)} className="mt-4">
+            돌아가기
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-stone-50 pb-32">
+    <div className="min-h-screen bg-stone-50 pb-32" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-stone-100">
         <div className="flex items-center px-4 py-3">
@@ -310,28 +372,33 @@ export function SettlementRequestView() {
           </div>
 
           <div className="flex-1 overflow-y-auto py-2 space-y-1">
-            {members.map(member => (
-              <label
-                key={member.id}
-                className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${
-                  member.selected ? 'bg-orange-50' : 'hover:bg-stone-50'
-                }`}
-              >
-                <Checkbox
-                  checked={member.selected}
-                  onCheckedChange={() => toggleMember(member.id)}
-                  className="data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
-                />
-                <Avatar className="w-10 h-10">
-                  <AvatarImage src={member.avatar} />
-                  <AvatarFallback>{member.name[0]}</AvatarFallback>
-                </Avatar>
-                <span className="flex-1 font-medium text-stone-900">{member.name}</span>
-                {member.selected && (
-                  <Check className="w-5 h-5 text-orange-500" />
-                )}
-              </label>
-            ))}
+            {loadingMembers ? (
+              <div className="text-center py-8 text-stone-500">멤버 목록을 불러오는 중...</div>
+            ) : members.length === 0 ? (
+              <div className="text-center py-8 text-stone-500">멤버가 없습니다</div>
+            ) : (
+              members.map(member => (
+                <label
+                  key={member.id}
+                  className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${
+                    member.selected ? 'bg-orange-50' : 'hover:bg-stone-50'
+                  }`}
+                >
+                  <Checkbox
+                    checked={member.selected}
+                    onCheckedChange={() => toggleMember(member.id)}
+                    className="data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
+                  />
+                  <Avatar className="w-10 h-10">
+                    <AvatarFallback>{member.name[0]}</AvatarFallback>
+                  </Avatar>
+                  <span className="flex-1 font-medium text-stone-900">{member.name}</span>
+                  {member.selected && (
+                    <Check className="w-5 h-5 text-orange-500" />
+                  )}
+                </label>
+              ))
+            )}
           </div>
 
           <div className="pt-4 border-t border-stone-100">

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Camera, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
@@ -7,16 +7,39 @@ import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { Textarea } from '../../ui/textarea';
 import { Badge } from '../../ui/badge';
+import { getClub, updateClub, type ClubDetailResponse, type ClubUpdateRequest } from '../../../../api/club-full';
 
 export function EditGroupView() {
   const navigate = useNavigate();
+  const { groupId } = useParams();
+  const [loading, setLoading] = useState(true);
   
-  // Mock data - 실제로는 API에서 가져와야 함
-  const [name, setName] = useState('주말 등산 클럽');
-  const [description, setDescription] = useState('매주 토요일 서울 근교 산행합니다. 초보자 환영!');
-  const [tags, setTags] = useState<string[]>(['등산', '운동', '친목']);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
-  const [image, setImage] = useState('https://images.unsplash.com/photo-1551632811-561732d1e306?w=800&auto=format&fit=crop&q=60');
+  const [image, setImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchClubData() {
+      if (!groupId) return;
+      try {
+        setLoading(true);
+        const club = await getClub(Number(groupId));
+        setName(club.clubName || '');
+        setDescription(''); // TODO: 백엔드에 description 필드 추가 필요
+        setTags([]); // TODO: 백엔드에 tags 필드 추가 필요
+        setImage(null); // TODO: 백엔드에 image 필드 추가 필요
+      } catch (error) {
+        console.error('모임 정보 조회 실패:', error);
+        toast.error('모임 정보를 불러오는데 실패했습니다.');
+        navigate(-1);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchClubData();
+  }, [groupId, navigate]);
 
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
@@ -29,19 +52,40 @@ export function EditGroupView() {
     setTags(tags.filter(tag => tag !== tagToRemove));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!name.trim()) {
       toast.error('모임 이름을 입력해주세요');
       return;
     }
-    // 실제로는 API 호출
-    console.log({ name, description, tags, image });
-    toast.success('모임 정보가 저장되었습니다');
-    setTimeout(() => navigate(-1), 500);
+    if (!groupId) {
+      toast.error('모임 ID가 없습니다');
+      return;
+    }
+
+    try {
+      const request: ClubUpdateRequest = {
+        clubName: name.trim(),
+        // TODO: description, tags, image 필드 추가 (백엔드 API 확장 필요)
+      };
+      await updateClub(Number(groupId), request);
+      toast.success('모임 정보가 저장되었습니다');
+      setTimeout(() => navigate(-1), 500);
+    } catch (error) {
+      console.error('모임 정보 수정 실패:', error);
+      toast.error('모임 정보 수정에 실패했습니다.');
+    }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-stone-50 pb-20 flex items-center justify-center">
+        <div className="text-stone-500">로딩 중...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-stone-50 pb-20">
+    <div className="min-h-screen bg-stone-50 pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-stone-100 backdrop-blur-sm bg-white/95">
         <div className="flex items-center justify-between px-4 py-3">
@@ -57,10 +101,17 @@ export function EditGroupView() {
         {/* Image Upload */}
         <div className="flex justify-center py-4">
           <div className="relative">
-            <div className="w-32 h-32 bg-stone-100 rounded-2xl overflow-hidden border-2 border-stone-200">
-              <img src={image} alt="Group cover" className="w-full h-full object-cover" />
+            <div className="w-32 h-32 bg-stone-100 rounded-2xl overflow-hidden border-2 border-stone-200 flex items-center justify-center">
+              {image ? (
+                <img src={image} alt="Group cover" className="w-full h-full object-cover" draggable={false} onDragStart={(e) => e.preventDefault()} />
+              ) : (
+                <Camera className="w-8 h-8 text-stone-400" />
+              )}
             </div>
-            <button className="absolute bottom-0 right-0 p-2 bg-orange-500 text-white rounded-full shadow-lg hover:bg-orange-600 transition-colors">
+            <button 
+              className="absolute bottom-0 right-0 p-2 bg-orange-500 text-white rounded-full shadow-lg hover:bg-orange-600 transition-colors"
+              onClick={() => toast.info('이미지 업로드 기능은 준비 중입니다')}
+            >
               <Camera className="w-4 h-4" />
             </button>
           </div>

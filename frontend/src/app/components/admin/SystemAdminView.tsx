@@ -63,125 +63,94 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
-
-interface Report {
-  id: string;
-  type: 'user' | 'group' | 'post';
-  targetId: string;
-  targetName: string;
-  reporterName: string;
-  reason: string;
-  details?: string;
-  status: 'pending' | 'reviewing' | 'resolved' | 'dismissed';
-  createdAt: string;
-}
-
-interface ManagedUser {
-  id: string;
-  name: string;
-  email: string;
-  avatar?: string;
-  status: 'active' | 'suspended' | 'banned';
-  suspendedUntil?: string;
-  joinedAt: string;
-  groupCount: number;
-  reportCount: number;
-}
-
-interface ManagedGroup {
-  id: string;
-  name: string;
-  image: string;
-  status: 'active' | 'suspended' | 'banned';
-  suspendedUntil?: string;
-  memberCount: number;
-  ownerName: string;
-  createdAt: string;
-  reportCount: number;
-}
+import {
+  getDashboard,
+  getReports,
+  getReportDetail,
+  processReport,
+  getUsers,
+  manageUser,
+  getClubs,
+  manageClub,
+  AdminDashboardResponse,
+  AdminReportResponse,
+  AdminUserResponse,
+  AdminClubResponse,
+} from '@/api/admin';
 
 type SuspendDuration = '1day' | '3days' | '7days' | '30days' | 'permanent';
 
 export function SystemAdminView() {
   const navigate = useNavigate();
   
-  // 모든 상태를 조건부 return 전에 선언 (React 훅 규칙)
+  // 상태
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<AdminReportResponse | null>(null);
+  const [selectedReportDetail, setSelectedReportDetail] = useState<AdminReportResponse | null>(null);
+  const [isLoadingReportDetail, setIsLoadingReportDetail] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showSuspendDialog, setShowSuspendDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [suspendTarget, setSuspendTarget] = useState<{ type: 'user' | 'group'; id: string; name: string } | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<{ type: 'user' | 'group'; id: string; name: string } | null>(null);
+  const [suspendTarget, setSuspendTarget] = useState<{ type: 'user' | 'group'; id: number; name: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'user' | 'group'; id: number; name: string } | null>(null);
   const [suspendDuration, setSuspendDuration] = useState<SuspendDuration>('7days');
   const [suspendReason, setSuspendReason] = useState('');
 
-  // Mock 신고 데이터
-  const [reports, setReports] = useState<Report[]>([
-    {
-      id: '1',
-      type: 'user',
-      targetId: 'user1',
-      targetName: '악성유저123',
-      reporterName: '홍길동',
-      reason: '욕설/비방',
-      details: '댓글에서 지속적으로 욕설을 사용합니다.',
-      status: 'pending',
-      createdAt: '2024-04-12 14:30',
-    },
-    {
-      id: '2',
-      type: 'group',
-      targetId: 'group1',
-      targetName: '수상한 투자 모임',
-      reporterName: '김철수',
-      reason: '사기/허위 정보',
-      details: '가상화폐 투자 사기로 의심됩니다.',
-      status: 'reviewing',
-      createdAt: '2024-04-11 10:15',
-    },
-    {
-      id: '3',
-      type: 'post',
-      targetId: 'post1',
-      targetName: '광고 게시글',
-      reporterName: '이영희',
-      reason: '스팸/광고',
-      status: 'resolved',
-      createdAt: '2024-04-10 09:00',
-    },
-  ]);
+  // API 데이터
+  const [dashboard, setDashboard] = useState<AdminDashboardResponse | null>(null);
+  const [reports, setReports] = useState<AdminReportResponse[]>([]);
+  const [users, setUsers] = useState<AdminUserResponse[]>([]);
+  const [clubs, setClubs] = useState<AdminClubResponse[]>([]);
 
-  // Mock 사용자 목록
-  const [users, setUsers] = useState<ManagedUser[]>([
-    { id: '1', name: '홍길동', email: 'hong@test.com', status: 'active', joinedAt: '2024-01-15', groupCount: 3, reportCount: 0 },
-    { id: '2', name: '김철수', email: 'kim@test.com', status: 'active', joinedAt: '2024-02-10', groupCount: 2, reportCount: 1 },
-    { id: '3', name: '악성유저123', email: 'bad@test.com', status: 'suspended', suspendedUntil: '2024-04-20', joinedAt: '2024-03-01', groupCount: 1, reportCount: 5 },
-    { id: '4', name: '스패머99', email: 'spam@test.com', status: 'banned', joinedAt: '2024-03-15', groupCount: 0, reportCount: 10 },
-    { id: '5', name: '이영희', email: 'lee@test.com', status: 'active', joinedAt: '2024-03-20', groupCount: 4, reportCount: 0 },
-  ]);
-
-  // Mock 모임 목록
-  const [groups, setGroups] = useState<ManagedGroup[]>([
-    { id: '1', name: '주말 등산 클럽', image: 'https://images.unsplash.com/photo-1551632811-561732d1e306?w=200', status: 'active', memberCount: 15, ownerName: '홍길동', createdAt: '2024-01-15', reportCount: 0 },
-    { id: '2', name: '강남 독서 모임', image: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?w=200', status: 'active', memberCount: 8, ownerName: '김철수', createdAt: '2024-02-10', reportCount: 0 },
-    { id: '3', name: '수상한 투자 모임', image: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=200', status: 'suspended', suspendedUntil: '2024-04-25', memberCount: 20, ownerName: '악성유저123', createdAt: '2024-03-01', reportCount: 8 },
-    { id: '4', name: '불법 도박 모임', image: 'https://images.unsplash.com/photo-1596838132731-3c2b5f1c5b92?w=200', status: 'banned', memberCount: 50, ownerName: '스패머99', createdAt: '2024-03-10', reportCount: 15 },
-  ]);
-
-  // 시스템 관리자 권한 체크 (모든 useState 다음에 useEffect)
-  useEffect(() => {
-    const adminStatus = localStorage.getItem('isSystemAdmin');
-    if (adminStatus !== 'true') {
-      toast.error('시스템 관리자 권한이 필요합니다');
-      navigate('/login');
-      return;
+  // API 데이터 불러오기
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      const [dashboardData, reportsData, usersData, clubsData] = await Promise.all([
+        getDashboard(),
+        getReports(0, 100),
+        getUsers(0, 100),
+        getClubs(0, 100),
+      ]);
+      setDashboard(dashboardData);
+      setReports(reportsData.content);
+      setUsers(usersData.content);
+      setClubs(clubsData.content);
+    } catch (error) {
+      console.error('데이터 로드 실패:', error);
+      toast.error('데이터를 불러오는데 실패했습니다.');
+    } finally {
+      setIsLoading(false);
     }
-    setIsAdmin(true);
-    setIsLoading(false);
-  }, [navigate]);
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // 신고 상세 조회
+  useEffect(() => {
+    if (selectedReport) {
+      const fetchReportDetail = async () => {
+        try {
+          setIsLoadingReportDetail(true);
+          const detail = await getReportDetail(selectedReport.reportId);
+          setSelectedReportDetail(detail);
+        } catch (error) {
+          console.error('신고 상세 조회 실패:', error);
+          toast.error('신고 상세 정보를 불러오는데 실패했습니다.');
+          // 실패 시 목록에서 가져온 데이터 사용
+          setSelectedReportDetail(selectedReport);
+        } finally {
+          setIsLoadingReportDetail(false);
+        }
+      };
+      fetchReportDetail();
+    } else {
+      setSelectedReportDetail(null);
+    }
+  }, [selectedReport]);
 
   // 로딩 중이거나 권한이 없으면 조기 반환
   if (isLoading) {
@@ -250,12 +219,19 @@ export function SystemAdminView() {
     g.ownerName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleUpdateStatus = (reportId: string, newStatus: Report['status']) => {
-    setReports(prev => prev.map(r => 
-      r.id === reportId ? { ...r, status: newStatus } : r
-    ));
-    toast.success('상태가 업데이트되었습니다');
-    setSelectedReport(null);
+  const handleUpdateStatus = async (reportId: number, action: string) => {
+    try {
+      await processReport(reportId, action);
+      // 신고 목록 새로고침
+      const reportsData = await getReports(0, 100);
+      setReports(reportsData.content);
+      toast.success('신고가 처리되었습니다');
+      setSelectedReport(null);
+      setSelectedReportDetail(null);
+    } catch (error) {
+      console.error('신고 처리 실패:', error);
+      toast.error('신고 처리에 실패했습니다');
+    }
   };
 
   const handleSuspend = () => {
@@ -443,32 +419,24 @@ export function SystemAdminView() {
                 <div className="divide-y divide-stone-100">
                   {filteredReports.map(report => (
                     <div 
-                      key={report.id} 
+                      key={report.reportId} 
                       className="p-4 hover:bg-stone-50 cursor-pointer"
                       onClick={() => setSelectedReport(report)}
                     >
                       <div className="flex items-start gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          report.type === 'user' ? 'bg-purple-100' : 
-                          report.type === 'group' ? 'bg-blue-100' : 'bg-orange-100'
-                        }`}>
-                          {report.type === 'user' ? <User className="w-5 h-5 text-purple-600" /> :
-                           report.type === 'group' ? <Users className="w-5 h-5 text-blue-600" /> :
-                           <Flag className="w-5 h-5 text-orange-600" />}
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-orange-100">
+                          <Flag className="w-5 h-5 text-orange-600" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <Badge variant="secondary" className="text-xs">
-                              {typeLabels[report.type]}
-                            </Badge>
-                            <Badge className={`text-xs ${statusColors[report.status]}`}>
-                              {statusLabels[report.status]}
+                            <Badge className={`text-xs ${statusColors[report.status] || 'bg-stone-100 text-stone-600'}`}>
+                              {statusLabels[report.status] || report.status}
                             </Badge>
                           </div>
                           <p className="font-medium text-stone-900 truncate">{report.targetName}</p>
                           <p className="text-sm text-stone-500">{report.reason}</p>
                           <p className="text-xs text-stone-400 mt-1">
-                            신고자: {report.reporterName} · {report.createdAt}
+                            신고자: {report.reporterName} · {new Date(report.createdAt).toLocaleDateString('ko-KR')}
                           </p>
                         </div>
                       </div>
@@ -658,37 +626,54 @@ export function SystemAdminView() {
           <AlertDialogHeader>
             <AlertDialogTitle>신고 상세</AlertDialogTitle>
             <AlertDialogDescription asChild>
-              {selectedReport && (
+              {isLoadingReportDetail ? (
+                <div className="p-8 text-center text-stone-500">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
+                  <p className="mt-2">신고 상세 정보를 불러오는 중...</p>
+                </div>
+              ) : selectedReportDetail ? (
                 <div className="space-y-4">
                   <div className="bg-stone-50 rounded-lg p-4 space-y-2">
                     <div className="flex justify-between">
                       <span className="text-stone-500">유형</span>
-                      <span className="font-medium">{typeLabels[selectedReport.type]}</span>
+                      <span className="font-medium">{typeLabels[selectedReportDetail.type] || '게시글'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-stone-500">모임</span>
+                      <span className="font-medium">{selectedReportDetail.clubName}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-stone-500">대상</span>
-                      <span className="font-medium">{selectedReport.targetName}</span>
+                      <span className="font-medium">{selectedReportDetail.targetName}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-stone-500">신고자</span>
-                      <span className="font-medium">{selectedReport.reporterName}</span>
+                      <span className="font-medium">{selectedReportDetail.reporterName}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-stone-500">사유</span>
-                      <span className="font-medium">{selectedReport.reason}</span>
+                      <span className="font-medium">{selectedReportDetail.reason}</span>
                     </div>
-                    {selectedReport.details && (
-                      <div>
-                        <span className="text-stone-500 text-sm">상세 내용</span>
-                        <p className="text-stone-700 mt-1">{selectedReport.details}</p>
+                    {selectedReportDetail.photoUrl && (
+                      <div className="mt-2">
+                        <span className="text-stone-500 text-sm block mb-1">첨부 사진</span>
+                        <img 
+                          src={selectedReportDetail.photoUrl} 
+                          alt="신고 첨부 사진" 
+                          className="max-w-full h-auto rounded-lg border border-stone-200"
+                        />
                       </div>
                     )}
+                    <div className="flex justify-between mt-2 pt-2 border-t border-stone-200">
+                      <span className="text-stone-500">신고 일시</span>
+                      <span className="text-sm text-stone-600">{new Date(selectedReportDetail.createdAt).toLocaleString('ko-KR')}</span>
+                    </div>
                   </div>
 
                   <div className="flex gap-2">
                     <Button 
                       className="flex-1 bg-green-500 hover:bg-green-600"
-                      onClick={() => handleUpdateStatus(selectedReport.id, 'resolved')}
+                      onClick={() => handleUpdateStatus(selectedReportDetail.reportId, 'resolved')}
                     >
                       <CheckCircle className="w-4 h-4 mr-2" />
                       처리 완료
@@ -696,33 +681,14 @@ export function SystemAdminView() {
                     <Button 
                       variant="outline"
                       className="flex-1"
-                      onClick={() => handleUpdateStatus(selectedReport.id, 'dismissed')}
+                      onClick={() => handleUpdateStatus(selectedReportDetail.reportId, 'dismissed')}
                     >
                       <XCircle className="w-4 h-4 mr-2" />
                       기각
                     </Button>
                   </div>
-
-                  {selectedReport.type !== 'post' && (
-                    <Button 
-                      variant="destructive"
-                      className="w-full"
-                      onClick={() => {
-                        setSuspendTarget({
-                          type: selectedReport.type as 'user' | 'group',
-                          id: selectedReport.targetId,
-                          name: selectedReport.targetName,
-                        });
-                        setSelectedReport(null);
-                        setShowSuspendDialog(true);
-                      }}
-                    >
-                      <Ban className="w-4 h-4 mr-2" />
-                      {selectedReport.type === 'user' ? '사용자 제재' : '모임 제재'}
-                    </Button>
-                  )}
                 </div>
-              )}
+              ) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

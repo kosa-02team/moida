@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { ChevronRight, Shield, CreditCard, Users, LogOut, AlertTriangle, Crown, Globe, Lock, PieChart, Scale, Info } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useParams, useOutletContext } from 'react-router-dom';
+import { ChevronRight, Shield, Users, LogOut, AlertTriangle, Crown, Globe, Lock, BookOpen, Info } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Switch } from '../../ui/switch';
@@ -17,16 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../../ui/dialog';
 import { Button } from '../../ui/button';
-import { RadioGroup, RadioGroupItem } from '../../ui/radio-group';
 import { Card, CardContent } from '../../ui/card';
 import {
   useUserRole,
@@ -34,41 +25,90 @@ import {
   getRoleLabel,
   getRoleColor,
 } from '../../../data/userRoles';
-import { getGroupById, MANAGEMENT_TYPE_INFO } from '../../../data/mockData';
+import { ClubDetailResponse, activateClub, closeClub } from '../../../../api/club-full';
+import { getMembers } from '../../../../api/member';
 
-type ManagementType = 'operating' | 'fair';
+interface GroupContextType {
+  club: ClubDetailResponse | null;
+  loading: boolean;
+}
 
 export function AdminView() {
   const navigate = useNavigate();
   const { groupId } = useParams();
-  
-  // 모임 정보 가져오기
-  const group = getGroupById(groupId || '1');
+  const { club, loading: clubLoading } = useOutletContext<GroupContextType>();
   
   // 모임별 역할 가져오기
   const { userRole, allRoles } = useUserRole(groupId || '1');
   const permissions = useUserPermissions(groupId || '1');
   
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showManagementTypeDialog, setShowManagementTypeDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [managementType, setManagementType] = useState<ManagementType>(group?.account?.managementType || 'fair');
-  const groupName = group?.name || '모임';
-  const currentVisibility = group?.isPublic ? 'searchable' : 'private';
+  const [pendingCount, setPendingCount] = useState(0);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
 
-  const handleDeleteGroup = () => {
+  useEffect(() => {
+    async function fetchPendingCount() {
+      if (!groupId) return;
+      try {
+        setLoadingMembers(true);
+        const pendingMembers = await getMembers(Number(groupId), 'PENDING');
+        setPendingCount(pendingMembers.length);
+      } catch (error) {
+        console.error('대기 멤버 수 조회 실패:', error);
+      } finally {
+        setLoadingMembers(false);
+      }
+    }
+    fetchPendingCount();
+  }, [groupId]);
+
+  const groupName = club?.clubName || '모임';
+  const currentVisibility = club?.visibility === 'PUBLIC' ? 'public' : 
+                           club?.visibility === 'PRIVATE' ? 'private' : 'searchable';
+  
+  // 모임이 닫혔는지 확인 (status가 INACTIVE이거나 closedAt이 null이 아닌 경우)
+  const isClosed = club?.status === 'INACTIVE' || club?.closedAt !== null;
+  const isOwner = userRole === 'owner';
+
+  const handleActivateClub = async () => {
+    if (!groupId) {
+      toast.error('모임 ID가 없습니다');
+      return;
+    }
+    try {
+      setIsActivating(true);
+      await activateClub(Number(groupId));
+      toast.success('모임이 활성화되었습니다');
+      // 모임 정보를 다시 불러오기 위해 페이지 새로고침 또는 상태 업데이트
+      window.location.reload();
+    } catch (error) {
+      console.error('모임 활성화 실패:', error);
+      toast.error('모임 활성화에 실패했습니다.');
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
     if (deleteConfirmText !== groupName) {
       toast.error('모임 이름이 일치하지 않습니다');
       return;
     }
-    toast.success('모임이 삭제되었습니다');
-    setShowDeleteDialog(false);
-    setTimeout(() => navigate('/'), 500);
-  };
-
-  const handleSaveManagementType = () => {
-    toast.success('통장 관리 유형이 변경되었습니다');
-    setShowManagementTypeDialog(false);
+    if (!groupId) {
+      toast.error('모임 ID가 없습니다');
+      return;
+    }
+    try {
+      await closeClub(Number(groupId));
+      toast.success('모임이 폐쇄되었습니다');
+      setShowDeleteDialog(false);
+      setTimeout(() => navigate('/'), 500);
+    } catch (error) {
+      console.error('모임 폐쇄 실패:', error);
+      toast.error('모임 폐쇄에 실패했습니다.');
+    }
   };
 
   // 복합 역할 표시
@@ -77,7 +117,7 @@ export function AdminView() {
   const multiRoleColor = getRoleColor(groupId || '1');
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       {/* 역할 표시 */}
       <div className="flex justify-end">
         <Badge className={`${multiRoleColor} text-xs`}>
@@ -86,16 +126,36 @@ export function AdminView() {
       </div>
 
       {/* 모임 정보 카드 */}
-      {group && (
+      {club && (
         <Card className="bg-gradient-to-r from-stone-800 to-stone-900 text-white border-none">
           <CardContent className="p-4">
-            <h3 className="font-bold text-lg mb-2">{group.name}</h3>
-            <div className="flex items-center gap-2">
-              <Badge className={group.account.managementType === 'fair' ? 'bg-green-500/20 text-green-300' : 'bg-blue-500/20 text-blue-300'}>
-                {MANAGEMENT_TYPE_INFO[group.account.managementType].name}
-              </Badge>
-              <span className="text-xs text-stone-400">|</span>
-              <span className="text-xs text-stone-400">{group.memberCount}명</span>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h3 className="font-bold text-lg mb-2">{club.clubName}</h3>
+                <div className="flex items-center gap-2">
+                  <Badge className={club.type === 'FAIR_SETTLEMENT' ? 'bg-green-500/20 text-green-300' : 'bg-blue-500/20 text-blue-300'}>
+                    {club.type === 'FAIR_SETTLEMENT' ? '공정정산형' : '운영비형'}
+                  </Badge>
+                  <span className="text-xs text-stone-400">|</span>
+                  <span className="text-xs text-stone-400">{club.currentMembers || 0}명</span>
+                  {isClosed && (
+                    <>
+                      <span className="text-xs text-stone-400">|</span>
+                      <Badge className="bg-red-500/20 text-red-300">폐쇄됨</Badge>
+                    </>
+                  )}
+                </div>
+              </div>
+              {isClosed && isOwner && (
+                <Button
+                  onClick={handleActivateClub}
+                  disabled={isActivating}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  size="sm"
+                >
+                  {isActivating ? '활성화 중...' : '모임 활성화'}
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -145,70 +205,31 @@ export function AdminView() {
               <ChevronRight className="w-5 h-5 text-stone-300" />
             </div>
           </Link>
-          
-          <Link to="dues-policy" className="block">
-            <div className="p-4 flex items-center justify-between hover:bg-stone-50 cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
-                  <CreditCard className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="font-medium text-stone-900">회비 정책 관리</p>
-                  <p className="text-xs text-stone-500">금액, 납부일, 중복 처리</p>
-                </div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-stone-300" />
-            </div>
-          </Link>
         </div>
       )}
 
       {/* 통장 관리 - 총무/모임장만 */}
-      {permissions.canChangeManagementType && (
+      {permissions.canWithdraw && (
         <div className="bg-white rounded-xl border border-stone-100 divide-y divide-stone-50 overflow-hidden">
           <div className="px-4 py-3 bg-stone-50">
             <h3 className="font-medium text-stone-700">통장 관리</h3>
           </div>
 
-          {/* 통장 유형 변경 */}
-          <button 
-            onClick={() => setShowManagementTypeDialog(true)}
-            className="w-full p-4 flex items-center justify-between hover:bg-stone-50 cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${managementType === 'fair' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                <Scale className="w-5 h-5" />
-              </div>
-              <div className="text-left">
-                <p className="font-medium text-stone-900">통장 관리 유형</p>
-                <div className="flex items-center gap-2">
-                  <Badge className={managementType === 'fair' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}>
-                    {managementType === 'fair' ? '공정정산형' : '운영비형'}
-                  </Badge>
-                  <span className="text-xs text-stone-500">변경 가능</span>
+          {/* 장부 관리 */}
+          <Link to="../dues/ledger" className="block">
+            <div className="p-4 flex items-center justify-between hover:bg-stone-50 cursor-pointer">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="font-medium text-stone-900">장부 관리</p>
+                  <p className="text-xs text-stone-500">모임통장 사용 내역 조회</p>
                 </div>
               </div>
+              <ChevronRight className="w-5 h-5 text-stone-300" />
             </div>
-            <ChevronRight className="w-5 h-5 text-stone-300" />
-          </button>
-
-          {/* 지분 관리 */}
-          {permissions.canManageShares && (
-            <Link to="shares" className="block">
-              <div className="p-4 flex items-center justify-between hover:bg-stone-50 cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
-                    <PieChart className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-stone-900">지분 관리</p>
-                    <p className="text-xs text-stone-500">멤버별 지분 현황 확인</p>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-stone-300" />
-              </div>
-            </Link>
-          )}
+          </Link>
         </div>
       )}
 
@@ -228,13 +249,15 @@ export function AdminView() {
                   </div>
                   <div>
                     <p className="font-medium text-stone-900">멤버 관리</p>
-                    <p className="text-xs text-stone-500">가입 승인, 추방, 회비 현황</p>
+                    <p className="text-xs text-stone-500">가입 승인, 추방</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="bg-orange-100 text-orange-700">
-                    2명 대기
-                  </Badge>
+                  {pendingCount > 0 && (
+                    <Badge variant="secondary" className="bg-orange-100 text-orange-700">
+                      {pendingCount}명 대기
+                    </Badge>
+                  )}
                   <ChevronRight className="w-5 h-5 text-stone-300" />
                 </div>
               </div>
@@ -269,21 +292,6 @@ export function AdminView() {
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label className="text-base text-stone-900">새 멤버 가입 알림</Label>
-            </div>
-            <Switch defaultChecked className="data-[state=checked]:bg-orange-500" />
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label className="text-base text-stone-900">회비 미납 알림 자동 발송</Label>
-              <div className="text-xs text-stone-500">매월 25일 오전 10시</div>
-            </div>
-            <Switch defaultChecked className="data-[state=checked]:bg-orange-500" />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label className="text-base text-stone-900">정산 요청 알림</Label>
             </div>
             <Switch defaultChecked className="data-[state=checked]:bg-orange-500" />
           </div>
@@ -329,78 +337,6 @@ export function AdminView() {
         </Card>
       )}
 
-      {/* Management Type Dialog */}
-      <Dialog open={showManagementTypeDialog} onOpenChange={setShowManagementTypeDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>통장 관리 유형 변경</DialogTitle>
-            <DialogDescription>
-              관리 유형에 따라 탈퇴/가입 시 정산 방식이 달라집니다
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
-            <RadioGroup value={managementType} onValueChange={(v) => setManagementType(v as ManagementType)}>
-              <Card className={`border-2 cursor-pointer ${managementType === 'operating' ? 'border-blue-500 bg-blue-50' : 'border-stone-200'}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <RadioGroupItem value="operating" id="operating" className="mt-1" />
-                    <Label htmlFor="operating" className="flex-1 cursor-pointer">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Users className="w-4 h-4 text-blue-600" />
-                        <span className="font-bold">운영비형</span>
-                      </div>
-                      <p className="text-sm text-stone-600 mb-2">인원 변동이 적은 모임에 적합</p>
-                      <ul className="text-xs text-stone-500 space-y-1">
-                        <li>• 탈퇴 시 환불 없음</li>
-                        <li>• 남은 돈 계속 축적</li>
-                        <li>• 운영비로 자유롭게 사용</li>
-                        <li>• 정산 없이 모임 유지</li>
-                      </ul>
-                    </Label>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className={`border-2 cursor-pointer ${managementType === 'fair' ? 'border-green-500 bg-green-50' : 'border-stone-200'}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <RadioGroupItem value="fair" id="fair" className="mt-1" />
-                    <Label htmlFor="fair" className="flex-1 cursor-pointer">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Scale className="w-4 h-4 text-green-600" />
-                        <span className="font-bold">공정정산형</span>
-                        <Badge className="bg-green-100 text-green-700 text-xs">추천</Badge>
-                      </div>
-                      <p className="text-sm text-stone-600 mb-2">인원 변동이 많은 모임에 적합</p>
-                      <ul className="text-xs text-stone-500 space-y-1">
-                        <li>• 모든 멤버 동일 지분</li>
-                        <li>• 신규 가입 시 기존 멤버 지분만큼 납부</li>
-                        <li>• 탈퇴 시 지분만큼 환불</li>
-                        <li>• 정산 시 균등 분배</li>
-                      </ul>
-                    </Label>
-                  </div>
-                </CardContent>
-              </Card>
-            </RadioGroup>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-              <p className="text-xs text-amber-800">
-                ⚠️ 유형 변경 시 기존 지분 계산 방식이 변경됩니다. 
-                신중하게 결정해주세요.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowManagementTypeDialog(false)}>
-              취소
-            </Button>
-            <Button onClick={handleSaveManagementType} className="bg-orange-500 hover:bg-orange-600">
-              변경하기
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Group Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -414,7 +350,7 @@ export function AdminView() {
             </div>
             <AlertDialogDescription className="space-y-4">
               <p>
-                이 작업은 되돌릴 수 없습니다. 모든 일정, 회비 내역, 스토리가 
+                이 작업은 되돌릴 수 없습니다. 모든 일정, 회비 내역, 앨범이 
                 영구적으로 삭제됩니다.
               </p>
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">

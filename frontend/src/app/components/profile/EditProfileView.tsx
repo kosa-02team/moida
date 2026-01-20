@@ -1,12 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, X } from 'lucide-react';
+import { ArrowLeft, Camera } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { Textarea } from '../ui/textarea';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,39 +17,80 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '../ui/alert-dialog';
+import { getMyInfo, updateMyInfo, UserResponse } from '@/api/user';
+import { removeToken } from '@/api/client';
 
 export function EditProfileView() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [name, setName] = useState('홍길동');
-  const [phone, setPhone] = useState('010-1234-5678');
-  const [bio, setBio] = useState('등산과 여행을 좋아하는 직장인입니다.');
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [user, setUser] = useState<UserResponse | null>(null);
+  const [name, setName] = useState('');
   const [avatar, setAvatar] = useState('');
 
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        setInitialLoading(true);
+        const userInfo = await getMyInfo();
+        setUser(userInfo);
+        setName(userInfo.realName);
+      } catch (error) {
+        console.error('프로필 조회 실패:', error);
+        toast.error('프로필을 불러오는데 실패했습니다.');
+      } finally {
+        setInitialLoading(false);
+      }
+    }
+    fetchUser();
+  }, []);
+
   const handleAvatarUpload = () => {
-    // 실제로는 파일 업로드 처리
     toast.info('이미지 업로드 기능은 준비 중입니다');
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       toast.error('이름을 입력해주세요');
       return;
     }
 
     setIsLoading(true);
-    // 실제로는 API 호출
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await updateMyInfo({ realName: name });
       toast.success('프로필이 수정되었습니다');
       navigate(-1);
-    }, 1000);
+    } catch (error) {
+      console.error('프로필 수정 실패:', error);
+      toast.error('프로필 수정에 실패했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDeleteAccount = () => {
+    // TODO: 회원 탈퇴 API 구현 필요
+    removeToken();
+    localStorage.removeItem('refreshToken');
     toast.success('회원 탈퇴가 완료되었습니다');
     navigate('/login');
   };
+
+  if (initialLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-stone-500">로딩 중...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-stone-500">프로필을 불러올 수 없습니다.</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -85,7 +125,7 @@ export function EditProfileView() {
             <Avatar className="w-28 h-28 border-4 border-orange-100">
               <AvatarImage src={avatar} />
               <AvatarFallback className="text-3xl bg-orange-100 text-orange-600">
-                {name[0]}
+                {name?.[0] || '?'}
               </AvatarFallback>
             </Avatar>
             <button
@@ -117,38 +157,13 @@ export function EditProfileView() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="phone">연락처</Label>
+            <Label className="text-stone-500">로그인 ID</Label>
             <Input
-              id="phone"
-              placeholder="010-0000-0000"
-              className="h-12 bg-stone-50 border-stone-200 rounded-xl"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
-            <p className="text-xs text-stone-500">모임 멤버에게 공개될 수 있습니다.</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="bio">자기소개</Label>
-            <Textarea
-              id="bio"
-              placeholder="자기소개를 입력하세요 (선택)"
-              className="min-h-24 bg-stone-50 border-stone-200 rounded-xl resize-none"
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              maxLength={100}
-            />
-            <p className="text-xs text-stone-500 text-right">{bio.length}/100</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-stone-500">이메일</Label>
-            <Input
-              value="hong@example.com"
+              value={user.loginId}
               disabled
               className="h-12 bg-stone-100 border-stone-200 rounded-xl text-stone-500"
             />
-            <p className="text-xs text-stone-500">이메일은 변경할 수 없습니다.</p>
+            <p className="text-xs text-stone-500">로그인 ID는 변경할 수 없습니다.</p>
           </div>
         </div>
 

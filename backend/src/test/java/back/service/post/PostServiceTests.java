@@ -336,6 +336,8 @@ public class PostServiceTests {
                         private ClubMemberRepository clubMemberRepository;
                         @Mock
                         private org.springframework.context.ApplicationEventPublisher eventPublisher;
+                        @Mock
+                        private CommentLikeService commentLikeService;
 
                         @InjectMocks
                         private PostCommentService postCommentService;
@@ -376,6 +378,12 @@ public class PostServiceTests {
 
                                 given(postCommentRepository.findAllByPost_PostIdAndPost_Club_ClubIdAndDeletedAtIsNull(
                                                 postId, clubId, pageable)).willReturn(page);
+
+                                // commentLikeService stub
+                                given(commentLikeService.getLikeCount(1L)).willReturn(0L);
+                                given(commentLikeService.getLikeCount(2L)).willReturn(0L);
+                                given(commentLikeService.isLiked(1L, viewerId)).willReturn(false);
+                                given(commentLikeService.isLiked(2L, viewerId)).willReturn(false);
 
                                 // when
                                 PostCommentsResponse res = postCommentService.getPostComments(viewerId, clubId, postId,
@@ -580,6 +588,8 @@ public class PostServiceTests {
                         private ClubMemberRepository clubMemberRepository;
                         @Mock
                         private ApplicationEventPublisher eventPublisher;
+                        @Mock
+                        private CommentLikeService commentLikeService;
 
                         private PostCommentService postCommentService;
 
@@ -590,7 +600,8 @@ public class PostServiceTests {
                                                 clubMemberRepository,
                                                 postRepository,
                                                 clubAuthorizationService,
-                                                eventPublisher);
+                                                eventPublisher,
+                                                commentLikeService);
                         }
 
                         @Test

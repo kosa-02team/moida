@@ -1,7 +1,11 @@
-import { useState, useEffect } from 'react';
-import { getPost, deletePost as deletePostAPI, likePost as likePostAPI, unlikePost as unlikePostAPI, type PostDetailResponse } from '../../../../api/post';
+import { useState, useEffect, useCallback } from 'react';
+import { getPost, deletePost as deletePostAPI, likePost as likePostAPI, unlikePost as unlikePostAPI, blindPost as blindPostAPI, updatePost, type PostDetailResponse, type StoryUpdateRequest } from '../../../../api/post';
+import { ReportDialog } from '../../report/ReportDialog';
+import { getPostComments, createComment, updateComment, deleteComment, likeComment, unlikeComment, type PostCommentItem } from '../../../../api/comment';
+import { getMyInfo } from '../../../../api/user';
+import { getMembers, type MemberListResponse } from '../../../../api/member';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Heart, MessageCircle, Send, MoreVertical, Trash2, Flag, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Heart, MessageCircle, Send, MoreVertical, Trash2, Flag, AlertTriangle, Edit2, EyeOff, Image, X, MapPin, Users } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { toast } from 'sonner';
@@ -33,16 +37,8 @@ import {
 import { Label } from '../../ui/label';
 import { Textarea } from '../../ui/textarea';
 import { RadioGroup, RadioGroupItem } from '../../ui/radio-group';
+import { Avatar, AvatarFallback } from '../../ui/avatar';
 import { useUserPermissions } from '../../../data/userRoles';
-
-interface Comment {
-  id: string;
-  user: string;
-  userImg: string;
-  content: string;
-  date: string;
-  isMyComment?: boolean;
-}
 
 export function StoryDetailView() {
   const { groupId, storyId } = useParams();
@@ -55,12 +51,73 @@ export function StoryDetailView() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<'post' | 'comment'>('post');
-  const [selectedComment, setSelectedComment] = useState<Comment | null>(null);
-  const [reportReason, setReportReason] = useState('');
-  const [reportDetail, setReportDetail] = useState('');
+  const [selectedComment, setSelectedComment] = useState<PostCommentItem | null>(null);
+  const [reportTarget, setReportTarget] = useState<'post' | 'comment'>('post');
   const [post, setPost] = useState<PostDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [comments, setComments] = useState<PostCommentItem[]>([]);
+  const [commentPage, setCommentPage] = useState(0);
+  const [hasMoreComments, setHasMoreComments] = useState(false);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editingCommentContent, setEditingCommentContent] = useState('');
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editContent, setEditContent] = useState('');
+  const [editImages, setEditImages] = useState<string[]>([]);
+  const [editLocation, setEditLocation] = useState('');
+  const [editTaggedMembers, setEditTaggedMembers] = useState<number[]>([]);
+  const [members, setMembers] = useState<MemberListResponse[]>([]);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [hasTaggedMembersChanged, setHasTaggedMembersChanged] = useState(false);
+
+  // 현재 사용자 정보 조회
+  useEffect(() => {
+    async function fetchMyInfo() {
+      try {
+        const userInfo = await getMyInfo();
+        setCurrentUserId(userInfo.userId);
+      } catch (error) {
+        console.error('사용자 정보 조회 실패:', error);
+      }
+    }
+    fetchMyInfo();
+  }, []);
+
+  // 댓글 목록 조회
+  const fetchComments = useCallback(async (page: number = 0) => {
+    if (!groupId || !storyId) return;
+    try {
+      setLoadingComments(true);
+      const response = await getPostComments(Number(groupId), Number(storyId), page, 20);
+      if (page === 0) {
+        setComments(response.comments);
+      } else {
+        setComments(prev => [...prev, ...response.comments]);
+      }
+      setHasMoreComments(response.hasNext);
+      setCommentPage(page);
+    } catch (error) {
+      console.error('댓글 불러오기 실패:', error);
+      toast.error('댓글을 불러오는데 실패했습니다.');
+    } finally {
+      setLoadingComments(false);
+    }
+  }, [groupId, storyId]);
+
+  // 멤버 목록 조회
+  useEffect(() => {
+    async function fetchMembers() {
+      if (!groupId) return;
+      try {
+        const membersData = await getMembers(Number(groupId));
+        setMembers(membersData);
+      } catch (error) {
+        console.error('멤버 목록 조회 실패:', error);
+      }
+    }
+    fetchMembers();
+  }, [groupId]);
 
   // API에서 게시글 상세 조회
   useEffect(() => {
@@ -68,10 +125,45 @@ export function StoryDetailView() {
       if (!groupId || !storyId) return;
       try {
         setLoading(true);
-        const postData = await getPost(Number(groupId), Number(storyId));
-        setPost(postData);
-        setLiked(postData.isLiked || false);
-        setLikeCount(postData.postLikes || 0);
+        const [postData, userInfo] = await Promise.all([
+          getPost(Number(groupId), Number(storyId)),
+          getMyInfo().catch(() => null) // 실패해도 계속 진행
+        ]);
+        
+        // 멤버 목록에서 작성자 정보 찾기
+        const writerMember = members.find(m => m.userId === postData.writerId);
+        const writerName = writerMember?.clubNickname || writerMember?.realName || `사용자${postData.writerId}`;
+        
+        // 백엔드 응답에 없는 필드들을 보완
+        const enrichedPost: PostDetailResponse = {
+          ...postData,
+          // writerName을 멤버 정보에서 가져오기
+          writerName: postData.writerName || writerName,
+          // writerProfileImageUrl이 없으면 null
+          writerProfileImageUrl: postData.writerProfileImageUrl || null,
+          // imagesUrl은 백엔드에서 이제 포함됨
+          imagesUrl: postData.imagesUrl || [],
+          // postLikes가 없으면 0
+          postLikes: postData.postLikes || 0,
+          // isLiked는 기본값 false (별도 확인 필요 시 API 호출)
+          isLiked: postData.isLiked || false,
+          // isMyPost는 writerId와 현재 사용자 ID 비교
+          isMyPost: userInfo ? postData.writerId === userInfo.userId : false,
+          // taggedMemberIds는 빈 배열 (별도 API 호출 필요 시 추가)
+          taggedMemberIds: postData.taggedMemberIds || []
+        };
+        
+        setPost(enrichedPost);
+        setLiked(enrichedPost.isLiked || false);
+        setLikeCount(enrichedPost.postLikes || 0);
+        
+        // currentUserId 설정 (아직 설정되지 않은 경우)
+        if (userInfo && !currentUserId) {
+          setCurrentUserId(userInfo.userId);
+        }
+        
+        // 댓글 목록 조회
+        await fetchComments(0);
       } catch (error) {
         console.error('게시글 불러오기 실패:', error);
         toast.error('게시글을 불러오는데 실패했습니다.');
@@ -81,15 +173,8 @@ export function StoryDetailView() {
       }
     }
     fetchPost();
-  }, [groupId, storyId, navigate]);
+  }, [groupId, storyId, navigate, fetchComments, members]);
 
-  const reportReasons = [
-    { value: 'spam', label: '스팸/광고' },
-    { value: 'inappropriate', label: '부적절한 내용' },
-    { value: 'harassment', label: '괴롭힘/혐오 표현' },
-    { value: 'copyright', label: '저작권 침해' },
-    { value: 'other', label: '기타' },
-  ];
 
   const handleLike = async () => {
     if (!groupId || !storyId) return;
@@ -109,19 +194,71 @@ export function StoryDetailView() {
     }
   };
 
-  const handleAddComment = () => {
-    if (!newComment.trim()) return;
-    const comment: Comment = {
-      id: String(Date.now()),
-      user: '나',
-      userImg: '',
-      content: newComment,
-      date: '방금',
-      isMyComment: true,
-    };
-    setComments([...comments, comment]);
-    setNewComment('');
-    toast.success('댓글이 등록되었습니다');
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !groupId || !storyId) return;
+    try {
+      const response = await createComment(Number(groupId), Number(storyId), {
+        content: newComment.trim()
+      });
+      // 댓글 목록 새로고침
+      await fetchComments(0);
+      setNewComment('');
+      toast.success('댓글이 등록되었습니다');
+    } catch (error) {
+      console.error('댓글 작성 실패:', error);
+      toast.error('댓글 작성에 실패했습니다.');
+    }
+  };
+
+  const handleStartEditComment = (comment: PostCommentItem) => {
+    setEditingCommentId(comment.commentId);
+    setEditingCommentContent(comment.content);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingCommentContent('');
+  };
+
+  const handleCommentLike = async (comment: PostCommentItem) => {
+    if (!groupId || !storyId) return;
+    try {
+      if (comment.isLiked) {
+        await unlikeComment(Number(groupId), Number(storyId), comment.commentId);
+        setComments(prev => prev.map(c => 
+          c.commentId === comment.commentId 
+            ? { ...c, isLiked: false, likeCount: (c.likeCount || 0) - 1 }
+            : c
+        ));
+      } else {
+        await likeComment(Number(groupId), Number(storyId), comment.commentId);
+        setComments(prev => prev.map(c => 
+          c.commentId === comment.commentId 
+            ? { ...c, isLiked: true, likeCount: (c.likeCount || 0) + 1 }
+            : c
+        ));
+      }
+    } catch (error) {
+      console.error('댓글 좋아요 실패:', error);
+      toast.error('댓글 좋아요에 실패했습니다');
+    }
+  };
+
+  const handleUpdateComment = async () => {
+    if (!editingCommentId || !editingCommentContent.trim() || !groupId || !storyId) return;
+    try {
+      await updateComment(Number(groupId), Number(storyId), editingCommentId, {
+        content: editingCommentContent.trim()
+      });
+      // 댓글 목록 새로고침
+      await fetchComments(commentPage);
+      setEditingCommentId(null);
+      setEditingCommentContent('');
+      toast.success('댓글이 수정되었습니다');
+    } catch (error) {
+      console.error('댓글 수정 실패:', error);
+      toast.error('댓글 수정에 실패했습니다.');
+    }
   };
 
   const handleDeletePost = async () => {
@@ -137,27 +274,119 @@ export function StoryDetailView() {
     }
   };
 
-  const handleDeleteComment = () => {
-    if (!selectedComment) return;
-    setComments(comments.filter(c => c.id !== selectedComment.id));
-    toast.success('댓글이 삭제되었습니다');
-    setShowDeleteDialog(false);
-    setSelectedComment(null);
+  const handleDeleteComment = async () => {
+    if (!selectedComment || !groupId || !storyId) return;
+    try {
+      await deleteComment(Number(groupId), Number(storyId), selectedComment.commentId);
+      // 댓글 목록 새로고침
+      await fetchComments(commentPage);
+      toast.success('댓글이 삭제되었습니다');
+      setShowDeleteDialog(false);
+      setSelectedComment(null);
+    } catch (error) {
+      console.error('댓글 삭제 실패:', error);
+      toast.error('댓글 삭제에 실패했습니다.');
+      setShowDeleteDialog(false);
+    }
   };
 
-  const handleReport = () => {
-    if (!reportReason) {
-      toast.error('신고 사유를 선택해주세요');
+
+  const handleBlindPost = async () => {
+    if (!groupId || !storyId) return;
+    try {
+      await blindPostAPI(Number(groupId), Number(storyId));
+      toast.success('게시글이 숨겨졌습니다');
+      navigate(-1);
+    } catch (error) {
+      console.error('게시글 블라인드 실패:', error);
+      toast.error('게시글 숨기기에 실패했습니다.');
+    }
+  };
+
+  const handleStartEdit = () => {
+    if (!post) return;
+    setEditContent(post.content || '');
+    setEditImages(post.imagesUrl || []);
+    setEditLocation(post.place || '');
+    // 백엔드 응답에 taggedMemberIds가 없을 수 있으므로, 있으면 사용하고 없으면 빈 배열
+    // 기존 태그를 불러올 수 없으므로 빈 배열로 시작
+    setEditTaggedMembers(post.taggedMemberIds || []);
+    setHasTaggedMembersChanged(false); // 수정 다이얼로그를 열 때는 변경되지 않음
+    setShowEditDialog(true);
+  };
+
+  const handleUpdatePost = async () => {
+    if (!groupId || !storyId || !post) return;
+    
+    if (!editContent.trim() && editImages.length === 0) {
+      toast.error('내용 또는 이미지를 입력해주세요');
       return;
     }
-    toast.success('신고가 접수되었습니다');
-    setShowReportDialog(false);
-    setReportReason('');
-    setReportDetail('');
+
+    try {
+      setIsUpdating(true);
+      const request: StoryUpdateRequest = {
+        content: editContent.trim() || null,
+        imagesUrl: editImages.length > 0 ? editImages : null,
+        place: editLocation.trim() || null,
+        // 백엔드 로직: null이면 변경 없음, 빈 리스트면 전체 삭제, 값 있으면 교체
+        // 사용자가 태그를 변경했는지 여부에 따라 처리
+        taggedMemberIds: hasTaggedMembersChanged 
+          ? editTaggedMembers  // 변경했으면 현재 배열 전송 (빈 배열이어도 삭제 의미)
+          : null,  // 변경하지 않았으면 null (변경 없음)
+      };
+      await updatePost(Number(groupId), Number(storyId), request);
+      toast.success('게시글이 수정되었습니다');
+      setShowEditDialog(false);
+      // 게시글 정보 새로고침
+      const updatedPostData = await getPost(Number(groupId), Number(storyId));
+      // 백엔드 응답 보완
+      const updatedPost: PostDetailResponse = {
+        ...updatedPostData,
+        writerName: updatedPostData.writerName || `사용자${updatedPostData.writerId}`,
+        writerProfileImageUrl: updatedPostData.writerProfileImageUrl || null,
+        imagesUrl: updatedPostData.imagesUrl || [],
+        postLikes: updatedPostData.postLikes || 0,
+        isLiked: updatedPostData.isLiked || false,
+        isMyPost: currentUserId !== null ? updatedPostData.writerId === currentUserId : false,
+        taggedMemberIds: updatedPostData.taggedMemberIds || []
+      };
+      setPost(updatedPost);
+      setLiked(updatedPost.isLiked || false);
+      setLikeCount(updatedPost.postLikes || 0);
+    } catch (error) {
+      console.error('게시글 수정 실패:', error);
+      toast.error('게시글 수정에 실패했습니다.');
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
-  const canDeletePost = post?.isMyPost || permissions.canDeletePosts;
-  const canDeleteComment = (comment: Comment) => comment.isMyComment || permissions.canDeleteComments;
+  const removeEditImage = (index: number) => {
+    setEditImages(editImages.filter((_, i) => i !== index));
+  };
+
+  const handleImageUpload = () => {
+    // TODO: 실제 이미지 업로드 API 연동
+    toast.info('이미지 업로드 기능은 준비 중입니다');
+  };
+
+  const toggleEditMember = (memberId: number) => {
+    setHasTaggedMembersChanged(true); // 태그 멤버 변경 감지
+    setEditTaggedMembers(prev =>
+      prev.includes(memberId)
+        ? prev.filter(id => id !== memberId)
+        : [...prev, memberId]
+    );
+  };
+
+  // 백엔드 응답에 isMyPost가 없을 수 있으므로 writerId와 currentUserId 비교로 보완
+  const isMyPost = post ? (post.isMyPost !== undefined ? post.isMyPost : (currentUserId !== null && post.writerId === currentUserId)) : false;
+  const canDeletePost = isMyPost || permissions.canDeletePosts;
+  const canBlindPost = isMyPost || permissions.canDeletePosts;
+  const canEditPost = isMyPost || permissions.canDeletePosts; // 작성자 또는 운영진 이상
+  const canDeleteComment = (comment: PostCommentItem) => comment.writerId === currentUserId || permissions.canDeleteComments;
+  const canEditComment = (comment: PostCommentItem) => comment.writerId === currentUserId;
 
   if (loading || !post) {
     return (
@@ -183,6 +412,30 @@ export function StoryDetailView() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {canEditPost && (
+                <>
+                  <DropdownMenuItem 
+                    className="text-stone-600"
+                    onClick={handleStartEdit}
+                  >
+                    <Edit2 className="w-4 h-4 mr-2" />
+                    게시글 수정
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              {canBlindPost && (
+                <>
+                  <DropdownMenuItem 
+                    className="text-stone-600"
+                    onClick={handleBlindPost}
+                  >
+                    <EyeOff className="w-4 h-4 mr-2" />
+                    게시글 숨기기
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               {canDeletePost && (
                 <>
                   <DropdownMenuItem 
@@ -200,7 +453,10 @@ export function StoryDetailView() {
               )}
               <DropdownMenuItem 
                 className="text-orange-600"
-                onClick={() => setShowReportDialog(true)}
+                onClick={() => {
+                  setReportTarget('post');
+                  setShowReportDialog(true);
+                }}
               >
                 <Flag className="w-4 h-4 mr-2" />
                 신고하기
@@ -215,20 +471,32 @@ export function StoryDetailView() {
         {/* Author */}
         <div className="p-4 flex items-center gap-3">
           <img 
-            src={post.writerProfileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${post.writerName}`} 
+            src={post.writerProfileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${post.writerName || post.writerId}`} 
             alt="" 
             className="w-10 h-10 rounded-full bg-stone-200" 
           />
           <div>
-            <p className="font-bold text-stone-900">{post.writerName}</p>
+            <p className="font-bold text-stone-900">{post.writerName || `사용자${post.writerId}`}</p>
             <p className="text-xs text-stone-400">{new Date(post.createdAt).toLocaleDateString('ko-KR')}</p>
           </div>
         </div>
 
-        {/* Image */}
+        {/* Images */}
         {post.imagesUrl && post.imagesUrl.length > 0 && (
-          <div className="aspect-square bg-stone-100">
-            <img src={post.imagesUrl[0]} alt="" className="w-full h-full object-cover" />
+          <div className="space-y-2">
+            {post.imagesUrl.map((imgUrl, index) => (
+              <div key={index} className="aspect-square bg-stone-100">
+                <img 
+                  src={imgUrl} 
+                  alt="" 
+                  className="w-full h-full object-cover" 
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
+                />
+              </div>
+            ))}
           </div>
         )}
 
@@ -256,59 +524,149 @@ export function StoryDetailView() {
         <div className="p-4 space-y-4">
           <h3 className="font-bold text-stone-900">댓글 {comments.length}개</h3>
           
-          {comments.map(comment => (
-            <div key={comment.id} className="flex gap-3">
-              <img 
-                src={comment.userImg || `https://api.dicebear.com/7.x/initials/svg?seed=${comment.user}`}
-                alt="" 
-                className="w-8 h-8 rounded-full bg-stone-200 shrink-0" 
-              />
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm text-stone-900">{comment.user}</span>
-                    <span className="text-xs text-stone-400">{comment.date}</span>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-stone-400">
-                        <MoreVertical className="w-3 h-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {canDeleteComment(comment) && (
-                        <>
-                          <DropdownMenuItem 
-                            className="text-red-600"
-                            onClick={() => {
+          {loadingComments && comments.length === 0 ? (
+            <div className="text-center py-8 text-stone-500">댓글을 불러오는 중...</div>
+          ) : comments.length > 0 ? (
+            <>
+              {comments.map(comment => {
+                // 댓글 작성자 정보 조회
+                const commentWriter = members.find(m => m.userId === comment.writerId);
+                const commentWriterName = commentWriter?.clubNickname || commentWriter?.realName || `사용자${comment.writerId}`;
+                const isMyComment = currentUserId !== null && comment.writerId === currentUserId;
+                
+                return (
+                  <div key={comment.commentId} className="flex gap-3">
+                    <div className="w-8 h-8 rounded-full bg-stone-200 shrink-0 flex items-center justify-center">
+                      <span className="text-xs font-medium text-stone-600">
+                        {commentWriterName[0] || 'U'}
+                      </span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm text-stone-900">
+                            {commentWriterName}
+                          </span>
+                          <span className="text-xs text-stone-400">
+                            {new Date(comment.createdAt).toLocaleDateString('ko-KR', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-stone-400">
+                              <MoreVertical className="w-3 h-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {canEditComment(comment) && (
+                              <>
+                                <DropdownMenuItem 
+                                  onClick={() => handleStartEditComment(comment)}
+                                >
+                                  <Edit2 className="w-4 h-4 mr-2" />
+                                  수정
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+                            {canDeleteComment(comment) && (
+                              <>
+                                <DropdownMenuItem 
+                                  className="text-red-600"
+                                  onClick={() => {
+                                    setSelectedComment(comment);
+                                    setDeleteTarget('comment');
+                                    setShowDeleteDialog(true);
+                                  }}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  삭제
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+                            <DropdownMenuItem 
+                              className="text-orange-600"
+                              onClick={() => {
+                                setSelectedComment(comment);
+                                setReportTarget('comment');
                               setSelectedComment(comment);
-                              setDeleteTarget('comment');
-                              setShowDeleteDialog(true);
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            삭제
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
+                              setShowReportDialog(true);
+                              }}
+                            >
+                              <Flag className="w-4 h-4 mr-2" />
+                              신고
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      {editingCommentId === comment.commentId ? (
+                        <div className="mt-2 space-y-2">
+                          <Textarea
+                            value={editingCommentContent}
+                            onChange={(e) => setEditingCommentContent(e.target.value)}
+                            className="min-h-[60px] resize-none"
+                            maxLength={500}
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={handleUpdateComment}
+                              disabled={!editingCommentContent.trim()}
+                              className="bg-orange-500 hover:bg-orange-600"
+                            >
+                              저장
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleCancelEdit}
+                            >
+                              취소
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-sm text-stone-700 mt-1">{comment.content}</p>
+                          <div className="flex items-center gap-4 mt-2">
+                            <button
+                              onClick={() => handleCommentLike(comment)}
+                              className="flex items-center gap-1 text-stone-500 hover:text-orange-500 transition-colors"
+                            >
+                              <Heart 
+                                className={`w-4 h-4 ${comment.isLiked ? 'fill-orange-500 text-orange-500' : ''}`} 
+                              />
+                              <span className="text-xs font-medium">
+                                {comment.likeCount || 0}
+                              </span>
+                            </button>
+                          </div>
                         </>
                       )}
-                      <DropdownMenuItem 
-                        className="text-orange-600"
-                        onClick={() => {
-                          setSelectedComment(comment);
-                          setShowReportDialog(true);
-                        }}
-                      >
-                        <Flag className="w-4 h-4 mr-2" />
-                        신고
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <p className="text-sm text-stone-700 mt-1">{comment.content}</p>
-              </div>
-            </div>
-          ))}
+                    </div>
+                  </div>
+                );
+              })}
+              {hasMoreComments && (
+                <Button
+                  variant="outline"
+                  onClick={() => fetchComments(commentPage + 1)}
+                  disabled={loadingComments}
+                  className="w-full"
+                >
+                  {loadingComments ? '로딩 중...' : '더보기'}
+                </Button>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-8 text-stone-500">아직 댓글이 없습니다</div>
+          )}
         </div>
       </div>
 
@@ -360,47 +718,129 @@ export function StoryDetailView() {
       </AlertDialog>
 
       {/* 신고 다이얼로그 */}
-      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
-        <DialogContent>
+      {post && (
+        <ReportDialog
+          open={showReportDialog}
+          onOpenChange={setShowReportDialog}
+          type={selectedComment ? 'comment' : 'post'}
+          targetId={selectedComment ? selectedComment.writerId : post.writerId}
+          targetName={selectedComment ? (selectedComment.writerName || '작성자') : (post.writerName || '작성자')}
+        />
+      )}
+
+      {/* 게시글 수정 다이얼로그 */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Flag className="w-5 h-5 text-orange-500" />
-              {selectedComment ? '댓글 신고' : '게시글 신고'}
-            </DialogTitle>
+            <DialogTitle>게시글 수정</DialogTitle>
             <DialogDescription>
-              신고 사유를 선택해 주시고 상세 내용을 입력해주세요.
+              게시글 내용을 수정할 수 있습니다. (일정 연결은 수정할 수 없습니다)
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4 space-y-4">
-            <div className="space-y-3">
-              <Label>신고 사유</Label>
-              <RadioGroup value={reportReason} onValueChange={setReportReason}>
-                {reportReasons.map(reason => (
-                  <div key={reason.value} className="flex items-center space-x-2">
-                    <RadioGroupItem value={reason.value} id={`detail-${reason.value}`} />
-                    <Label htmlFor={`detail-${reason.value}`} className="cursor-pointer">
-                      {reason.label}
-                    </Label>
+          <div className="space-y-4 py-4">
+            {/* Content Input */}
+            <div className="space-y-2">
+              <Label>내용</Label>
+              <Textarea
+                placeholder="게시글 내용을 입력하세요..."
+                className="min-h-32 resize-none"
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                maxLength={500}
+              />
+              <p className="text-xs text-stone-400 text-right">{editContent.length}/500</p>
+            </div>
+
+            {/* Images */}
+            {editImages.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {editImages.map((img, index) => (
+                  <div key={index} className="relative aspect-square rounded-xl overflow-hidden bg-stone-100">
+                    <img src={img} alt="" className="w-full h-full object-cover" draggable={false} onDragStart={(e) => e.preventDefault()} />
+                    <button
+                      onClick={() => removeEditImage(index)}
+                      className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center"
+                    >
+                      <X className="w-4 h-4 text-white" />
+                    </button>
                   </div>
                 ))}
-              </RadioGroup>
-            </div>
+                {editImages.length < 9 && (
+                  <button
+                    onClick={handleImageUpload}
+                    className="aspect-square rounded-xl border-2 border-dashed border-stone-200 flex flex-col items-center justify-center text-stone-400 hover:border-orange-300 hover:text-orange-500 transition-colors"
+                  >
+                    <Image className="w-6 h-6" />
+                    <span className="text-xs mt-1">추가</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Add Image Button (when no images) */}
+            {editImages.length === 0 && (
+              <button
+                onClick={handleImageUpload}
+                className="w-full p-6 border-2 border-dashed border-stone-200 rounded-xl flex flex-col items-center justify-center text-stone-400 hover:border-orange-300 hover:text-orange-500 transition-colors"
+              >
+                <Image className="w-8 h-8" />
+                <span className="mt-2">사진 추가</span>
+                <span className="text-xs mt-1">최대 9장까지</span>
+              </button>
+            )}
+
+            {/* Location */}
             <div className="space-y-2">
-              <Label>상세 내용 (선택)</Label>
-              <Textarea
-                placeholder="구체적인 내용을 입력해주세요"
-                value={reportDetail}
-                onChange={(e) => setReportDetail(e.target.value)}
-                className="min-h-[100px]"
+              <Label className="flex items-center gap-2">
+                <MapPin className="w-4 h-4" />
+                위치
+              </Label>
+              <Input
+                placeholder="위치를 입력하세요"
+                className="h-11 bg-stone-50 border-stone-200 rounded-xl"
+                value={editLocation}
+                onChange={(e) => setEditLocation(e.target.value)}
               />
             </div>
+
+            {/* Tag Members */}
+            {members.length > 0 && (
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  멤버 태그 (선택)
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {members.map(member => {
+                    const isSelected = editTaggedMembers.includes(member.memberId);
+                    return (
+                      <button
+                        key={member.memberId}
+                        onClick={() => toggleEditMember(member.memberId)}
+                        className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                          isSelected
+                            ? 'bg-orange-500 text-white'
+                            : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                        }`}
+                      >
+                        @{member.clubNickname || member.realName}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowReportDialog(false)}>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
               취소
             </Button>
-            <Button onClick={handleReport} className="bg-orange-500 hover:bg-orange-600">
-              신고하기
+            <Button 
+              onClick={handleUpdatePost} 
+              disabled={isUpdating || (!editContent.trim() && editImages.length === 0)}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              {isUpdating ? '수정 중...' : '수정하기'}
             </Button>
           </DialogFooter>
         </DialogContent>
