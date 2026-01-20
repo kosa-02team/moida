@@ -8,6 +8,8 @@ import back.exception.ClubException;
 import back.repository.club.ClubMemberRepository;
 import back.repository.club.ClubRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +34,7 @@ public class ClubService {
                 request.getMaxMembers() != null ? request.getMaxMembers() : 100
         );
         club.setVisibility(request.getVisibilityEnum());
+        club.setCategory(request.getCategoryEnum());
         Clubs savedClub = clubRepository.save(club);
         return ClubResponse.from(savedClub, 0);
     }
@@ -74,6 +77,9 @@ public class ClubService {
         if (request.getMaxMembers() != null) {
             club.setMaxMembers(request.getMaxMembers());
         }
+        if (request.getCategory() != null) {
+            club.setCategory(request.getCategoryEnum());
+        }
 
         Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE);
         return ClubResponse.from(club, currentMembers);
@@ -93,5 +99,45 @@ public class ClubService {
                 .orElseThrow(ClubException.NotFound::new);
 
         club.activate();
+    }
+
+    // 카테고리별 모임 조회
+    public Page<ClubResponse> getClubsByCategory(Clubs.Category category, Pageable pageable) {
+        return clubRepository.findByCategory(category, pageable)
+                .map(club -> {
+                    Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
+                            club.getClubId(), ClubMembers.Status.ACTIVE);
+                    return ClubResponse.from(club, currentMembers);
+                });
+    }
+
+    // 카테고리 + 상태별 모임 조회
+    public Page<ClubResponse> getClubsByCategoryAndStatus(Clubs.Category category, Clubs.Status status, Pageable pageable) {
+        return clubRepository.findByCategoryAndStatus(category, status, pageable)
+                .map(club -> {
+                    Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
+                            club.getClubId(), ClubMembers.Status.ACTIVE);
+                    return ClubResponse.from(club, currentMembers);
+                });
+    }
+
+    // 카테고리 + 이름 검색
+    public Page<ClubResponse> searchClubsByCategoryAndName(Clubs.Category category, String clubName, Pageable pageable) {
+        return clubRepository.findByCategoryAndClubNameContaining(category, clubName, pageable)
+                .map(club -> {
+                    Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
+                            club.getClubId(), ClubMembers.Status.ACTIVE);
+                    return ClubResponse.from(club, currentMembers);
+                });
+    }
+
+    // 모든 모임 조회 (페이징)
+    public Page<ClubResponse> getAllClubs(Pageable pageable) {
+        return clubRepository.findAll(pageable)
+                .map(club -> {
+                    Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
+                            club.getClubId(), ClubMembers.Status.ACTIVE);
+                    return ClubResponse.from(club, currentMembers);
+                });
     }
 }

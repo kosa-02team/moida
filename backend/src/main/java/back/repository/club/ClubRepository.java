@@ -17,4 +17,13 @@ public interface ClubRepository extends JpaRepository<Clubs, Long> {
     Page<Clubs> findByStatus(Clubs.Status status, Pageable pageable);
 
     Page<Clubs> findByClubNameContaining(String clubName, Pageable pageable);
+
+    // 카테고리별 조회
+    Page<Clubs> findByCategory(Clubs.Category category, Pageable pageable);
+
+    // 카테고리 + 상태별 조회
+    Page<Clubs> findByCategoryAndStatus(Clubs.Category category, Clubs.Status status, Pageable pageable);
+
+    // 카테고리 + 이름 검색
+    Page<Clubs> findByCategoryAndClubNameContaining(Clubs.Category category, String clubName, Pageable pageable);
 }

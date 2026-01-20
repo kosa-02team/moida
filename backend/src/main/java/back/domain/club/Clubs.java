@@ -49,6 +49,10 @@ public class Clubs extends BaseEntity {
     @Column(name = "max_members", nullable = false)
     private Integer maxMembers = 100;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", length = 20, nullable = false)
+    private Category category = Category.ETC;
+
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
 
@@ -63,6 +67,15 @@ public class Clubs extends BaseEntity {
     public enum Type {
         OPERATION_FEE,
         FAIR_SETTLEMENT
+    }
+
+    public enum Category {
+        STUDY,      // 스터디
+        SPORTS,     // 운동
+        SOCIAL,     // 친목
+        HOBBY,      // 취미
+        FINANCE,    // 재테크
+        ETC         // 기타
     }
 
     public Clubs(String clubName, Long ownerId, Type type, Integer maxMembers) {
@@ -120,6 +133,12 @@ public class Clubs extends BaseEntity {
     public void setMaxMembers(Integer maxMembers) {
         if (maxMembers != null && maxMembers > 0) {
             this.maxMembers = maxMembers;
+        }
+    }
+
+    public void setCategory(Category category) {
+        if (category != null) {
+            this.category = category;
         }
     }
 

@@ -30,6 +30,9 @@ public class ClubRequest {
     @jakarta.validation.constraints.Max(value = 999, message = "최대 인원은 1000명 미만이어야 합니다.")
     private Integer maxMembers;
 
+    @Pattern(regexp = "STUDY|SPORTS|SOCIAL|HOBBY|FINANCE|ETC", message = "카테고리는 STUDY, SPORTS, SOCIAL, HOBBY, FINANCE, ETC 중 선택해주세요. (선택 안할 시 ETC로 설정됩니다.)")
+    private String category;
+
     public Clubs.Visibility getVisibilityEnum() {
         if (visibility == null || visibility.isEmpty()) {
             return Clubs.Visibility.PUBLIC;
@@ -42,5 +45,12 @@ public class ClubRequest {
             return Clubs.Type.OPERATION_FEE;
         }
         return Clubs.Type.valueOf(type);
+    }
+
+    public Clubs.Category getCategoryEnum() {
+        if (category == null || category.isEmpty()) {
+            return Clubs.Category.ETC;
+        }
+        return Clubs.Category.valueOf(category);
     }
 }

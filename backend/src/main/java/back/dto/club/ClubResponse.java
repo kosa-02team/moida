@@ -23,6 +23,7 @@ public class ClubResponse {
     private String status;
     private String visibility;
     private String type;
+    private String category;
     private Integer maxMembers;
     private Integer currentMembers;
     private LocalDateTime createdAt;
@@ -39,6 +40,7 @@ public class ClubResponse {
                 .status(entity.getStatus().name())
                 .visibility(entity.getVisibility().name())
                 .type(entity.getType().name())
+                .category(entity.getCategory().name())
                 .maxMembers(entity.getMaxMembers())
                 .currentMembers(currentMembers)
                 .createdAt(entity.getCreatedAt())
@@ -52,6 +54,7 @@ public class ClubResponse {
                 .clubId(entity.getClubId())
                 .clubName(entity.getClubName())
                 .type(entity.getType().name())
+                .category(entity.getCategory().name())
                 .visibility(entity.getVisibility().name())
                 .status(entity.getStatus().name())
                 .build();
