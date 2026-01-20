@@ -132,7 +132,7 @@ public class BankService {
 
                 if (actualFrom == null || actualTo == null) {
                         // 마지막 거래 날짜 조회
-                        var latestTransaction = transactionLogRepository.findLatestByClubId(clubId);
+                        var latestTransaction = transactionLogRepository.findFirstByClubIdOrderByCreatedAtDesc(clubId);
 
                         // 마지막 거래 다음날부터
                         // 첫 동기화인 경우 30일 전부터
@@ -213,7 +213,7 @@ public class BankService {
 
                 if (actualFrom == null || actualTo == null) {
                         // 마지막 거래 날짜 조회
-                        var latestTransaction = transactionLogRepository.findLatestByClubId(clubId);
+                        var latestTransaction = transactionLogRepository.findFirstByClubIdOrderByCreatedAtDesc(clubId);
 
                         // 마지막 거래 다음날부터
                         // 첫 동기화인 경우 30일 전부터
@@ -315,7 +315,7 @@ public class BankService {
 
                 // 4. TransactionLog에 저장 (출금 기록)
                 // 4-1. 이전 잔액 조회
-                var latestLog = transactionLogRepository.findLatestByClubId(request.clubId());
+                var latestLog = transactionLogRepository.findFirstByClubIdOrderByCreatedAtDesc(request.clubId());
                 BigDecimal previousBalance = latestLog.map(TransactionLog::getBalanceAfter).orElse(BigDecimal.ZERO);
                 BigDecimal currentBalance = previousBalance.subtract(response.amount());
 

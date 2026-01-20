@@ -32,7 +32,7 @@ public class LedgerService {
     @Transactional
     public void createManualTransaction(Long clubId, ManualTransactionRequest req, Long editorId) {
         // 이전 잔액 조회
-        var latestLog = transactionLogRepository.findLatestByClubId(clubId);
+        var latestLog = transactionLogRepository.findFirstByClubIdOrderByCreatedAtDesc(clubId);
         java.math.BigDecimal previousBalance = latestLog.map(TransactionLog::getBalanceAfter)
                 .orElse(java.math.BigDecimal.ZERO);
         java.math.BigDecimal currentBalance = previousBalance.add(req.amount());

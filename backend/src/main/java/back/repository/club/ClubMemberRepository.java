@@ -35,7 +35,7 @@ public interface ClubMemberRepository extends JpaRepository<ClubMembers, Long> {
     select u.realName as realName,
            cm.nickname as clubNickname
     from ClubMembers cm
-    join Users u on u.id = cm.userId
+    join Users u on u.userId = cm.userId
     where cm.clubId = :clubId
       and cm.memberId = :memberId
 """)
@@ -48,7 +48,7 @@ public interface ClubMemberRepository extends JpaRepository<ClubMembers, Long> {
     @Query("""
     select count(cm)
     from ClubMembers cm
-    join Users u on u.id = cm.userId
+    join Users u on u.userId = cm.userId
     where cm.clubId = :clubId
       and u.realName = :realName
 """)

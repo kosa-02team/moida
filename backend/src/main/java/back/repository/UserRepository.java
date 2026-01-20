@@ -21,7 +21,7 @@ public interface UserRepository extends JpaRepository<Users, Long> {
     Page<Users> findByStatus(String status, Pageable pageable);
 
     @Query("SELECT u FROM Users u WHERE " +
-            "(:keyword IS NULL OR u.realName LIKE %:keyword%) AND " +
+            "(:keyword IS NULL OR u.realName LIKE CONCAT('%', :keyword, '%')) AND " +
             "(:status IS NULL OR u.status = :status)")
     Page<Users> searchUsers(@Param("keyword") String keyword,
                             @Param("status") String status,
