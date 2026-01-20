@@ -28,6 +28,7 @@ import {
   AlertDialogTitle,
 } from '../../ui/alert-dialog';
 import { getMembers, MemberListResponse, updateMemberRole } from '@/api/member';
+import { transferOwnership } from '@/api/club-full';
 
 // 역할 타입 (중복 가능)
 type RoleType = 'treasurer' | 'manager';
@@ -165,12 +166,22 @@ export function RoleManagementView() {
     }
   };
 
-  const handleTransferOwnership = () => {
-    if (!selectedMember) return;
+  const handleTransferOwnership = async () => {
+    if (!selectedMember || !groupId) return;
 
-    // TODO: 모임장 위임 API가 없어서 구현 필요
-    toast.info('모임장 위임 기능은 준비 중입니다.');
-    setShowTransferDialog(false);
+    try {
+      await transferOwnership(Number(groupId), {
+        newOwnerMemberId: parseInt(selectedMember.id)
+      });
+      toast.success(`${selectedMember.name}님에게 모임장을 위임했습니다`);
+      setShowTransferDialog(false);
+      setSelectedMember(null);
+      // 멤버 목록 다시 불러오기
+      await fetchMembers();
+    } catch (error) {
+      console.error('모임장 위임 실패:', error);
+      toast.error('모임장 위임에 실패했습니다');
+    }
   };
 
   const getDisplayRoles = (member: Member) => {

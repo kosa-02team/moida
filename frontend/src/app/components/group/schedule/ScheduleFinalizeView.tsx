@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
 import { Badge } from '../../ui/badge';
 import { Checkbox } from '../../ui/checkbox';
-import { getSchedule, getScheduleParticipants, updateSettlement, closeSchedule, type ScheduleResponse, type ScheduleParticipantResponse } from '../../../../api/schedule';
+import { getSchedule, getScheduleParticipants, updateSettlement, closeSchedule, updateParticipantAttendance, type ScheduleResponse, type ScheduleParticipantResponse, type ScheduleParticipantUpdateRequest } from '../../../../api/schedule';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +39,7 @@ export function ScheduleFinalizeView() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [totalSpent, setTotalSpent] = useState(0);
   const [refundPerPerson, setRefundPerPerson] = useState(0);
+  const [updatingParticipantId, setUpdatingParticipantId] = useState<number | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -52,7 +53,13 @@ export function ScheduleFinalizeView() {
         setSchedule(scheduleData);
         setParticipants(participantsData);
         setTotalSpent(scheduleData.totalSpent || 0);
-        // TODO: refundPerPerson 계산
+        
+        // refundPerPerson 계산: 총 비용을 참석자 수로 나누기
+        const attendingCount = participantsData.filter(p => p.attendanceStatus === 'ATTENDING').length;
+        const calculatedRefundPerPerson = attendingCount > 0 && scheduleData.totalSpent 
+          ? scheduleData.totalSpent / attendingCount 
+          : 0;
+        setRefundPerPerson(calculatedRefundPerPerson);
       } catch (error) {
         console.error('일정 정보 불러오기 실패:', error);
         toast.error('일정 정보를 불러오는데 실패했습니다.');
@@ -72,24 +79,79 @@ export function ScheduleFinalizeView() {
     );
   }
 
-  const participantsDisplay: Participant[] = participants.map(p => ({
-    id: String(p.participantId),
-    name: p.realName,
-    avatar: '',
-    voteStatus: p.attendanceStatus === 'ATTENDING' ? 'yes' as const : p.attendanceStatus === 'NOT_ATTENDING' ? 'no' as const : 'pending' as const,
-    actualStatus: p.attendanceStatus === 'ATTENDING' ? 'attended' as const : p.attendanceStatus === 'NOT_ATTENDING' ? 'absent' as const : 'pending' as const,
-    amountPaid: p.feeStatus === 'PAID' ? (schedule.entryFee || 0) : 0,
-    amountDue: 0, // TODO: 정산 계산 로직 필요
-  }));
+  // refundPerPerson 재계산 (participants 변경 시)
+  useEffect(() => {
+    if (participants.length > 0 && schedule) {
+      const attendingCount = participants.filter(p => p.attendanceStatus === 'ATTENDING').length;
+      const calculatedRefundPerPerson = attendingCount > 0 && totalSpent 
+        ? totalSpent / attendingCount 
+        : 0;
+      setRefundPerPerson(calculatedRefundPerPerson);
+    }
+  }, [participants, totalSpent, schedule]);
 
-  const toggleActualStatus = (id: string, status: 'attended' | 'absent') => {
-    // TODO: API로 참석 상태 업데이트
-    // 현재는 로컬 상태만 업데이트
-    const participant = participantsDisplay.find(p => p.id === id);
+  const participantsDisplay: Participant[] = participants.map(p => {
+    const isAttending = p.attendanceStatus === 'ATTENDING';
+    const isNotAttending = p.attendanceStatus === 'NOT_ATTENDING';
+    const hasPaid = p.feeStatus === 'PAID';
+    const entryFee = schedule.entryFee || 0;
+    const amountPaid = hasPaid ? entryFee : 0;
+    
+    // 정산 계산 로직
+    let amountDue = 0;
+    if (isAttending) {
+      // 참석한 경우: 1인당 비용 - 이미 낸 참가비
+      amountDue = refundPerPerson - amountPaid;
+    } else if (isNotAttending && hasPaid) {
+      // 불참했지만 참가비를 낸 경우: 환불
+      amountDue = -amountPaid;
+    } else if (isNotAttending && !hasPaid) {
+      // 불참하고 참가비도 안 낸 경우: 정산 없음
+      amountDue = 0;
+    }
+    
+    return {
+      id: String(p.participantId),
+      name: p.userName,
+      avatar: '',
+      voteStatus: isAttending ? 'yes' as const : isNotAttending ? 'no' as const : 'pending' as const,
+      actualStatus: isAttending ? 'attended' as const : isNotAttending ? 'absent' as const : 'pending' as const,
+      amountPaid,
+      amountDue,
+    };
+  });
+
+  const toggleActualStatus = async (id: string, status: 'attended' | 'absent') => {
+    if (!groupId || !scheduleId) return;
+    
+    const participant = participants.find(p => String(p.participantId) === id);
     if (!participant) return;
     
-    // 로컬 상태 업데이트는 UI만 변경
-    // 실제 업데이트는 confirmFinalize에서 처리
+    const attendanceStatus = status === 'attended' ? 'ATTENDING' : 'NOT_ATTENDING';
+    
+    try {
+      setUpdatingParticipantId(participant.participantId);
+      const updateRequest: ScheduleParticipantUpdateRequest = {
+        attendanceStatus: attendanceStatus as 'ATTENDING' | 'NOT_ATTENDING'
+      };
+      await updateParticipantAttendance(
+        Number(groupId),
+        Number(scheduleId),
+        participant.participantId,
+        updateRequest
+      );
+      
+      // 참여자 목록 다시 불러오기
+      const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
+      setParticipants(participantsData);
+      
+      toast.success('참석 상태가 업데이트되었습니다');
+    } catch (error) {
+      console.error('참석 상태 업데이트 실패:', error);
+      toast.error('참석 상태 업데이트에 실패했습니다');
+    } finally {
+      setUpdatingParticipantId(null);
+    }
   };
 
   // 통계
@@ -272,21 +334,23 @@ export function ScheduleFinalizeView() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => toggleActualStatus(p.id, 'attended')}
+                      disabled={updatingParticipantId === Number(p.id)}
                       className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
                         p.actualStatus === 'attended' 
                           ? 'bg-green-500 text-white' 
                           : 'bg-stone-100 text-stone-400 hover:bg-green-100 hover:text-green-600'
-                      }`}
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                       <Check className="w-5 h-5" />
                     </button>
                     <button
                       onClick={() => toggleActualStatus(p.id, 'absent')}
+                      disabled={updatingParticipantId === Number(p.id)}
                       className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
                         p.actualStatus === 'absent' 
                           ? 'bg-red-500 text-white' 
                           : 'bg-stone-100 text-stone-400 hover:bg-red-100 hover:text-red-600'
-                      }`}
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                       <X className="w-5 h-5" />
                     </button>

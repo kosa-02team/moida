@@ -139,6 +139,37 @@ public class ClubService {
         club.activate();
     }
 
+    /**
+     * 모임장 위임
+     */
+    @Transactional
+    public void transferOwnership(Long clubId, Long currentOwnerId, Long newOwnerMemberId) {
+        Clubs club = clubRepository.findById(clubId)
+                .orElseThrow(ClubException.NotFound::new);
+
+        // 현재 사용자가 모임장인지 확인
+        if (!club.getOwnerId().equals(currentOwnerId)) {
+            throw new ClubException.AuthNotOwner();
+        }
+
+        // 새 모임장 멤버 조회
+        ClubMembers newOwnerMember = clubMemberRepository.findByClubIdAndMemberId(clubId, newOwnerMemberId)
+                .orElseThrow(ClubException.MemberNotFound::new);
+
+        if (newOwnerMember.getStatus() != ClubMembers.Status.ACTIVE) {
+            throw new ClubException.MemberNotActive();
+        }
+
+        // 기존 모임장을 운영진으로 변경
+        ClubMembers currentOwnerMember = clubMemberRepository.findByClubIdAndUserId(clubId, currentOwnerId)
+                .orElseThrow(ClubException.MemberNotFound::new);
+        currentOwnerMember.promoteToStaff();
+
+        // 새 모임장으로 위임
+        newOwnerMember.promoteToOwner();
+        club.changeOwner(newOwnerMember.getUserId());
+    }
+
     // 카테고리별 모임 조회
     public Page<ClubResponse> getClubsByCategory(Clubs.Category category, Pageable pageable) {
         return clubRepository.findByCategory(category, pageable)

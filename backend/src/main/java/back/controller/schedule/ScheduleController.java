@@ -128,6 +128,23 @@ public class ScheduleController {
         return SuccessResponse.success(HttpStatus.OK, participants);
     }
 
+    /**
+     * 일정 참여자 참석 상태 업데이트
+     */
+    @PatchMapping("/{clubId}/schedules/{scheduleId}/participants/{participantId}")
+    public SuccessResponse<ScheduleParticipantResponse> updateParticipantAttendance(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable("clubId") Long clubId,
+            @PathVariable("scheduleId") Long scheduleId,
+            @PathVariable("participantId") Long participantId,
+            @Valid @RequestBody ScheduleParticipantUpdateRequest request
+    ) {
+        Long currentUserId = requireUserId(principal);
+        ScheduleParticipantResponse response = scheduleService.updateParticipantAttendance(
+                clubId, scheduleId, participantId, request, currentUserId);
+        return SuccessResponse.success(HttpStatus.OK, response);
+    }
+
     private Long requireUserId(UserPrincipal principal) {
         if (principal == null) throw new ClubException.AuthLoginRequired();
         return principal.getUserId();

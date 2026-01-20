@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Globe, Lock, Search, Eye, Users, KeyRound, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
@@ -8,9 +8,11 @@ import { Label } from '../../ui/label';
 import { Card, CardContent } from '../../ui/card';
 import { RadioGroup, RadioGroupItem } from '../../ui/radio-group';
 import { GroupVisibility } from '../../../types';
+import { updateClub, getClub } from '../../../../api/club-full';
 
 export function GroupPrivacySettingsView() {
   const navigate = useNavigate();
+  const { groupId } = useParams();
   const [isLoading, setIsLoading] = useState(false);
 
   // 공개 설정 상태 - 통합된 3가지 옵션만 사용
@@ -39,16 +41,45 @@ export function GroupPrivacySettingsView() {
     },
   ];
 
+  useEffect(() => {
+    async function fetchClubData() {
+      if (!groupId) return;
+      try {
+        const clubData = await getClub(Number(groupId));
+        // visibility 매핑: PRIVATE -> private, PUBLIC -> public, SEARCHABLE -> searchable
+        if (clubData.visibility === 'PRIVATE') {
+          setVisibility('private');
+        } else if (clubData.visibility === 'PUBLIC') {
+          setVisibility('public');
+        } else {
+          setVisibility('searchable');
+        }
+      } catch (error) {
+        console.error('모임 정보 조회 실패:', error);
+      }
+    }
+    fetchClubData();
+  }, [groupId]);
+
   const handleSave = async () => {
+    if (!groupId) {
+      toast.error('모임 ID를 찾을 수 없습니다');
+      return;
+    }
+    
     setIsLoading(true);
-    // TODO: API 호출 - updateClub with visibility
-    // const { groupId } = useParams();
-    // await updateClub(Number(groupId), { visibility: visibility === 'private' ? 'PRIVATE' : visibility === 'public' ? 'PUBLIC' : 'SEARCHABLE' });
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      // visibility 매핑: private -> PRIVATE, public -> PUBLIC, searchable -> SEARCHABLE
+      const visibilityValue = visibility === 'private' ? 'PRIVATE' : visibility === 'public' ? 'PUBLIC' : 'SEARCHABLE';
+      await updateClub(Number(groupId), { visibility: visibilityValue as 'PUBLIC' | 'PRIVATE' });
       toast.success('공개 설정이 저장되었습니다');
       navigate(-1);
-    }, 1000);
+    } catch (error) {
+      console.error('공개 설정 저장 실패:', error);
+      toast.error('공개 설정 저장에 실패했습니다');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

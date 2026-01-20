@@ -643,9 +643,9 @@ export function ScheduleDetailView() {
                 <div key={participant.participantId} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Avatar className="w-9 h-9" draggable={false}>
-                      <AvatarFallback>{participant.realName[0]}</AvatarFallback>
+                      <AvatarFallback>{participant.userName[0]}</AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium text-stone-900">{participant.realName}</span>
+                    <span className="text-sm font-medium text-stone-900">{participant.userName}</span>
                   </div>
                   <Badge
                     variant="secondary"

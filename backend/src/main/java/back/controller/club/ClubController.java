@@ -104,6 +104,20 @@ public class ClubController {
         return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK));
     }
 
+    /**
+     * 모임장 위임
+     */
+    @PatchMapping("/{clubId}/transfer-ownership")
+    @PreAuthorize("@clubSecurity.isOwner(#clubId)")
+    public ResponseEntity<SuccessResponse<Void>> transferOwnership(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long clubId,
+            @Valid @RequestBody back.dto.club.TransferOwnershipRequest request) {
+        Long currentOwnerId = clubAuthorization.requireOwner(clubId, principal);
+        clubService.transferOwnership(clubId, currentOwnerId, request.newOwnerMemberId());
+        return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK));
+    }
+
     // 모든 모임 조회 (페이징)
     @GetMapping
     public ResponseEntity<SuccessResponse<Page<ClubResponse>>> getAllClubs(

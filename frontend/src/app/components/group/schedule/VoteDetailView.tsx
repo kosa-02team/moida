@@ -8,6 +8,7 @@ import { Badge } from '../../ui/badge';
 import { Progress } from '../../ui/progress';
 import { getVote, answerVote, closeVote, type VoteDetailResponse } from '../../../../api/vote';
 import { useUserPermissions } from '../../../data/userRoles';
+import { getMyInfo } from '../../../../api/user';
 
 export function VoteDetailView() {
   const navigate = useNavigate();
@@ -18,15 +19,42 @@ export function VoteDetailView() {
   const [selectedOptions, setSelectedOptions] = useState<number[]>([]);
   const [hasVoted, setHasVoted] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
   useEffect(() => {
     async function fetchVote() {
       if (!groupId || !voteId) return;
       try {
         setLoading(true);
+        
+        // 현재 사용자 정보 조회
+        let userId: number | null = null;
+        try {
+          const userInfo = await getMyInfo();
+          userId = userInfo.userId;
+          setCurrentUserId(userId);
+        } catch (error) {
+          console.error('사용자 정보 조회 실패:', error);
+        }
+        
         const voteData = await getVote(Number(groupId), Number(voteId));
         setVote(voteData);
-        // TODO: 이미 투표했는지 확인
+        
+        // 이미 투표했는지 확인
+        if (userId) {
+          const userHasVoted = voteData.options.some(option => 
+            option.voters?.some(voter => voter.userId === userId)
+          );
+          setHasVoted(userHasVoted);
+          
+          // 이미 투표한 경우 선택된 옵션 설정
+          if (userHasVoted) {
+            const votedOptions = voteData.options
+              .filter(option => option.voters?.some(voter => voter.userId === userId))
+              .map(option => option.optionId);
+            setSelectedOptions(votedOptions);
+          }
+        }
       } catch (error) {
         console.error('투표 정보 불러오기 실패:', error);
         toast.error('투표 정보를 불러오는데 실패했습니다.');
@@ -88,6 +116,23 @@ export function VoteDetailView() {
   const handleChangeVote = () => {
     setHasVoted(false);
     toast.info('투표를 수정할 수 있습니다');
+  };
+
+  const handleCloseVote = async () => {
+    if (!groupId || !voteId) return;
+    try {
+      setIsClosing(true);
+      await closeVote(Number(groupId), Number(voteId));
+      toast.success('투표가 종료되었습니다');
+      // 투표 데이터 다시 불러오기
+      const voteData = await getVote(Number(groupId), Number(voteId));
+      setVote(voteData);
+    } catch (error) {
+      console.error('투표 종료 실패:', error);
+      toast.error('투표 종료에 실패했습니다.');
+    } finally {
+      setIsClosing(false);
+    }
   };
 
   return (

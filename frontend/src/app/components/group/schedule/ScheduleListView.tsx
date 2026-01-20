@@ -12,7 +12,7 @@ import {
   getRoleLabel,
   getRoleColor,
 } from '../../../data/userRoles';
-import { getSchedules, type ScheduleResponse } from '../../../../api/schedule';
+import { getSchedules, getScheduleParticipants, type ScheduleResponse } from '../../../../api/schedule';
 
 interface Schedule {
   id: number;
@@ -46,40 +46,51 @@ export function ScheduleListView() {
         setLoading(true);
         const scheduleData = await getSchedules(Number(groupId));
 
-        const now = new Date();
-        const schedules: Schedule[] = scheduleData.map(s => {
-          const eventDate = new Date(s.eventDate);
-          const endDate = new Date(s.endDate);
-          const diffTime = eventDate.getTime() - now.getTime();
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          const isToday = diffDays === 0;
-          const isPast = endDate < now;
-          
-          // voteDeadline이 있고 아직 마감 전이면 투표중 상태
-          let status: 'voting' | 'confirmed' | 'ongoing' | 'completed' = 'confirmed';
-          if (s.status === 'CLOSED') status = 'completed';
-          else if (s.status === 'CANCELLED') status = 'completed';
-          else if (isToday && !isPast) status = 'ongoing';
-          else if (s.voteDeadline && new Date(s.voteDeadline) > now) status = 'voting';
-          
-          return {
-            id: s.scheduleId,
-            title: s.scheduleName,
-            date: formatScheduleDate(s.eventDate, s.endDate),
-            location: s.location || '미정',
-            attendees: 0, // TODO: participants API 필요
-            status,
-            dDay: diffDays > 0 ? diffDays : null,
-            type: 'schedule' as const,
-            isToday,
-            isPast,
-          };
-        });
+        // 각 일정별로 참석자 수 조회 (병렬 처리)
+        const schedulesWithAttendees = await Promise.all(
+          scheduleData.map(async (s) => {
+            let attendees = 0;
+            try {
+              const participants = await getScheduleParticipants(Number(groupId), s.scheduleId);
+              attendees = participants.filter(p => p.attendanceStatus === 'ATTENDING').length;
+            } catch (error) {
+              console.error(`일정 ${s.scheduleId} 참석자 조회 실패:`, error);
+            }
+
+            const eventDate = new Date(s.eventDate);
+            const endDate = new Date(s.endDate);
+            const now = new Date();
+            const diffTime = eventDate.getTime() - now.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const isToday = diffDays === 0;
+            const isPast = endDate < now;
+            
+            // voteDeadline이 있고 아직 마감 전이면 투표중 상태
+            let status: 'voting' | 'confirmed' | 'ongoing' | 'completed' = 'confirmed';
+            if (s.status === 'CLOSED') status = 'completed';
+            else if (s.status === 'CANCELLED') status = 'completed';
+            else if (isToday && !isPast) status = 'ongoing';
+            else if (s.voteDeadline && new Date(s.voteDeadline) > now) status = 'voting';
+            
+            return {
+              id: s.scheduleId,
+              title: s.scheduleName,
+              date: formatScheduleDate(s.eventDate, s.endDate),
+              location: s.location || '미정',
+              attendees,
+              status,
+              dDay: diffDays > 0 ? diffDays : null,
+              type: 'schedule' as const,
+              isToday,
+              isPast,
+            };
+          })
+        );
         
         // 날짜순 정렬 (최신순)
-        schedules.sort((a, b) => b.id - a.id);
+        schedulesWithAttendees.sort((a, b) => b.id - a.id);
         
-        setSchedules(schedules);
+        setSchedules(schedulesWithAttendees);
       } catch (error) {
         console.error('일정 목록 불러오기 실패:', error);
         toast.error('일정 목록을 불러오는데 실패했습니다.');

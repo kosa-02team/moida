@@ -170,3 +170,16 @@ export const activateClub = async (
   return patch<void>(`/api/clubs/${clubId}/activate`, {});
 };
 
+export interface TransferOwnershipRequest {
+  newOwnerMemberId: number;
+}
+
+/**
+ * 모임장 위임
+ */
+export const transferOwnership = async (
+  clubId: number,
+  request: TransferOwnershipRequest
+): Promise<void> => {
+  return patch<void>(`/api/clubs/${clubId}/transfer-ownership`, request);
+};

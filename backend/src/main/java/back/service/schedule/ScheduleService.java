@@ -377,6 +377,62 @@ public class ScheduleService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 일정 참여자 참석 상태 업데이트
+     */
+    @Transactional
+    public ScheduleParticipantResponse updateParticipantAttendance(
+            Long clubId, 
+            Long scheduleId, 
+            Long participantId, 
+            ScheduleParticipantUpdateRequest request,
+            Long userId) {
+        // 권한 체크: 운영진 이상만 가능
+        clubAuthService.assertAtLeastManager(clubId, userId);
+
+        Schedules schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(ScheduleException.NotFound::new);
+
+        // 일정이 해당 모임에 속하는지 확인
+        if (!schedule.getClubId().equals(clubId)) {
+            throw new ScheduleException.NotFound();
+        }
+
+        ScheduleParticipants participant = scheduleParticipantRepository.findById(participantId)
+                .orElseThrow(() -> new ScheduleException.NotFound());
+
+        // 참여자가 해당 일정에 속하는지 확인
+        if (!participant.getScheduleId().equals(scheduleId)) {
+            throw new ScheduleException.NotFound();
+        }
+
+        // 참석 상태 업데이트
+        String status = request.attendanceStatus();
+        if ("ATTENDING".equals(status)) {
+            participant.attend();
+        } else if ("NOT_ATTENDING".equals(status)) {
+            participant.notAttend();
+        } else if ("UNDECIDED".equals(status)) {
+            participant.undecided();
+        }
+
+        // 사용자 정보 조회
+        Users user = userRepository.findById(participant.getUserId())
+                .orElseThrow(() -> new back.exception.AuthException.UserNotFound());
+
+        return new ScheduleParticipantResponse(
+                participant.getParticipantId(),
+                participant.getScheduleId(),
+                participant.getUserId(),
+                user.getRealName(),
+                participant.getAttendanceStatus(),
+                participant.getFeeStatus(),
+                participant.getIsRefunded(),
+                participant.getCreatedAt(),
+                participant.getUpdatedAt()
+        );
+    }
+
     private ScheduleResponse toResponse(Schedules schedule) {
         // 참가비 집계: 해당 일정의 입금(DEPOSIT) 거래 내역 집계
         BigDecimal collectedEntryFee = BigDecimal.ZERO;

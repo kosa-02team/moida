@@ -97,14 +97,9 @@ export function HomeView() {
   const filteredMyGroups = myClubs.filter(club => {
     const matchesSearch =
       club.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = filterCategory === 'all' || club.category === filterCategory;
     
-    // 카테고리 필터링 (category는 MyClubResponse에 없으므로 일단 모든 모임 표시)
-    // TODO: 백엔드에서 MyClubResponse에 category 필드 추가 필요
-    if (filterCategory !== 'all') {
-      // category 필드가 없으므로 일단 모든 모임 표시
-    }
-    
-    return matchesSearch;
+    return matchesSearch && matchesCategory;
   });
 
   // 항상 내 모임만 표시

@@ -2,7 +2,7 @@
  * 일정(Schedule) 관련 API
  */
 
-import { get, post, put } from './client';
+import { get, post, put, patch } from './client';
 
 export interface ScheduleResponse {
   scheduleId: number;
@@ -56,12 +56,16 @@ export interface ScheduleParticipantResponse {
   participantId: number;
   scheduleId: number;
   userId: number;
-  realName: string;
+  userName: string;
   attendanceStatus: string;
   feeStatus: string;
   isRefunded: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ScheduleParticipantUpdateRequest {
+  attendanceStatus: 'ATTENDING' | 'NOT_ATTENDING' | 'UNDECIDED';
 }
 
 /**
@@ -146,5 +150,20 @@ export const getScheduleParticipants = async (
 ): Promise<ScheduleParticipantResponse[]> => {
   return get<ScheduleParticipantResponse[]>(
     `/api/clubs/${clubId}/schedules/${scheduleId}/participants`
+  );
+};
+
+/**
+ * 일정 참여자 참석 상태 업데이트
+ */
+export const updateParticipantAttendance = async (
+  clubId: number,
+  scheduleId: number,
+  participantId: number,
+  request: ScheduleParticipantUpdateRequest
+): Promise<ScheduleParticipantResponse> => {
+  return patch<ScheduleParticipantResponse>(
+    `/api/clubs/${clubId}/schedules/${scheduleId}/participants/${participantId}`,
+    request
   );
 };
