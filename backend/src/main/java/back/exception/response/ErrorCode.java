@@ -31,6 +31,8 @@ public enum ErrorCode {
     CLUB_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "C02", "이미 존재하는 클럽 이름입니다."),
     CLUB_CLOSED(HttpStatus.BAD_REQUEST, "C03", "이미 폐쇄된 클럽입니다."),
     CLUB_MAX_CAPACITY(BAD_REQUEST, "C04", "최대 정원이 가득 찼습니다."),
+    CLUB_INVALID_CATEGORY(BAD_REQUEST, "C05", "유효하지 않은 카테고리입니다."),
+    CLUB_INVALID_STATUS(BAD_REQUEST, "C06", "유효하지 않은 상태값입니다."),
 
     //ClubAuth Error
     CLUB_AUTH_NOT_ACTIVE(FORBIDDEN, "CA01", "활성 멤버가 아닙니다."),

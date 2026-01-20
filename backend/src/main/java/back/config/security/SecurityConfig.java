@@ -3,6 +3,7 @@ package back.config.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -57,6 +58,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 세션 미사용
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll() // 인증 제외 경로
+                        .requestMatchers(HttpMethod.GET, "/api/clubs/**").permitAll() // 모임 조회는 인증 불필요
                         .requestMatchers("/api/admin/**").hasRole("ADMIN") // 관리자 페이지 권한 설정
                         .anyRequest().authenticated() // 그 외 모든 요청은 인증 필요
                 )

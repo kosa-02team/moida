@@ -131,6 +131,16 @@ public class ClubService {
                 });
     }
 
+    // 이름 검색
+    public Page<ClubResponse> searchClubsByName(String clubName, Pageable pageable) {
+        return clubRepository.findByClubNameContaining(clubName, pageable)
+                .map(club -> {
+                    Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
+                            club.getClubId(), ClubMembers.Status.ACTIVE);
+                    return ClubResponse.from(club, currentMembers);
+                });
+    }
+
     // 모든 모임 조회 (페이징)
     public Page<ClubResponse> getAllClubs(Pageable pageable) {
         return clubRepository.findAll(pageable)
