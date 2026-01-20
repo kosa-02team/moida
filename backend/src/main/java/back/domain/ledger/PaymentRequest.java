@@ -73,10 +73,10 @@ public class PaymentRequest {
 
     // 생성자
     public PaymentRequest(Long clubId, Long memberId, String memberName,
-                          RequestType requestType, BigDecimal expectedAmount,
-                          LocalDate expectedDate, Integer matchDaysRange,
-                          LocalDateTime expiresAt,
-                          Long scheduleId, String billingPeriod) { // 추가된 파라미터
+            RequestType requestType, BigDecimal expectedAmount,
+            LocalDate expectedDate, Integer matchDaysRange,
+            LocalDateTime expiresAt,
+            Long scheduleId, String billingPeriod) { // 추가된 파라미터
         this.clubId = clubId;
         this.memberId = memberId;
         this.memberName = memberName;
@@ -106,12 +106,22 @@ public class PaymentRequest {
     }
 
     /**
-     * 수동 매칭 처리
+     * 수동 매칭 처리 (외부 거래내역 연결)
      */
     public void confirmMatch(Long historyId, Long matchedBy) {
         this.status = RequestStatus.MATCHED;
         this.matchType = MatchType.CONFIRMED;
         this.matchedHistoryId = historyId;
+        this.matchedAt = LocalDateTime.now();
+        this.matchedBy = matchedBy;
+    }
+
+    /**
+     * 수동 확인 처리 (현금 납부 등 거래내역 없음)
+     */
+    public void confirmManualCashPayment(Long matchedBy) {
+        this.status = RequestStatus.MATCHED;
+        this.matchType = MatchType.MANUAL_CASH;
         this.matchedAt = LocalDateTime.now();
         this.matchedBy = matchedBy;
     }
@@ -125,9 +135,11 @@ public class PaymentRequest {
 
     /**
      * 매칭 가능 여부 확인
+     * - 자동 매칭은 PENDING만 가능
+     * - 수동 매칭은 EXPIRED도 가능하도록 서비스에서 처리
      */
     public boolean isMatchable() {
-        return this.status == RequestStatus.PENDING;
+        return this.status == RequestStatus.PENDING || this.status == RequestStatus.EXPIRED;
     }
 
     // Enum 정의
@@ -146,6 +158,7 @@ public class PaymentRequest {
 
     public enum MatchType {
         AUTO_MATCHED, // 자동 매칭
-        CONFIRMED // 수동 확인
+        CONFIRMED, // 수동 확인 (거래내역 연결)
+        MANUAL_CASH // 수동 확인 (현금 직접 수령)
     }
 }

@@ -208,7 +208,7 @@ public class BankAccountController {
     // Helper 메서드
 
     private String extractType(BankTransactionHistory history) {
-        return history.getAmount().compareTo(java.math.BigDecimal.ZERO) > 0 ? "DEPOSIT" : "WITHDRAW";
+        return history.getInoutType();
     }
 
     // 응답 DTO

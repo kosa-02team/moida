@@ -190,12 +190,10 @@ public class TransactionMatchingService {
     }
 
     /**
-     * 거래 타입 추출 (임시 - BankTransactionHistory에 type 필드가 없는 경우)
+     * 거래 타입 추출 (BankTransactionHistory의 inoutType 사용)
      */
     private String extractTransactionType(BankTransactionHistory transaction) {
-        // TODO: BankTransactionHistory에 type 필드가 있으면 그걸 사용
-        // 현재는 금액이 양수면 DEPOSIT, 음수면 WITHDRAW로 가정
-        return transaction.getAmount().compareTo(BigDecimal.ZERO) > 0 ? "DEPOSIT" : "WITHDRAW";
+        return transaction.getInoutType();
     }
 
     /**
@@ -207,11 +205,29 @@ public class TransactionMatchingService {
                 .orElseThrow(() -> new IllegalArgumentException("입금요청을 찾을 수 없습니다. requestId: " + requestId));
 
         if (!request.isMatchable()) {
-            throw new IllegalStateException("이미 매칭되었거나 만료된 요청입니다.");
+            throw new IllegalStateException("이미 매칭되었거나 만료된 요청입니다."); // TODO: isMatchable이 EXPIRED를 허용했으므로 문구 수정 필요할 수도
+                                                                     // 있음
         }
 
         // 수동 매칭 처리
         request.confirmMatch(historyId, matchedBy);
+        paymentRequestRepository.save(request);
+    }
+
+    /**
+     * 거래내역 없이 수동 확인 (현금 수령 등)
+     */
+    @Transactional
+    public void confirmPaymentWithoutHistory(Long requestId, Long matchedBy) {
+        PaymentRequest request = paymentRequestRepository.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("입금요청을 찾을 수 없습니다. requestId: " + requestId));
+
+        if (!request.isMatchable()) {
+            throw new IllegalStateException("이미 매칭되어 처리할 수 없습니다.");
+        }
+
+        // 수동 확인 처리 (현금)
+        request.confirmManualCashPayment(matchedBy);
         paymentRequestRepository.save(request);
     }
 

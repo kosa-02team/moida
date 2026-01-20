@@ -175,8 +175,9 @@ public class BankService {
                                         clubId,
                                         tx.occurredAt(),
                                         tx.printContent(), // senderName
-                                        tx.amount(),
-                                        tx.txId() // uniqueTxKey로 사용
+                                        tx.amount().abs(), // 무조건 양수로 저장
+                                        tx.txId(), // uniqueTxKey로 사용
+                                        tx.type() // inoutType
                         );
                         transactionHistoryRepository.save(history);
 
@@ -192,6 +193,10 @@ public class BankService {
                         );
                         TransactionLog savedLog = transactionLogRepository.save(log);
                         savedLogs.add(savedLog);
+
+                        // 새로 저장된 내역 수집 및 매핑
+                        savedHistories.add(history);
+                        historyToLogMap.put(history.getHistoryId(), savedLog);
                 }
 
                 // 5. 자동 매칭 수행 (새로 저장된 거래내역과 입금요청 매칭)
@@ -251,8 +256,9 @@ public class BankService {
                                         clubId,
                                         tx.occurredAt(),
                                         tx.printContent(), // senderName
-                                        tx.amount(),
-                                        tx.txId() // uniqueTxKey로 사용
+                                        tx.amount().abs(), // 무조건 양수로 저장
+                                        tx.txId(), // uniqueTxKey로 사용
+                                        tx.type() // inoutType
                         );
                         transactionHistoryRepository.save(history);
 
@@ -330,8 +336,9 @@ public class BankService {
                                 request.clubId(),
                                 LocalDateTime.now(), // 발생 시간
                                 response.recipientName(), // 받는 사람 이름
-                                response.amount().negate(), // 출금이므로 음수로 저장
-                                response.transferId() // uniqueTxKey (bank_tran_id)
+                                response.amount().abs(), // 무조건 양수로 저장
+                                response.transferId(), // uniqueTxKey (bank_tran_id)
+                                "WITHDRAW" // 출금
                 );
                 transactionHistoryRepository.save(history);
 

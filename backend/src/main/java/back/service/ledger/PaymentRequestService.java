@@ -18,6 +18,7 @@ import java.util.List;
 public class PaymentRequestService {
 
     private final PaymentRequestRepository paymentRequestRepository;
+    private final TransactionMatchingService transactionMatchingService;
 
     /**
      * [기본] 입금요청 수동 생성
@@ -43,8 +44,8 @@ public class PaymentRequestService {
                     item.expectedDate(),
                     item.matchDaysRange(),
                     expiresAt,
-                    item.scheduleId(),     // 추가됨
-                    item.billingPeriod()   // 추가됨
+                    item.scheduleId(), // 추가됨
+                    item.billingPeriod() // 추가됨
             );
 
             createdRequests.add(paymentRequestRepository.save(paymentRequest));
@@ -64,6 +65,11 @@ public class PaymentRequestService {
 
         // 매칭 이력 ID 등은 null로 처리하거나 별도 생성 필요
         request.confirmMatch(null, adminId);
+    }
+
+    @Transactional
+    public void confirmManualPayment(Long requestId, Long matchedBy) {
+        transactionMatchingService.confirmPaymentWithoutHistory(requestId, matchedBy);
     }
 
     /**

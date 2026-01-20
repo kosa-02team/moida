@@ -56,6 +56,19 @@ public class PaymentRequestController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * 입금 요청 수동 확인 (현금 수령 등)
+     */
+    @PatchMapping("/payment-requests/{requestId}/confirm-manual")
+    public ResponseEntity<Void> confirmManualRequest(
+            @PathVariable Long clubId,
+            @PathVariable Long requestId,
+            @AuthenticationPrincipal UserPrincipal user) {
+        Long userId = user.getUserId();
+        paymentRequestService.confirmManualPayment(requestId, userId);
+        return ResponseEntity.ok().build();
+    }
+
     // --- 2. 일정 자금 관리 (EventFundService) ---
 
     /**

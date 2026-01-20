@@ -41,15 +41,19 @@ public class BankTransactionHistory {
     @Column(name = "unique_tx_key", unique = true, length = 255)
     private String uniqueTxKey;
 
+    @Column(name = "inout_type", nullable = false, length = 20)
+    private String inoutType; // "DEPOSIT" or "WITHDRAW"
+
     // 생성자
-    public BankTransactionHistory(Long clubId, LocalDateTime bankTransactionAt, 
-                                   String printContent,
-                                   BigDecimal amount, String uniqueTxKey) {
+    public BankTransactionHistory(Long clubId, LocalDateTime bankTransactionAt,
+            String printContent,
+            BigDecimal amount, String uniqueTxKey, String inoutType) {
         this.clubId = clubId;
         this.bankTransactionAt = bankTransactionAt;
         this.printContent = printContent;
         this.amount = amount;
         this.uniqueTxKey = uniqueTxKey;
+        this.inoutType = inoutType;
     }
 
     // 도메인 메서드
