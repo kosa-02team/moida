@@ -57,7 +57,7 @@ import { DuesView } from "./components/group/dues/DuesView";
 import { DepositView } from "./components/group/dues/DepositView";
 import { WithdrawView } from "./components/group/dues/WithdrawView";
 import { SettlementRequestView } from "./components/group/dues/SettlementRequestView";
-import { DuesRulesView } from "./components/group/dues/DuesRulesView";
+// DuesRulesView removed - 회비 규칙 기능 제거됨
 import { DuesHistoryView } from "./components/group/dues/DuesHistoryView";
 import { ShareManagementView } from "./components/group/dues/ShareManagementView";
 import { StoriesView } from "./components/group/stories/StoriesView";
@@ -68,7 +68,7 @@ import { StatsView } from "./components/group/stats/StatsView";
 import { ParticipationStatsView } from "./components/group/stats/ParticipationStatsView";
 import { AdminView } from "./components/group/admin/AdminView";
 import { EditGroupView } from "./components/group/admin/EditGroupView";
-import { DuesPolicyView } from "./components/group/admin/DuesPolicyView";
+// DuesPolicyView removed - 회비 정책 기능 제거됨
 import { MemberManagementView } from "./components/group/admin/MemberManagementView";
 import { RoleManagementView } from "./components/group/admin/RoleManagementView";
 import { GroupPrivacySettingsView } from "./components/group/admin/GroupPrivacySettingsView";
@@ -168,7 +168,6 @@ export default function App() {
             <Route path="dues/deposit" element={<DepositView />} />
             <Route path="dues/withdraw" element={<WithdrawView />} />
             <Route path="dues/settlement-request" element={<SettlementRequestView />} />
-            <Route path="dues/rules" element={<DuesRulesView />} />
             <Route path="dues/history" element={<DuesHistoryView />} />
             
             {/* Stories */}
@@ -184,7 +183,7 @@ export default function App() {
             {/* Admin */}
             <Route path="admin" element={<AdminView />} />
             <Route path="admin/edit-group" element={<EditGroupView />} />
-            <Route path="admin/dues-policy" element={<DuesPolicyView />} />
+            {/* admin/dues-policy removed - 회비 정책 기능 제거됨 */}
             <Route path="admin/members" element={<MemberManagementView />} />
             <Route path="admin/roles" element={<RoleManagementView />} />
             <Route path="admin/privacy" element={<GroupPrivacySettingsView />} />

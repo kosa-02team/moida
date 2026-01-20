@@ -36,8 +36,12 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // 1. 허용할 도메인 설정
+        // 1. 허용할 도메인 설정 (Vite 개발 서버 포트 범위 포함)
         configuration.addAllowedOrigin("http://localhost:3000");
+        // Vite 개발 서버는 5173부터 시작하여 사용 가능한 포트를 찾음
+        for (int port = 5173; port <= 5180; port++) {
+            configuration.addAllowedOrigin("http://localhost:" + port);
+        }
         // 2. 허용할 HTTP 메서드 설정
         configuration.addAllowedMethod("*");
         // 3. 허용할 헤더 설정

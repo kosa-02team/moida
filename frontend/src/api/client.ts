@@ -34,6 +34,16 @@ interface RequestOptions extends RequestInit {
 }
 
 /**
+ * 인증 에러 클래스
+ */
+export class AuthenticationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AuthenticationError';
+  }
+}
+
+/**
  * API 호출 함수
  */
 export const apiClient = async <T>(
@@ -67,6 +77,11 @@ export const apiClient = async <T>(
 
     // 응답이 성공이 아닌 경우 에러 처리
     if (!response.ok) {
+      // 401, 403은 인증 에러로 처리 (조용히 처리)
+      if (response.status === 401 || response.status === 403) {
+        throw new AuthenticationError('인증이 필요합니다');
+      }
+      
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
     }
@@ -81,6 +96,10 @@ export const apiClient = async <T>(
     
     return data as T;
   } catch (error) {
+    // AuthenticationError는 그대로 전달 (조용히 처리)
+    if (error instanceof AuthenticationError) {
+      throw error;
+    }
     console.error('API request failed:', error);
     throw error;
   }
@@ -121,6 +140,21 @@ export const put = <T>(
 ): Promise<T> => {
   return apiClient<T>(endpoint, {
     method: 'PUT',
+    body: body ? JSON.stringify(body) : undefined,
+    requiresAuth,
+  });
+};
+
+/**
+ * PATCH 요청
+ */
+export const patch = <T>(
+  endpoint: string,
+  body?: unknown,
+  requiresAuth = true
+): Promise<T> => {
+  return apiClient<T>(endpoint, {
+    method: 'PATCH',
     body: body ? JSON.stringify(body) : undefined,
     requiresAuth,
   });
