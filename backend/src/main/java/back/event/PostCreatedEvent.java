@@ -5,9 +5,9 @@ import lombok.RequiredArgsConstructor;
 
 @Getter
 @RequiredArgsConstructor
-public class ScheduleRegisteredEvent {
+public class PostCreatedEvent {
     private final Long clubId;
-    private final Long scheduleId;
-    private final String scheduleName;
+    private final Long postId;
+    private final String postTitle;
     private final Long authorId;
 }

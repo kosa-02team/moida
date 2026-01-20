@@ -48,14 +48,24 @@ public class PostService {
     private final PostImageRepository postImageRepository;
     private final PostMemberTagRepository postMemberTagRepository;
 
+    // 알림 전송을 위해 추가
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     @Transactional
     public PostIdResponse createStory(Long clubId, Long writerId, StoryCreateRequest request) {
 
-         clubAuthorizationService.assertActiveMember(clubId, writerId);
+        clubAuthorizationService.assertActiveMember(clubId, writerId);
 
         Posts saved = postRepository.save(buildStoryPost(clubId, writerId, request));
 
         applyOptionalUpdatesOnCreate(saved, request);
+
+        // 알림 이벤트 발행
+        eventPublisher.publishEvent(new back.event.PostCreatedEvent(
+                clubId,
+                saved.getPostId(),
+                saved.getContent(), /* 제목이 없으므로 내용 앞부분이나 전체 사용. 스토리형 게시글이라 제목 필드가 없는 모양 */
+                writerId));
 
         return PostIdResponse.from(saved);
     }
@@ -68,7 +78,7 @@ public class PostService {
         return PostDetailResponse.from(post);
     }
 
-    //스토리 페이지에 게시글 박스
+    // 스토리 페이지에 게시글 박스
     public List<PostCardResponse> getRecentPosts(Long clubId, Long viewerId, Pageable pageable) {
         clubAuthorizationService.validateAndGetClubForReadPosts(clubId, viewerId);
 
@@ -81,24 +91,23 @@ public class PostService {
         Map<Long, List<String>> imageMap = postIds.isEmpty()
                 ? Map.of()
                 : postImageRepository.findByPostIdIn(postIds).stream()
-                .collect(Collectors.groupingBy(
-                        PostImages::getPostId,
-                        Collectors.mapping(PostImages::getImageUrl, Collectors.toList())
-                ));
+                        .collect(Collectors.groupingBy(
+                                PostImages::getPostId,
+                                Collectors.mapping(PostImages::getImageUrl, Collectors.toList())));
 
         return page.getContent().stream()
                 .map(p -> PostCardResponse.of(p, imageMap.getOrDefault(p.postId(), List.of())))
                 .toList();
     }
 
-    //스토리 페이지에 앨범 박스
+    // 스토리 페이지에 앨범 박스
     public List<AlbumCardResponse> getRecentAlbums(Long clubId, Long viewerId, int limit) {
         clubAuthorizationService.validateAndGetClubForReadPosts(clubId, viewerId);
 
         List<RecentAlbumRow> rows = postRepository.findRecentAlbumRows(
-                clubId, PageRequest.of(0, limit)
-        );
-        if (rows.isEmpty()) return List.of();
+                clubId, PageRequest.of(0, limit));
+        if (rows.isEmpty())
+            return List.of();
 
         List<Long> scheduleIds = rows.stream()
                 .map(RecentAlbumRow::getScheduleId)
@@ -113,7 +122,8 @@ public class PostService {
 
         for (RecentAlbumRow r : rows) {
             List<PostImages> list = imageMap.getOrDefault(r.getScheduleId(), List.of());
-            if (list.isEmpty()) continue;
+            if (list.isEmpty())
+                continue;
 
             PostImages cover = list.getFirst(); // createdAt desc 기준 1장
 
@@ -124,8 +134,7 @@ public class PostService {
                     r.getScheduleName(),
                     cover.getImageUrl(),
                     list.size(),
-                    r.getLastCreatedAt()
-            ));
+                    r.getLastCreatedAt()));
         }
 
         return result;
@@ -243,7 +252,8 @@ public class PostService {
     private void replaceImages(Posts post, List<String> imagesUrl) {
         postImageRepository.deleteByPost_PostId(post.getPostId());
 
-        if (imagesUrl.isEmpty()) return;
+        if (imagesUrl.isEmpty())
+            return;
 
         List<PostImages> images = imagesUrl.stream()
                 .map(url -> PostImages.of(post, url))
@@ -255,7 +265,8 @@ public class PostService {
     private void replaceTaggedMembers(Long postId, List<Long> memberIds) {
         postMemberTagRepository.deleteByPostId(postId);
 
-        if (memberIds.isEmpty()) return;
+        if (memberIds.isEmpty())
+            return;
 
         List<PostMemberTags> tags = memberIds.stream()
                 .distinct()

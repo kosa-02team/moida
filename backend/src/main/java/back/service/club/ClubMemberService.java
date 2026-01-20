@@ -18,6 +18,7 @@ public class ClubMemberService {
 
     private final ClubMemberRepository clubMemberRepository;
     private final ClubRepository clubRepository;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public ClubMemberResponse joinClub(Long clubId, Long userId, ClubMemberRequest request) {
@@ -62,6 +63,17 @@ public class ClubMemberService {
         }
 
         targetMember.approve();
+
+        // 클럽 정보 조회가 필요함 (이벤트를 위해)
+        Clubs club = clubRepository.findById(clubId).orElseThrow(ClubException.NotFound::new);
+
+        // 가입 환영 이벤트 발행
+        eventPublisher.publishEvent(new back.event.ClubJoinEvent(
+                clubId,
+                targetMember.getMemberId(),
+                targetMember.getUserId(),
+                club.getClubName()));
+
         return ClubMemberResponse.from(targetMember);
     }
 

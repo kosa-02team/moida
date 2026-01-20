@@ -59,8 +59,8 @@ public class ScheduleService {
     /**
      * 일정을 생성하고 자동으로 참석/불참 투표를 생성합니다.
      *
-     * @param clubId 모임 ID
-     * @param userId 일정 생성자 ID (현재 로그인한 사용자)
+     * @param clubId  모임 ID
+     * @param userId  일정 생성자 ID (현재 로그인한 사용자)
      * @param request 일정 생성 요청 정보
      * @return 생성된 일정 정보
      */
@@ -77,7 +77,7 @@ public class ScheduleService {
         // 날짜 검증: endDate는 eventDate보다 이후여야 함
         // (DTO 레벨에서 @AssertTrue로 검증하지만, 방어적 프로그래밍을 위해 서비스 레벨에서도 검증)
         if (request.endDate().isBefore(request.eventDate()) ||
-            request.endDate().isEqual(request.eventDate())) {
+                request.endDate().isEqual(request.eventDate())) {
             throw new ScheduleException.InvalidDateRange();
         }
 
@@ -89,8 +89,7 @@ public class ScheduleService {
                 request.endDate(),
                 request.location(),
                 request.description(),
-                request.entryFee()
-        );
+                request.entryFee());
         if (request.voteDeadline() != null) {
             schedule.setVoteDeadline(request.voteDeadline());
         }
@@ -106,7 +105,7 @@ public class ScheduleService {
                 request.description(),
                 false, // isAnonymous
                 false, // allowMultiple
-                null   // deadline은 null (ATTENDANCE 타입은 일정 시작 5분 전 자동 종료)
+                null // deadline은 null (ATTENDANCE 타입은 일정 시작 5분 전 자동 종료)
         );
         Votes savedVote = voteRepository.save(vote);
 
@@ -116,24 +115,22 @@ public class ScheduleService {
                 "참석",
                 1,
                 request.eventDate(),
-                request.location()
-        );
+                request.location());
         VoteOptions notAttendOption = new VoteOptions(
                 savedVote.getVoteId(),
                 "불참",
                 2,
                 null,
-                null
-        );
+                null);
         voteOptionRepository.save(attendOption);
         voteOptionRepository.save(notAttendOption);
 
-        //일정 생성 이벤트 발행
+        // 일정 생성 이벤트 발행
         eventPublisher.publishEvent(new ScheduleRegisteredEvent(
                 clubId,
                 savedSchedule.getScheduleId(),
-                savedSchedule.getScheduleName()
-        ));
+                savedSchedule.getScheduleName(),
+                userId));
 
         return toResponse(savedSchedule);
     }
@@ -182,7 +179,8 @@ public class ScheduleService {
         }
 
         // 참가비 변경 여부 확인
-        java.math.BigDecimal currentEntryFee = schedule.getEntryFee() != null ? schedule.getEntryFee() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal currentEntryFee = schedule.getEntryFee() != null ? schedule.getEntryFee()
+                : java.math.BigDecimal.ZERO;
         java.math.BigDecimal newEntryFee = request.entryFee() != null ? request.entryFee() : java.math.BigDecimal.ZERO;
         boolean isEntryFeeChanged = currentEntryFee.compareTo(newEntryFee) != 0;
 
@@ -199,8 +197,8 @@ public class ScheduleService {
         }
 
         // 날짜 유효성 검증
-        if (request.endDate().isBefore(request.eventDate()) || 
-            request.endDate().isEqual(request.eventDate())) {
+        if (request.endDate().isBefore(request.eventDate()) ||
+                request.endDate().isEqual(request.eventDate())) {
             throw new ScheduleException.InvalidDateRange();
         }
 
@@ -210,8 +208,7 @@ public class ScheduleService {
                 request.endDate(),
                 request.location(),
                 request.description(),
-                request.entryFee()
-        );
+                request.entryFee());
 
         return toResponse(schedule);
     }
@@ -234,7 +231,8 @@ public class ScheduleService {
         }
 
         // 권한 체크: 참가비가 있으면 총무 이상, 없으면 운영진 이상
-        boolean hasEntryFee = schedule.getEntryFee() != null && schedule.getEntryFee().compareTo(java.math.BigDecimal.ZERO) > 0;
+        boolean hasEntryFee = schedule.getEntryFee() != null
+                && schedule.getEntryFee().compareTo(java.math.BigDecimal.ZERO) > 0;
         if (hasEntryFee) {
             clubAuthService.assertAtLeastAccountant(clubId, userId);
         } else {
@@ -274,7 +272,8 @@ public class ScheduleService {
         }
 
         // 권한 체크: 참가비가 있으면 총무 이상 (환불 문제), 없으면 운영진 이상
-        boolean hasEntryFee = schedule.getEntryFee() != null && schedule.getEntryFee().compareTo(java.math.BigDecimal.ZERO) > 0;
+        boolean hasEntryFee = schedule.getEntryFee() != null
+                && schedule.getEntryFee().compareTo(java.math.BigDecimal.ZERO) > 0;
         if (hasEntryFee) {
             clubAuthService.assertAtLeastAccountant(clubId, userId);
         } else {
@@ -310,7 +309,8 @@ public class ScheduleService {
      * @return 수정된 일정 정보
      */
     @Transactional
-    public ScheduleResponse updateSettlement(Long clubId, Long scheduleId, Long userId, ScheduleSettlementRequest request) {
+    public ScheduleResponse updateSettlement(Long clubId, Long scheduleId, Long userId,
+            ScheduleSettlementRequest request) {
         // 권한 체크: 정산은 무조건 총무 이상만 가능 (돈 관련)
         clubAuthService.assertAtLeastAccountant(clubId, userId);
 
@@ -369,8 +369,7 @@ public class ScheduleService {
                         p.getFeeStatus(),
                         p.getIsRefunded(),
                         p.getCreatedAt(),
-                        p.getUpdatedAt()
-                ))
+                        p.getUpdatedAt()))
                 .collect(Collectors.toList());
     }
 
@@ -390,7 +389,6 @@ public class ScheduleService {
                 schedule.getCancelReason(),
                 schedule.getVoteDeadline(),
                 schedule.getCreatedAt(),
-                schedule.getUpdatedAt()
-        );
+                schedule.getUpdatedAt());
     }
 }
