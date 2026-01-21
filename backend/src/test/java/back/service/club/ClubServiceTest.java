@@ -91,6 +91,7 @@ class ClubServiceTest {
                 return club;
             });
             given(bankService.createAccount(any(Long.class), any())).willReturn(bankAccount);
+            given(clubMemberRepository.save(any(ClubMembers.class))).willAnswer(invocation -> invocation.getArgument(0));
 
             // when
             ClubResponse response = clubService.createClub(request, ownerId);
@@ -102,10 +103,11 @@ class ClubServiceTest {
             assertThat(response.getVisibility()).isEqualTo("PUBLIC");
             assertThat(response.getType()).isEqualTo("OPERATION_FEE");
             assertThat(response.getMaxMembers()).isEqualTo(50);
-            assertThat(response.getCurrentMembers()).isEqualTo(0);
+            assertThat(response.getCurrentMembers()).isEqualTo(1);
 
             then(clubRepository).should(times(1)).existsByClubName(request.getClubName());
-            then(clubRepository).should(times(1)).save(any(Clubs.class));
+            then(clubRepository).should(times(2)).save(any(Clubs.class));
+            then(clubMemberRepository).should(times(1)).save(any(ClubMembers.class));
         }
 
         @Test
@@ -133,6 +135,7 @@ class ClubServiceTest {
                 return club;
             });
             given(bankService.createAccount(any(Long.class), any())).willReturn(bankAccount);
+            given(clubMemberRepository.save(any(ClubMembers.class))).willAnswer(invocation -> invocation.getArgument(0));
 
             // when
             ClubResponse response = clubService.createClub(request, ownerId);
@@ -143,6 +146,7 @@ class ClubServiceTest {
             assertThat(response.getVisibility()).isEqualTo("PUBLIC");
             assertThat(response.getType()).isEqualTo("OPERATION_FEE");
             assertThat(response.getMaxMembers()).isEqualTo(100);
+            assertThat(response.getCurrentMembers()).isEqualTo(1);
         }
 
         @Test
