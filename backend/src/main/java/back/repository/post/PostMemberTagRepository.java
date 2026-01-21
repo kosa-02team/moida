@@ -13,7 +13,7 @@ public interface PostMemberTagRepository extends JpaRepository<PostMemberTags, L
 
     List<PostMemberTags> findByPostId(Long postId);
 
-    // 🔹 1. 닉네임 → postId (필터용)
+    //닉네임 → postId (필터용)
     @Query(value = """
         select distinct pmt.post_id
         from post_member_tags pmt
@@ -22,7 +22,7 @@ public interface PostMemberTagRepository extends JpaRepository<PostMemberTags, L
     """, nativeQuery = true)
     List<Long> findPostIdsByMemberNames(@Param("names") List<String> names);
 
-    // 🔹 2. postId → 닉네임 (context 출력용)
+    //postId → 닉네임 (context 출력용)
     @Query(value = """
         select pmt.post_id, cm.nickname
         from post_member_tags pmt
@@ -31,7 +31,7 @@ public interface PostMemberTagRepository extends JpaRepository<PostMemberTags, L
     """, nativeQuery = true)
     List<Object[]> findMemberNamesGroupedByPostIds(@Param("postIds") List<Long> postIds);
 
-    // 🔹 3. 전체 닉네임 목록 (질문 매칭용)
+    //전체 닉네임 목록 (질문 매칭용)
     @Query("""
         select distinct cm.nickname
         from ClubMembers cm
