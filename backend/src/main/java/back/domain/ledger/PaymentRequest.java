@@ -139,9 +139,14 @@ public class PaymentRequest {
      * - 수동 매칭은 EXPIRED도 가능하도록 서비스에서 처리
      */
     public boolean isMatchable() {
+        return this.status == RequestStatus.PENDING || this.status == RequestStatus.EXPIRED;    }
+
+    /**
+     + * 수동 매칭 가능 여부 (만료된 요청도 포함)
+     + */
+    public boolean isManualMatchable() {
         return this.status == RequestStatus.PENDING || this.status == RequestStatus.EXPIRED;
     }
-
     // Enum 정의
 
     public enum RequestType {
