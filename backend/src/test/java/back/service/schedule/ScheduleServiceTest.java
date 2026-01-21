@@ -168,7 +168,7 @@ class ScheduleServiceTest {
             given(scheduleRepository.save(any(Schedules.class))).willReturn(savedSchedule);
             given(voteRepository.save(any(Votes.class))).willReturn(savedVote);
             // request에 entryFee가 있으므로 assertAtLeastAccountant가 호출됨
-            doNothing().when(clubsAuthorizationService).assertAtLeastAccountant(eq(clubId), eq(userId));
+            // Mock 객체의 void 메서드는 기본적으로 아무것도 하지 않음
 
             // when
             ScheduleResponse result = scheduleService.createSchedule(clubId, userId, request);
@@ -342,7 +342,7 @@ class ScheduleServiceTest {
 
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
             // 참가비 변경 없으므로 assertAtLeastManager가 호출됨
-            doNothing().when(clubsAuthorizationService).assertAtLeastManager(eq(clubId), eq(userId));
+            // Mock 객체의 void 메서드는 기본적으로 아무것도 하지 않음
 
             // when
             ScheduleResponse result = scheduleService.updateSchedule(clubId, scheduleId, userId, request);
@@ -636,7 +636,7 @@ class ScheduleServiceTest {
 
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
             // 정산 정보 수정은 assertAtLeastAccountant가 호출됨
-            doNothing().when(clubsAuthorizationService).assertAtLeastAccountant(eq(clubId), eq(userId));
+            // Mock 객체의 void 메서드는 기본적으로 아무것도 하지 않음
 
             // when
             ScheduleResponse result = scheduleService.updateSettlement(clubId, scheduleId, userId, request);
