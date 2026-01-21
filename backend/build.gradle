@@ -50,6 +50,17 @@ dependencies {
 	mockitoAgent('org.mockito:mockito-core') {
 		transitive = false
 	}
+
+    // HTTP client
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+
+    // JSON
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    //mock 관련 라이브러리
+    mockitoAgent('org.mockito:mockito-core') {
+        transitive = false
+    }
 }
 
 tasks.named('test') {
