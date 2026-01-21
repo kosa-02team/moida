@@ -34,6 +34,10 @@ public class PostVectorService {
 
 
         String embeddingText = EmbeddingTextBuilder.build(post,memberNames);
+
+        if (embeddingText.isBlank()) {
+            return; // 임베딩 생략
+        }
         float[] embedding = geminiEmbeddingClient.embed(embeddingText);
 
         Map<String, Object> metadata = new HashMap<>();
