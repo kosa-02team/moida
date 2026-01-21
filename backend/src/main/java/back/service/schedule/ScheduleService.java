@@ -16,6 +16,7 @@ import back.repository.schedule.ScheduleRepository;
 import back.repository.vote.VoteOptionRepository;
 import back.repository.vote.VoteRepository;
 import back.service.club.ClubAuthService;
+import back.service.ledger.EventFundService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -37,6 +38,7 @@ public class ScheduleService {
     private final ClubAuthService clubAuthService;
     private final UserRepository userRepository;
     private final TransactionLogRepository transactionLogRepository;
+    private final EventFundService eventFundService;
 
     // 알림 전송을 위해 의존성 추가
     private final ApplicationEventPublisher eventPublisher;
@@ -212,7 +214,8 @@ public class ScheduleService {
                 request.endDate(),
                 request.location(),
                 request.description(),
-                request.entryFee());
+                request.entryFee(),
+                request.voteDeadline());
 
         return toResponse(schedule);
     }
@@ -255,6 +258,20 @@ public class ScheduleService {
 
         // 연관된 ATTENDANCE 투표도 종료
         voteRepository.findByScheduleId(scheduleId).ifPresent(Votes::close);
+
+        // 참가비가 설정되어 있으면 참석한 사람에게 자동으로 참가비 요청 발송
+        hasEntryFee = schedule.getEntryFee() != null
+                && schedule.getEntryFee().compareTo(java.math.BigDecimal.ZERO) > 0;
+        if (hasEntryFee) {
+            try {
+                eventFundService.collectEntryFees(clubId, scheduleId);
+            } catch (Exception e) {
+                // 참가비 요청 실패해도 일정 마감은 완료된 것으로 처리
+                // 로그만 남기고 예외는 전파하지 않음
+                org.slf4j.LoggerFactory.getLogger(ScheduleService.class)
+                        .warn("일정 마감 후 참가비 요청 발송 실패: scheduleId={}, error={}", scheduleId, e.getMessage());
+            }
+        }
     }
 
     /**
@@ -417,6 +434,102 @@ public class ScheduleService {
         }
 
         // 사용자 정보 조회
+        Users user = userRepository.findById(participant.getUserId())
+                .orElseThrow(() -> new back.exception.AuthException.UserNotFound());
+
+        return new ScheduleParticipantResponse(
+                participant.getParticipantId(),
+                participant.getScheduleId(),
+                participant.getUserId(),
+                user.getRealName(),
+                participant.getAttendanceStatus(),
+                participant.getFeeStatus(),
+                participant.getIsRefunded(),
+                participant.getCreatedAt(),
+                participant.getUpdatedAt()
+        );
+    }
+
+    /**
+     * 참가자 납부 상태 수정
+     */
+    @Transactional
+    public ScheduleParticipantResponse updateParticipantFeeStatus(
+            Long clubId,
+            Long scheduleId,
+            Long participantId,
+            String feeStatus,
+            Long userId) {
+        // 권한 체크: 총무 이상만 가능
+        clubAuthService.assertAtLeastAccountant(clubId, userId);
+
+        Schedules schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(ScheduleException.NotFound::new);
+
+        if (!schedule.getClubId().equals(clubId)) {
+            throw new ScheduleException.NotFound();
+        }
+
+        ScheduleParticipants participant = scheduleParticipantRepository.findById(participantId)
+                .orElseThrow(ScheduleException.NotFound::new);
+
+        if (!participant.getScheduleId().equals(scheduleId)) {
+            throw new ScheduleException.NotFound();
+        }
+
+        // 납부 상태 업데이트
+        participant.updateFeeStatus(feeStatus);
+
+        Users user = userRepository.findById(participant.getUserId())
+                .orElseThrow(() -> new back.exception.AuthException.UserNotFound());
+
+        return new ScheduleParticipantResponse(
+                participant.getParticipantId(),
+                participant.getScheduleId(),
+                participant.getUserId(),
+                user.getRealName(),
+                participant.getAttendanceStatus(),
+                participant.getFeeStatus(),
+                participant.getIsRefunded(),
+                participant.getCreatedAt(),
+                participant.getUpdatedAt()
+        );
+    }
+
+    /**
+     * 참가자 환급 상태 수정
+     */
+    @Transactional
+    public ScheduleParticipantResponse updateParticipantRefundStatus(
+            Long clubId,
+            Long scheduleId,
+            Long participantId,
+            Boolean isRefunded,
+            Long userId) {
+        // 권한 체크: 총무 이상만 가능
+        clubAuthService.assertAtLeastAccountant(clubId, userId);
+
+        Schedules schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(ScheduleException.NotFound::new);
+
+        if (!schedule.getClubId().equals(clubId)) {
+            throw new ScheduleException.NotFound();
+        }
+
+        ScheduleParticipants participant = scheduleParticipantRepository.findById(participantId)
+                .orElseThrow(ScheduleException.NotFound::new);
+
+        if (!participant.getScheduleId().equals(scheduleId)) {
+            throw new ScheduleException.NotFound();
+        }
+
+        // 환급 상태 업데이트
+        if (Boolean.TRUE.equals(isRefunded)) {
+            participant.markRefunded();
+        } else {
+            participant.resetRefund();
+        }
+
         Users user = userRepository.findById(participant.getUserId())
                 .orElseThrow(() -> new back.exception.AuthException.UserNotFound());
 

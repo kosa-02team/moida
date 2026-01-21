@@ -256,7 +256,7 @@ public class VoteService {
                     .orElseThrow(ResourceException.NotFound::new);
             voteClubId = schedule.getClubId();
         } else if ("GENERAL".equals(vote.getVoteType()) && vote.getPostId() != null) {
-            Posts post = postRepository.findById(vote.getPostId())
+            Posts post = postRepository.findByIdWithClub(vote.getPostId())
                     .orElseThrow(ResourceException.NotFound::new);
             voteClubId = post.getClub().getClubId();
         }
@@ -328,7 +328,7 @@ public class VoteService {
                     .orElseThrow(ResourceException.NotFound::new);
             voteClubId = schedule.getClubId();
         } else if ("GENERAL".equals(vote.getVoteType()) && vote.getPostId() != null) {
-            Posts post = postRepository.findById(vote.getPostId())
+            Posts post = postRepository.findByIdWithClub(vote.getPostId())
                     .orElseThrow(ResourceException.NotFound::new);
             voteClubId = post.getClub().getClubId();
         }
@@ -556,7 +556,7 @@ public class VoteService {
                     .map(Schedules::getClubId)
                     .orElse(null);
         } else if ("GENERAL".equals(vote.getVoteType()) && vote.getPostId() != null) {
-            return postRepository.findById(vote.getPostId())
+            return postRepository.findByIdWithClub(vote.getPostId())
                     .map(post -> post.getClub().getClubId())
                     .orElse(null);
         }

@@ -6,6 +6,7 @@ import back.dto.post.post.response.PostCardBase;
 import back.repository.post.projection.RecentAlbumRow;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -24,8 +25,8 @@ public interface PostRepository extends JpaRepository<Posts, Long> {
           p.writer.nickname,
           p.title,
           p.content,
-          coalesce(count(distinct l.likeId), 0L),
-          coalesce(count(distinct c.commentId), 0L),
+          count(distinct l.likeId),
+          count(distinct c.commentId),
           p.createdAt
       )
       from Posts p
@@ -55,4 +56,11 @@ public interface PostRepository extends JpaRepository<Posts, Long> {
      * 특정 모임의 특정 카테고리 게시글 중 삭제되지 않은 게시글들을 조회합니다.
      */
     List<Posts> findByClub_ClubIdAndCategoryAndDeletedAtIsNull(Long clubId, PostCategory category);
+
+    /**
+     * 게시글을 club과 함께 조회합니다.
+     */
+    @EntityGraph(attributePaths = {"club"})
+    @Query("SELECT p FROM Posts p WHERE p.postId = :postId")
+    Optional<Posts> findByIdWithClub(@Param("postId") Long postId);
 }

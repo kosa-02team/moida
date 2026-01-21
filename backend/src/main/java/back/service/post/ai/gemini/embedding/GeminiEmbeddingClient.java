@@ -2,6 +2,7 @@ package back.service.post.ai.gemini.embedding;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -10,6 +11,7 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "spring.ai.google.gemini.api-key")
 public class GeminiEmbeddingClient {
 
     @Value("${spring.ai.google.gemini.api-key}")

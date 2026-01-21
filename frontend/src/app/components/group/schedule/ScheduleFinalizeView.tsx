@@ -71,15 +71,7 @@ export function ScheduleFinalizeView() {
     fetchData();
   }, [groupId, scheduleId, navigate]);
 
-  if (loading || !schedule) {
-    return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
-        <div className="text-stone-500">로딩 중...</div>
-      </div>
-    );
-  }
-
-  // refundPerPerson 재계산 (participants 변경 시)
+  // refundPerPerson 재계산 (participants 변경 시) - early return 전에 위치해야 함
   useEffect(() => {
     if (participants.length > 0 && schedule) {
       const attendingCount = participants.filter(p => p.attendanceStatus === 'ATTENDING').length;
@@ -89,6 +81,14 @@ export function ScheduleFinalizeView() {
       setRefundPerPerson(calculatedRefundPerPerson);
     }
   }, [participants, totalSpent, schedule]);
+
+  if (loading || !schedule) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="text-stone-500">로딩 중...</div>
+      </div>
+    );
+  }
 
   const participantsDisplay: Participant[] = participants.map(p => {
     const isAttending = p.attendanceStatus === 'ATTENDING';

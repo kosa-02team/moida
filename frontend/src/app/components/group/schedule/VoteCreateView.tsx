@@ -54,15 +54,10 @@ export function VoteCreateView() {
       toast.error('장소를 입력해주세요');
       return;
     }
-    if (!voteDeadline) {
-      toast.error('투표 마감일을 선택해주세요');
-      return;
-    }
 
     // 날짜 논리 검사
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const deadline = new Date(voteDeadline);
     const now = new Date();
 
     if (end <= start) {
@@ -70,14 +65,19 @@ export function VoteCreateView() {
       return;
     }
 
-    if (deadline >= start) {
-      toast.error('투표 마감일은 일정 시작 전이어야 합니다');
-      return;
-    }
+    // 투표 마감일이 설정된 경우에만 검증
+    if (voteDeadline) {
+      const deadline = new Date(voteDeadline);
+      
+      if (deadline >= start) {
+        toast.error('투표 마감일은 일정 시작 전이어야 합니다');
+        return;
+      }
 
-    if (deadline <= now) {
-      toast.error('투표 마감일은 현재 시간보다 미래여야 합니다');
-      return;
+      if (deadline <= now) {
+        toast.error('투표 마감일은 현재 시간보다 미래여야 합니다');
+        return;
+      }
     }
 
     try {
@@ -203,11 +203,11 @@ export function VoteCreateView() {
           </div>
         </div>
 
-        {/* 투표 마감일 */}
+        {/* 투표 마감일 (선택) */}
         <div className="space-y-4 pt-2">
           <h3 className="font-medium text-stone-900 flex items-center gap-2">
             <Clock className="w-5 h-5 text-stone-500" />
-            투표 마감일
+            투표 마감일 (선택)
           </h3>
 
           <div className="space-y-2">
@@ -223,7 +223,7 @@ export function VoteCreateView() {
               />
             </div>
             <p className="text-xs text-stone-500 pl-1">
-              * 투표 마감일은 일정 시작 시간보다 전이어야 합니다.
+              * 투표 마감일을 설정하지 않으면 수동으로 마감할 수 있습니다.
             </p>
           </div>
         </div>

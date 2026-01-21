@@ -41,6 +41,7 @@ export interface ScheduleUpdateRequest {
   location?: string;
   description?: string;
   entryFee?: number;
+  voteDeadline?: string;
 }
 
 export interface ScheduleCancelRequest {
@@ -66,6 +67,18 @@ export interface ScheduleParticipantResponse {
 
 export interface ScheduleParticipantUpdateRequest {
   attendanceStatus: 'ATTENDING' | 'NOT_ATTENDING' | 'UNDECIDED';
+}
+
+export interface ScheduleFinalizeRequest {
+  totalSpent: number;
+}
+
+export interface ScheduleParticipantFeeStatusRequest {
+  feeStatus: 'PENDING' | 'PAID';
+}
+
+export interface ScheduleParticipantRefundStatusRequest {
+  isRefunded: boolean;
 }
 
 /**
@@ -164,6 +177,50 @@ export const updateParticipantAttendance = async (
 ): Promise<ScheduleParticipantResponse> => {
   return patch<ScheduleParticipantResponse>(
     `/api/clubs/${clubId}/schedules/${scheduleId}/participants/${participantId}`,
+    request
+  );
+};
+
+/**
+ * 일정 마무리 (총 지출 입력 → 정산 → 환급 → 마감)
+ */
+export const finalizeSchedule = async (
+  clubId: number,
+  scheduleId: number,
+  request?: ScheduleFinalizeRequest
+): Promise<void> => {
+  return post<void>(
+    `/api/clubs/${clubId}/schedules/${scheduleId}/finalize`,
+    request
+  );
+};
+
+/**
+ * 참가자 납부 상태 수정 (총무 이상)
+ */
+export const updateParticipantFeeStatus = async (
+  clubId: number,
+  scheduleId: number,
+  participantId: number,
+  request: ScheduleParticipantFeeStatusRequest
+): Promise<ScheduleParticipantResponse> => {
+  return patch<ScheduleParticipantResponse>(
+    `/api/clubs/${clubId}/schedules/${scheduleId}/participants/${participantId}/fee-status`,
+    request
+  );
+};
+
+/**
+ * 참가자 환급 상태 수정 (총무 이상)
+ */
+export const updateParticipantRefundStatus = async (
+  clubId: number,
+  scheduleId: number,
+  participantId: number,
+  request: ScheduleParticipantRefundStatusRequest
+): Promise<ScheduleParticipantResponse> => {
+  return patch<ScheduleParticipantResponse>(
+    `/api/clubs/${clubId}/schedules/${scheduleId}/participants/${participantId}/refund-status`,
     request
   );
 };

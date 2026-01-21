@@ -145,6 +145,40 @@ public class ScheduleController {
         return SuccessResponse.success(HttpStatus.OK, response);
     }
 
+    /**
+     * 참가자 납부 상태 수정 (총무 이상)
+     */
+    @PatchMapping("/{clubId}/schedules/{scheduleId}/participants/{participantId}/fee-status")
+    public SuccessResponse<ScheduleParticipantResponse> updateParticipantFeeStatus(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable("clubId") Long clubId,
+            @PathVariable("scheduleId") Long scheduleId,
+            @PathVariable("participantId") Long participantId,
+            @RequestBody ScheduleParticipantFeeStatusRequest request
+    ) {
+        Long currentUserId = requireUserId(principal);
+        ScheduleParticipantResponse response = scheduleService.updateParticipantFeeStatus(
+                clubId, scheduleId, participantId, request.feeStatus(), currentUserId);
+        return SuccessResponse.success(HttpStatus.OK, response);
+    }
+
+    /**
+     * 참가자 환급 상태 수정 (총무 이상)
+     */
+    @PatchMapping("/{clubId}/schedules/{scheduleId}/participants/{participantId}/refund-status")
+    public SuccessResponse<ScheduleParticipantResponse> updateParticipantRefundStatus(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable("clubId") Long clubId,
+            @PathVariable("scheduleId") Long scheduleId,
+            @PathVariable("participantId") Long participantId,
+            @RequestBody ScheduleParticipantRefundStatusRequest request
+    ) {
+        Long currentUserId = requireUserId(principal);
+        ScheduleParticipantResponse response = scheduleService.updateParticipantRefundStatus(
+                clubId, scheduleId, participantId, request.isRefunded(), currentUserId);
+        return SuccessResponse.success(HttpStatus.OK, response);
+    }
+
     private Long requireUserId(UserPrincipal principal) {
         if (principal == null) throw new ClubException.AuthLoginRequired();
         return principal.getUserId();

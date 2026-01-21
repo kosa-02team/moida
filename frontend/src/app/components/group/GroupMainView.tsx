@@ -39,9 +39,15 @@ export function GroupMainView() {
         setSchedulesLoading(true);
         const schedules = await getSchedules(club.clubId);
         const now = new Date();
-        // 미래 일정 중 가장 가까운 일정 찾기
+        // 미래 일정 또는 진행 중인 일정(아직 끝나지 않은 OPEN 상태) 찾기
         const upcomingSchedules = schedules
-          .filter(s => new Date(s.eventDate) > now && s.status !== 'CLOSED' && s.status !== 'CANCELLED')
+          .filter(s => {
+            const eventDate = new Date(s.eventDate);
+            const endDate = new Date(s.endDate);
+            const isNotClosed = s.status !== 'CLOSED' && s.status !== 'CANCELLED';
+            // 미래 일정이거나, 진행 중인 일정(endDate가 아직 안 지났고 OPEN 상태)
+            return isNotClosed && (eventDate > now || (endDate >= now && s.status === 'OPEN'));
+          })
           .sort((a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime());
         setNextSchedule(upcomingSchedules[0] || null);
       } catch (error) {

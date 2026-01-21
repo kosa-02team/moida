@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useOutletContext } from 'react-router-dom';
-import { getRecentPosts, type PostCardResponse } from '@/api/post';
+import { getRecentPosts, likePost, unlikePost, type PostCardResponse } from '@/api/post';
 import { getVotes, getVote, answerVote, type VoteListResponse, type VoteDetailResponse } from '@/api/vote';
 import { Card, CardContent } from '../../ui/card';
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
-import { Heart, MessageCircle, Calendar, Clock, Users, ChevronRight } from 'lucide-react';
+import { Heart, MessageCircle, Calendar, Clock, Users, ChevronRight, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { ClubDetailResponse } from '@/api/club-full';
 
@@ -20,6 +20,7 @@ interface PostWithVote extends PostCardResponse {
   voteDetail?: VoteDetailResponse;
   mySelectedOptionIds?: number[];
   totalVoteCount?: number;
+  isLiked?: boolean;
 }
 
 export function StoriesView() {
@@ -131,13 +132,19 @@ export function StoriesView() {
         // 복수 선택: 토글 방식
         if (isSelected) {
           newSelected = currentSelected.filter(id => id !== optionId);
+          // 빈 배열 방지: 최소 1개 이상 선택해야 함
+          if (newSelected.length === 0) {
+            toast.info('최소 하나의 옵션을 선택해야 합니다.');
+            return;
+          }
         } else {
           newSelected = [...currentSelected, optionId];
         }
       } else {
-        // 단일 선택: 현재 선택된 옵션을 다시 클릭하면 에러
+        // 단일 선택: 같은 옵션 클릭 시 다른 옵션으로 변경만 가능
         if (isSelected) {
-          toast.error('단일 선택 투표에서는 최소 하나의 옵션을 선택해야 합니다.');
+          // 이미 선택된 옵션을 다시 클릭하면 무시 (다른 옵션을 선택해야 변경됨)
+          toast.info('다른 옵션을 선택하면 투표가 변경됩니다.');
           return;
         }
         newSelected = [optionId];
@@ -162,11 +169,39 @@ export function StoriesView() {
         return p;
       }));
 
-      const hasVoted = newSelected.length > 0;
-      toast.success(hasVoted ? '투표가 수정되었습니다!' : '투표가 완료되었습니다!');
+      toast.success('투표가 수정되었습니다!');
     } catch (error: any) {
       console.error('투표 실패:', error);
       toast.error(error.message || '투표에 실패했습니다.');
+    }
+  };
+
+  // 좋아요 토글 핸들러
+  const handlePostLike = async (e: React.MouseEvent, post: PostWithVote) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!groupId) return;
+    
+    try {
+      if (post.isLiked) {
+        await unlikePost(Number(groupId), post.postId);
+        setAllPosts(posts => posts.map(p => 
+          p.postId === post.postId 
+            ? { ...p, isLiked: false, postLikes: Math.max(0, p.postLikes - 1) }
+            : p
+        ));
+      } else {
+        await likePost(Number(groupId), post.postId);
+        setAllPosts(posts => posts.map(p => 
+          p.postId === post.postId 
+            ? { ...p, isLiked: true, postLikes: p.postLikes + 1 }
+            : p
+        ));
+      }
+    } catch (error) {
+      console.error('좋아요 처리 실패:', error);
+      toast.error('좋아요 처리에 실패했습니다.');
     }
   };
 
@@ -338,14 +373,17 @@ export function StoriesView() {
 
             {/* 게시글 하단 (좋아요, 댓글) */}
             <div className="px-4 py-3 border-t border-stone-100 flex items-center gap-4 text-stone-500">
-              <div className="flex items-center gap-1">
-                <Heart className="h-4 w-4" />
+              <button 
+                onClick={(e) => handlePostLike(e, post)}
+                className="flex items-center gap-1 hover:text-red-500 transition-colors"
+              >
+                <Heart className={`h-4 w-4 ${post.isLiked ? 'fill-red-500 text-red-500' : ''}`} />
                 <span className="text-sm">{post.postLikes}</span>
-              </div>
-              <div className="flex items-center gap-1">
+              </button>
+              <Link to={`/group/${groupId}/posts/${post.postId}`} className="flex items-center gap-1 hover:text-stone-700">
                 <MessageCircle className="h-4 w-4" />
                 <span className="text-sm">{post.commentCount}</span>
-              </div>
+              </Link>
             </div>
           </CardContent>
         </Card>
@@ -372,6 +410,16 @@ export function StoriesView() {
           <p className="text-sm">첫 게시글을 작성해보세요!</p>
         </div>
       )}
+
+      {/* FAB - 게시글 작성 */}
+      <div className="fixed bottom-24 right-8 z-40">
+        <Link to="create">
+          <Button className="rounded-full h-12 px-6 shadow-lg bg-stone-900 hover:bg-stone-800 text-white flex items-center gap-2">
+            <Plus className="w-5 h-5" />
+            <span>글쓰기</span>
+          </Button>
+        </Link>
+      </div>
     </div>
   );
 }
