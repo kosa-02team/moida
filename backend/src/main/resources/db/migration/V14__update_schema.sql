@@ -9,4 +9,4 @@ DROP FOREIGN KEY posts_ibfk_2;
 ALTER TABLE posts
 ADD CONSTRAINT fk_posts_writer_id
 FOREIGN KEY (writer_id)
-REFERENCES club_members (club_member_id);
+REFERENCES club_members (member_id);
