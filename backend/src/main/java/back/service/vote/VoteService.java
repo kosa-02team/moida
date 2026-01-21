@@ -547,7 +547,7 @@ public class VoteService {
                         vote.getDeadline(),
                         vote.getClosedAt(),
                         vote.getCreatedAt(),
-                        voteRecordRepository.countDistinctUsersByVoteId(vote.getVoteId())
+                        voteRecordRepository.countDistinctClubMembersByVoteId(vote.getVoteId())
                 ))
                 .collect(Collectors.toList());
     }

@@ -28,7 +28,7 @@ public interface VoteRecordRepository extends JpaRepository<VoteRecords, Long> {
      * 특정 투표에서 투표한 고유 사용자 수를 조회합니다.
      */
     @Query("SELECT COUNT(DISTINCT vr.userId) FROM VoteRecords vr WHERE vr.voteId = :voteId")
-    long countDistinctUsersByVoteId(@Param("voteId") Long voteId);
+    long countDistinctClubMembersByVoteId(@Param("voteId") Long voteId);
 
     /**
      * 특정 옵션을 선택한 사용자 수를 조회합니다.

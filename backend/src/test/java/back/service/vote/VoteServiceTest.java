@@ -2,7 +2,6 @@ package back.service.vote;
 
 import back.domain.club.Clubs;
 import back.domain.club.ClubMembers;
-import back.domain.Users;
 import back.domain.post.Posts;
 import back.domain.schedule.Schedules;
 import back.domain.vote.VoteOptions;
@@ -17,7 +16,6 @@ import back.repository.schedule.ScheduleRepository;
 import back.repository.vote.VoteOptionRepository;
 import back.repository.vote.VoteRecordRepository;
 import back.repository.vote.VoteRepository;
-import back.repository.UserRepository;
 import back.service.club.ClubAuthService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -63,9 +61,6 @@ class VoteServiceTest {
     private ClubRepository clubsRepository;
 
     @Mock
-    private UserRepository userRepository;
-
-    @Mock
     private ClubAuthService clubsAuthorizationService;
 
     @InjectMocks
@@ -88,8 +83,8 @@ class VoteServiceTest {
         return c;
     }
 
-    private Users user(Long id) {
-        Users u = newEntity(Users.class);
+    private ClubMembers user(Long id) {
+        ClubMembers u = newEntity(ClubMembers.class);
         ReflectionTestUtils.setField(u, "userId", id);
         return u;
     }
@@ -129,7 +124,7 @@ class VoteServiceTest {
             );
 
             Clubs clubRef = club(clubId, 1L);
-            Users userRef = user(userId);
+            ClubMembers userRef = user(userId);
 
             Posts savedPost = Posts.vote(clubRef, userRef, null, request.title(), request.description());
             ReflectionTestUtils.setField(savedPost, "postId", 1L);
@@ -140,7 +135,7 @@ class VoteServiceTest {
             ReflectionTestUtils.setField(savedVote, "status", "OPEN");
 
             given(clubsRepository.getReferenceById(clubId)).willReturn(clubRef);
-            given(userRepository.getReferenceById(userId)).willReturn(userRef);
+            given(clubMembersRepository.getReferenceById(userId)).willReturn(userRef);
             given(postRepository.save(any(Posts.class))).willReturn(savedPost);
             given(voteRepository.save(any(Votes.class))).willReturn(savedVote);
 
@@ -154,7 +149,7 @@ class VoteServiceTest {
             assertThat(result.postId()).isEqualTo(1L);
 
             then(clubsRepository).should(times(1)).getReferenceById(clubId);
-            then(userRepository).should(times(1)).getReferenceById(userId);
+            then(clubMembersRepository).should(times(1)).getReferenceById(userId);
             then(postRepository).should(times(1)).save(any(Posts.class));
             then(voteRepository).should(times(1)).save(any(Votes.class));
             then(voteOptionRepository).should(times(2)).save(any(VoteOptions.class)); // GENERAL 타입은 2개 옵션 생성
@@ -181,7 +176,7 @@ class VoteServiceTest {
 
             Schedules schedule = schedule(scheduleId, clubId);
             Clubs clubRef = club(clubId, 1L);
-            Users userRef = user(userId);
+            ClubMembers userRef = user(userId);
 
             Votes savedVote = newEntity(Votes.class);
             ReflectionTestUtils.setField(savedVote, "voteId", 1L);
@@ -191,7 +186,7 @@ class VoteServiceTest {
 
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
             given(clubsRepository.getReferenceById(clubId)).willReturn(clubRef);
-            given(userRepository.getReferenceById(userId)).willReturn(userRef);
+            given(clubMembersRepository.getReferenceById(userId)).willReturn(userRef);
             given(voteRepository.save(any(Votes.class))).willReturn(savedVote);
 
             // when
@@ -686,8 +681,8 @@ class VoteServiceTest {
             given(scheduleRepository.findByClubId(clubId)).willReturn(List.of(schedule));
             given(voteRepository.findByPostIdIn(List.of(1L))).willReturn(List.of(generalVote));
             given(voteRepository.findByScheduleIdIn(List.of(100L))).willReturn(List.of(attendanceVote));
-            given(voteRecordRepository.countDistinctUsersByVoteId(1L)).willReturn(5L);
-            given(voteRecordRepository.countDistinctUsersByVoteId(2L)).willReturn(10L);
+            given(voteRecordRepository.countDistinctClubMembersByVoteId(1L)).willReturn(5L);
+            given(voteRecordRepository.countDistinctClubMembersByVoteId(2L)).willReturn(10L);
 
             // when
             List<VoteListResponse> result = voteService.getVotesByClubId(clubId, userId);

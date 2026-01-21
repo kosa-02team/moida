@@ -2,7 +2,7 @@ package back.service.post;
 
 import back.domain.club.Clubs;
 import back.domain.schedule.Schedules;
-import back.domain.Users;
+import back.domain.club.ClubMembers;
 import back.domain.post.Comments;
 import back.domain.post.PostImages;
 import back.domain.post.PostMemberTags;
@@ -24,7 +24,7 @@ import back.repository.post.PostCommentRepository;
 import back.repository.post.PostImageRepository;
 import back.repository.post.PostMemberTagRepository;
 import back.repository.post.PostRepository;
-import back.repository.UserRepository;
+import back.repository.club.ClubMemberRepository;
 import back.service.club.ClubAuthService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.DisplayName;
@@ -58,7 +58,7 @@ public class PostServiceTests {
         @Mock
         private ClubRepository clubsRepository;
         @Mock
-        private UserRepository userRepository;
+        private ClubMemberRepository clubMemberRepository;
         @Mock
         private ScheduleRepository scheduleRepository;
 
@@ -96,8 +96,8 @@ public class PostServiceTests {
                 return c;
         }
 
-        private Users user(Long id) {
-                Users u = newEntity(Users.class);
+        private ClubMembers user(Long id) {
+                ClubMembers u = newEntity(ClubMembers.class);
                 ReflectionTestUtils.setField(u, "userId", id);
                 return u;
         }
@@ -220,7 +220,7 @@ public class PostServiceTests {
                         Clubs club = newEntity(Clubs.class);
                         ReflectionTestUtils.setField(club, "clubId", clubId);
 
-                        Users writer = newEntity(Users.class);
+                        ClubMembers writer = newEntity(ClubMembers.class);
                         ReflectionTestUtils.setField(writer, "userId", 10L);
 
                         Schedules schedule = newEntity(Schedules.class);
@@ -300,7 +300,7 @@ public class PostServiceTests {
                         Clubs club = newEntity(Clubs.class);
                         ReflectionTestUtils.setField(club, "clubId", clubId);
 
-                        Users writer = newEntity(Users.class);
+                        ClubMembers writer = newEntity(ClubMembers.class);
                         ReflectionTestUtils.setField(writer, "userId", 200L);
 
                         Posts post = Posts.story(club, writer, null, "content");
@@ -333,7 +333,7 @@ public class PostServiceTests {
                         @Mock
                         private PostCommentRepository postCommentRepository;
                         @Mock
-                        private UserRepository userRepository;
+                        private ClubMemberRepository clubMemberRepository;
                         @Mock
                         private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
@@ -353,7 +353,7 @@ public class PostServiceTests {
                                 willDoNothing().given(clubAuthorizationService)
                                                 .validateAndGetClubForReadPosts(clubId, viewerId);
 
-                                Users w1 = newEntity(Users.class);
+                                ClubMembers w1 = newEntity(ClubMembers.class);
                                 ReflectionTestUtils.setField(w1, "userId", 100L);
 
                                 Comments c1 = newEntity(Comments.class);
@@ -362,7 +362,7 @@ public class PostServiceTests {
                                 ReflectionTestUtils.setField(c1, "content", "a");
                                 ReflectionTestUtils.setField(c1, "createdAt", LocalDateTime.now());
 
-                                Users w2 = newEntity(Users.class);
+                                ClubMembers w2 = newEntity(ClubMembers.class);
                                 ReflectionTestUtils.setField(w2, "userId", 200L);
 
                                 Comments c2 = newEntity(Comments.class);
@@ -484,10 +484,10 @@ public class PostServiceTests {
                                         null);
 
                         Clubs clubRef = club(clubId);
-                        Users writerRef = user(writerId);
+                        ClubMembers writerRef = user(writerId);
 
                         given(clubsRepository.getReferenceById(clubId)).willReturn(clubRef);
-                        given(userRepository.getReferenceById(writerId)).willReturn(writerRef);
+                        given(clubMemberRepository.getReferenceById(writerId)).willReturn(writerRef);
 
                         Posts savedPost = Posts.story(clubRef, writerRef, null, request.content());
                         ReflectionTestUtils.setField(savedPost, "postId", 10L);
@@ -517,11 +517,11 @@ public class PostServiceTests {
                                         List.of(2L, 3L));
 
                         Clubs clubRef = club(clubId);
-                        Users writerRef = user(writerId);
+                        ClubMembers writerRef = user(writerId);
                         Schedules scheduleRef = schedule(1L);
 
                         given(clubsRepository.getReferenceById(clubId)).willReturn(clubRef);
-                        given(userRepository.getReferenceById(writerId)).willReturn(writerRef);
+                        given(clubMemberRepository.getReferenceById(writerId)).willReturn(writerRef);
                         given(scheduleRepository.getReferenceById(1L)).willReturn(scheduleRef);
 
                         Posts savedPost = Posts.story(clubRef, writerRef, scheduleRef, request.content());
@@ -577,7 +577,7 @@ public class PostServiceTests {
                         @Mock
                         private PostCommentRepository postCommentRepository;
                         @Mock
-                        private UserRepository userRepository;
+                        private ClubMemberRepository clubMemberRepository;
                         @Mock
                         private ApplicationEventPublisher eventPublisher;
 
@@ -587,7 +587,7 @@ public class PostServiceTests {
                         void setUp() {
                                 postCommentService = new PostCommentService(
                                                 postCommentRepository,
-                                                userRepository,
+                                                clubMemberRepository,
                                                 postRepository,
                                                 clubAuthorizationService,
                                                 eventPublisher);
@@ -611,15 +611,15 @@ public class PostServiceTests {
                                 Posts postRef = newEntity(Posts.class);
                                 ReflectionTestUtils.setField(postRef, "postId", postId);
 
-                                Users writerRef = newEntity(Users.class);
+                                ClubMembers writerRef = newEntity(ClubMembers.class);
                                 ReflectionTestUtils.setField(writerRef, "userId", writerId); // 작성자 ID 설정
 
-                                // 추가: userRepository 스터빙
-                                given(userRepository.getReferenceById(writerId)).willReturn(writerRef);
+                                // 추가: clubMemberRepository 스터빙
+                                given(clubMemberRepository.getReferenceById(writerId)).willReturn(writerRef);
 
                                 // Post의 작성자도 설정 필요 (이벤트 로직에서 사용 - getPost().getWriter().getUserId())
                                 // 하지만 여기선 댓글 작성자가 아닌 게시글 작성자가 필요함.
-                                Users postWriterRef = newEntity(Users.class);
+                                ClubMembers postWriterRef = newEntity(ClubMembers.class);
                                 ReflectionTestUtils.setField(postWriterRef, "userId", 200L); // 게시글 작성자
                                 ReflectionTestUtils.setField(postRef, "writer", postWriterRef);
 
@@ -685,7 +685,7 @@ public class PostServiceTests {
                         Long writerId = 100L; // actor == writer
 
                         Clubs club = club(clubId);
-                        Users writer = user(writerId);
+                        ClubMembers writer = user(writerId);
 
                         Posts post = Posts.story(club, writer, null, "old content");
                         ReflectionTestUtils.setField(post, "postId", postId);
@@ -722,7 +722,7 @@ public class PostServiceTests {
                         Long adminId = 999L; // actor != writer
 
                         Clubs club = club(clubId);
-                        Users writer = user(writerId);
+                        ClubMembers writer = user(writerId);
 
                         Posts post = Posts.story(club, writer, null, "old content");
                         ReflectionTestUtils.setField(post, "postId", postId);
@@ -777,7 +777,7 @@ public class PostServiceTests {
                         Long actorId = 999L; // writer 아님 + 관리자도 아님
 
                         Clubs club = club(clubId);
-                        Users writer = user(writerId);
+                        ClubMembers writer = user(writerId);
 
                         Posts post = Posts.story(club, writer, null, "old content");
                         ReflectionTestUtils.setField(post, "postId", postId);
@@ -810,7 +810,7 @@ public class PostServiceTests {
                         Long memberId = 200L; // writer 아님
 
                         Clubs club = club(clubId);
-                        Users writer = user(writerId);
+                        ClubMembers writer = user(writerId);
 
                         Posts post = Posts.story(club, writer, null, "old content");
                         ReflectionTestUtils.setField(post, "postId", postId);
@@ -842,8 +842,8 @@ public class PostServiceTests {
                         return c;
                 }
 
-                private Users user(Long id) {
-                        Users u = newEntity(Users.class);
+                private ClubMembers user(Long id) {
+                        ClubMembers u = newEntity(ClubMembers.class);
                         ReflectionTestUtils.setField(u, "userId", id);
                         return u;
                 }
@@ -872,7 +872,7 @@ public class PostServiceTests {
 
                                 PostCommentRequest req = new PostCommentRequest("updated");
 
-                                Users writer = newEntity(Users.class);
+                                ClubMembers writer = newEntity(ClubMembers.class);
                                 ReflectionTestUtils.setField(writer, "userId", writerId);
 
                                 Posts post = newEntity(Posts.class);
@@ -912,7 +912,7 @@ public class PostServiceTests {
 
                                 PostCommentRequest req = new PostCommentRequest("updated");
 
-                                Users writer = newEntity(Users.class);
+                                ClubMembers writer = newEntity(ClubMembers.class);
                                 ReflectionTestUtils.setField(writer, "userId", writerId);
 
                                 Comments comment = newEntity(Comments.class);
@@ -951,7 +951,7 @@ public class PostServiceTests {
 
                                 PostCommentRequest req = new PostCommentRequest("updated");
 
-                                Users writer = newEntity(Users.class);
+                                ClubMembers writer = newEntity(ClubMembers.class);
                                 ReflectionTestUtils.setField(writer, "userId", writerId);
 
                                 Comments comment = newEntity(Comments.class);
@@ -988,7 +988,7 @@ public class PostServiceTests {
 
                                 PostCommentRequest req = new PostCommentRequest("updated");
 
-                                Users writer = newEntity(Users.class);
+                                ClubMembers writer = newEntity(ClubMembers.class);
                                 ReflectionTestUtils.setField(writer, "userId", actorId);
 
                                 Comments comment = newEntity(Comments.class);
@@ -1033,7 +1033,7 @@ public class PostServiceTests {
                         Long writerId = 100L; // 작성자
 
                         Clubs club = club(clubId);
-                        Users writer = user(writerId);
+                        ClubMembers writer = user(writerId);
 
                         Posts post = Posts.story(club, writer, null, "content");
                         ReflectionTestUtils.setField(post, "postId", postId);
@@ -1062,7 +1062,7 @@ public class PostServiceTests {
                         Long memberId = 200L; // 작성자 아님
 
                         Clubs club = club(clubId);
-                        Users writer = user(writerId);
+                        ClubMembers writer = user(writerId);
 
                         Posts post = Posts.story(club, writer, null, "content");
                         ReflectionTestUtils.setField(post, "postId", postId);
@@ -1090,8 +1090,8 @@ public class PostServiceTests {
                         return c;
                 }
 
-                private Users user(Long id) {
-                        Users u = newEntity(Users.class);
+                private ClubMembers user(Long id) {
+                        ClubMembers u = newEntity(ClubMembers.class);
                         ReflectionTestUtils.setField(u, "userId", id);
                         return u;
                 }
@@ -1118,7 +1118,7 @@ public class PostServiceTests {
                                 Long commentId = 100L;
                                 Long writerId = 7L;
 
-                                Users writer = newEntity(Users.class);
+                                ClubMembers writer = newEntity(ClubMembers.class);
                                 ReflectionTestUtils.setField(writer, "userId", writerId);
 
                                 Comments comment = newEntity(Comments.class);
@@ -1154,7 +1154,7 @@ public class PostServiceTests {
                                 Long writerId = 7L;
                                 Long managerId = 8L;
 
-                                Users writer = newEntity(Users.class);
+                                ClubMembers writer = newEntity(ClubMembers.class);
                                 ReflectionTestUtils.setField(writer, "userId", writerId);
 
                                 Comments comment = newEntity(Comments.class);
@@ -1190,7 +1190,7 @@ public class PostServiceTests {
                                 Long writerId = 7L;
                                 Long actorId = 9L;
 
-                                Users writer = newEntity(Users.class);
+                                ClubMembers writer = newEntity(ClubMembers.class);
                                 ReflectionTestUtils.setField(writer, "userId", writerId);
 
                                 Comments comment = newEntity(Comments.class);
@@ -1224,7 +1224,7 @@ public class PostServiceTests {
                                 Long commentId = 100L;
                                 Long actorId = 7L;
 
-                                Users writer = newEntity(Users.class);
+                                ClubMembers writer = newEntity(ClubMembers.class);
                                 ReflectionTestUtils.setField(writer, "userId", 999L); // actor가 작성자 아니어도 상관 없음(이미 삭제면
                                                                                       // return)
 

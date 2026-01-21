@@ -1,6 +1,6 @@
 package back.service.post;
 
-import back.domain.Users;
+import back.domain.club.ClubMembers;
 import back.domain.post.Comments;
 import back.domain.post.Posts;
 import back.dto.post.comment.request.PostCommentRequest;
@@ -9,7 +9,7 @@ import back.dto.post.comment.response.PostCommentsResponse;
 import back.exception.PostsException;
 import back.repository.post.PostCommentRepository;
 import back.repository.post.PostRepository;
-import back.repository.UserRepository;
+import back.repository.club.ClubMemberRepository;
 import back.service.club.ClubAuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -25,7 +25,7 @@ import java.util.List;
 public class PostCommentService {
 
         private final PostCommentRepository postCommentRepository;
-        private final UserRepository userRepository;
+        private final ClubMemberRepository clubMembersRepository;
         private final PostRepository postRepository;
         private final ClubAuthService clubsAuthorizationService;
         private final org.springframework.context.ApplicationEventPublisher eventPublisher;
@@ -117,7 +117,7 @@ public class PostCommentService {
                         Long writerId,
                         Long postId,
                         PostCommentRequest request) {
-                Users writerRef = userRepository.getReferenceById(writerId);
+                ClubMembers writerRef = clubMembersRepository.getReferenceById(writerId);
                 Posts postsRef = postRepository.getReferenceById(postId);
 
                 String content = request.content();
