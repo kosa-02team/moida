@@ -9,6 +9,7 @@ import back.dto.schedule.*;
 import back.event.ScheduleRegisteredEvent;
 import back.exception.ScheduleException;
 import back.repository.UserRepository;
+import back.repository.ledger.TransactionLogRepository;
 import back.repository.schedule.ScheduleParticipantRepository;
 import back.repository.schedule.ScheduleRepository;
 import back.repository.vote.VoteOptionRepository;
@@ -32,9 +33,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.*;
-import static org.mockito.Mockito.doNothing;
 
 @ExtendWith(MockitoExtension.class)
 class ScheduleServiceTest {
@@ -56,6 +55,9 @@ class ScheduleServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private TransactionLogRepository transactionLogRepository;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -167,6 +169,8 @@ class ScheduleServiceTest {
 
             given(scheduleRepository.save(any(Schedules.class))).willReturn(savedSchedule);
             given(voteRepository.save(any(Votes.class))).willReturn(savedVote);
+            // toResponse에서 transactionLogRepository를 사용하므로 Mock 설정
+            given(transactionLogRepository.findByScheduleId(any(Long.class))).willReturn(List.of());
             // request에 entryFee가 있으므로 assertAtLeastAccountant가 호출됨
             // Mock 객체의 void 메서드는 기본적으로 아무것도 하지 않음
 
@@ -341,6 +345,8 @@ class ScheduleServiceTest {
             );
 
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+            // toResponse에서 transactionLogRepository를 사용하므로 Mock 설정
+            given(transactionLogRepository.findByScheduleId(any(Long.class))).willReturn(List.of());
             // 참가비 변경 없으므로 assertAtLeastManager가 호출됨
             // Mock 객체의 void 메서드는 기본적으로 아무것도 하지 않음
 
@@ -378,8 +384,10 @@ class ScheduleServiceTest {
             );
 
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+            // toResponse에서 transactionLogRepository를 사용하므로 Mock 설정
+            given(transactionLogRepository.findByScheduleId(any(Long.class))).willReturn(List.of());
             // 참가비 변경이 있으므로 assertAtLeastAccountant가 호출됨
-            doNothing().when(clubsAuthorizationService).assertAtLeastAccountant(eq(clubId), eq(userId));
+            // Mock 객체의 void 메서드는 기본적으로 아무것도 하지 않음
 
             // when
             ScheduleResponse result = scheduleService.updateSchedule(clubId, scheduleId, userId, request);
@@ -635,6 +643,8 @@ class ScheduleServiceTest {
             );
 
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
+            // toResponse에서 transactionLogRepository를 사용하므로 Mock 설정
+            given(transactionLogRepository.findByScheduleId(any(Long.class))).willReturn(List.of());
             // 정산 정보 수정은 assertAtLeastAccountant가 호출됨
             // Mock 객체의 void 메서드는 기본적으로 아무것도 하지 않음
 
