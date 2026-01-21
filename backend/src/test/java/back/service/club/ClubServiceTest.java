@@ -1,10 +1,15 @@
 package back.service.club;
 
+import back.bank.domain.BankAccounts;
+import back.bank.domain.Banks;
+import back.bank.service.BankService;
+import back.domain.Users;
 import back.domain.club.ClubMembers;
 import back.domain.club.Clubs;
 import back.dto.club.ClubRequest;
 import back.dto.club.ClubResponse;
 import back.exception.ClubException;
+import back.repository.UserRepository;
 import back.repository.club.ClubMemberRepository;
 import back.repository.club.ClubRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +36,12 @@ class ClubServiceTest {
 
     @Mock
     private ClubMemberRepository clubMemberRepository;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private BankService bankService;
 
     @InjectMocks
     private ClubService clubService;
@@ -64,12 +75,22 @@ class ClubServiceTest {
                     .maxMembers(50)
                     .build();
 
+            Users owner = new Users("testuser", "password", "테스트사용자");
+            ReflectionTestUtils.setField(owner, "userId", ownerId);
+
+            Banks bank = new Banks("STUB", "STUB Bank", null);
+            ReflectionTestUtils.setField(bank, "bankId", 1L);
+            BankAccounts bankAccount = new BankAccounts(1L, "STUB", ownerId, bank, "1234567890", "테스트사용자");
+            ReflectionTestUtils.setField(bankAccount, "accountId", 1L);
+
             given(clubRepository.existsByClubName(request.getClubName())).willReturn(false);
+            given(userRepository.findById(ownerId)).willReturn(Optional.of(owner));
             given(clubRepository.save(any(Clubs.class))).willAnswer(invocation -> {
                 Clubs club = invocation.getArgument(0);
                 ReflectionTestUtils.setField(club, "clubId", 1L);
                 return club;
             });
+            given(bankService.createAccount(any(Long.class), any())).willReturn(bankAccount);
 
             // when
             ClubResponse response = clubService.createClub(request, ownerId);
@@ -96,12 +117,22 @@ class ClubServiceTest {
                     .clubName("새로운모임")
                     .build();
 
+            Users owner = new Users("testuser", "password", "테스트사용자");
+            ReflectionTestUtils.setField(owner, "userId", ownerId);
+
+            Banks bank = new Banks("STUB", "STUB Bank", null);
+            ReflectionTestUtils.setField(bank, "bankId", 1L);
+            BankAccounts bankAccount = new BankAccounts(1L, "STUB", ownerId, bank, "1234567890", "테스트사용자");
+            ReflectionTestUtils.setField(bankAccount, "accountId", 1L);
+
             given(clubRepository.existsByClubName(request.getClubName())).willReturn(false);
+            given(userRepository.findById(ownerId)).willReturn(Optional.of(owner));
             given(clubRepository.save(any(Clubs.class))).willAnswer(invocation -> {
                 Clubs club = invocation.getArgument(0);
                 ReflectionTestUtils.setField(club, "clubId", 1L);
                 return club;
             });
+            given(bankService.createAccount(any(Long.class), any())).willReturn(bankAccount);
 
             // when
             ClubResponse response = clubService.createClub(request, ownerId);
