@@ -26,6 +26,7 @@ import back.repository.post.PostMemberTagRepository;
 import back.repository.post.PostRepository;
 import back.repository.club.ClubMemberRepository;
 import back.service.club.ClubAuthService;
+import back.service.post.ai.PostVectorService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -80,7 +81,9 @@ public class PostServiceTests {
         @InjectMocks
         private PostCommentService postCommentService;
 
-        private static <T> T newEntity(Class<T> type) {
+        @Mock private PostVectorService postVectorService;
+
+    private static <T> T newEntity(Class<T> type) {
                 try {
                         var ctor = type.getDeclaredConstructor();
                         ctor.setAccessible(true);

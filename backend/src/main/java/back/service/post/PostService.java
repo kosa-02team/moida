@@ -21,6 +21,7 @@ import back.repository.post.PostMemberTagRepository;
 import back.repository.post.PostRepository;
 import back.repository.post.projection.RecentAlbumRow;
 import back.service.club.ClubAuthService;
+import back.service.post.ai.PostVectorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -48,6 +49,7 @@ public class PostService {
     private final PostImageRepository postImageRepository;
     private final PostMemberTagRepository postMemberTagRepository;
 
+    private final PostVectorService postVectorService;
     // 알림 전송을 위해 추가
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
@@ -60,6 +62,7 @@ public class PostService {
 
         applyOptionalUpdatesOnCreate(saved, request);
 
+        postVectorService.savePost(saved);
         // 알림 이벤트 발행
         eventPublisher.publishEvent(new back.event.PostCreatedEvent(
                 clubId,
