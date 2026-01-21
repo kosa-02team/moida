@@ -41,10 +41,10 @@ export function ProfileView() {
     async function fetchData() {
       try {
         setLoading(true);
-        const [userInfo, myClubs] = await Promise.all([
-          getMyInfo(),
-          getMyClubs()
-        ]);
+        const userInfoPromise = getMyInfo();
+        const myClubsPromise = getMyClubs();
+        const userInfo = await userInfoPromise;
+        const myClubs = await myClubsPromise;
         setUser(userInfo);
         setClubs(myClubs);
       } catch (error) {
