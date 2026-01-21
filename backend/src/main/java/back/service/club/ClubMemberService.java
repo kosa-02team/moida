@@ -1,15 +1,20 @@
 package back.service.club;
 
+import back.domain.Users;
 import back.domain.club.ClubMembers;
 import back.domain.club.Clubs;
 import back.dto.club.ClubMemberRequest;
 import back.dto.club.ClubMemberResponse;
 import back.exception.ClubException;
+import back.repository.UserRepository;
 import back.repository.club.ClubMemberRepository;
 import back.repository.club.ClubRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +23,7 @@ public class ClubMemberService {
 
     private final ClubMemberRepository clubMemberRepository;
     private final ClubRepository clubRepository;
+    private final UserRepository userRepository;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -91,5 +97,64 @@ public class ClubMemberService {
                 .orElseThrow(ClubException.MemberNotFound::new);
 
         targetMember.kick();
+    }
+
+    /**
+     * 모임 멤버 목록 조회 (상태별 필터링 가능)
+     */
+    public List<ClubMemberResponse> getMembers(Long clubId, ClubMembers.Status status) {
+        List<ClubMembers> members = clubMemberRepository.findByClubIdAndStatus(clubId, status);
+        
+        return members.stream()
+                .map(member -> {
+                    Users user = userRepository.findById(member.getUserId()).orElse(null);
+                    String realName = user != null ? user.getRealName() : null;
+                    return ClubMemberResponse.from(member, realName);
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 멤버 역할 변경
+     */
+    @Transactional
+    public ClubMemberResponse updateMemberRole(Long clubId, Long memberId, ClubMembers.Role newRole) {
+        ClubMembers member = clubMemberRepository.findByClubIdAndMemberId(clubId, memberId)
+                .orElseThrow(ClubException.MemberNotFound::new);
+
+        if (member.getStatus() != ClubMembers.Status.ACTIVE) {
+            throw new ClubException.MemberNotActive();
+        }
+
+        // OWNER 역할은 변경 불가 (다른 방법으로 처리해야 함)
+        if (member.getRole() == ClubMembers.Role.OWNER && newRole != ClubMembers.Role.OWNER) {
+            throw new ClubException(back.exception.response.ErrorCode.CLUB_AUTH_NOT_OWNER);
+        }
+
+        // OWNER로 변경 불가
+        if (newRole == ClubMembers.Role.OWNER) {
+            throw new ClubException(back.exception.response.ErrorCode.CLUB_INVALID_ROLE);
+        }
+
+        switch (newRole) {
+            case ACCOUNTANT:
+                member.promoteToAccountant();
+                break;
+            case STAFF:
+                member.promoteToStaff();
+                break;
+            case MEMBER:
+                member.demoteToMember();
+                break;
+            case NONE:
+                // NONE은 kick 처리 시에만 사용
+                throw new ClubException(back.exception.response.ErrorCode.CLUB_INVALID_ROLE);
+            default:
+                throw new ClubException(back.exception.response.ErrorCode.CLUB_INVALID_ROLE);
+        }
+
+        Users user = userRepository.findById(member.getUserId()).orElse(null);
+        String realName = user != null ? user.getRealName() : null;
+        return ClubMemberResponse.from(member, realName);
     }
 }

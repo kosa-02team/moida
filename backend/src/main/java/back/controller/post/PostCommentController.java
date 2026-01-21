@@ -6,6 +6,7 @@ import back.dto.post.comment.response.PostCommentsIdResponse;
 import back.dto.post.comment.response.PostCommentsResponse;
 import back.exception.ClubException;
 import back.service.post.PostCommentService;
+import back.service.post.CommentLikeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 public class PostCommentController {
 
     private final PostCommentService postCommentService;
+    private final CommentLikeService commentLikeService;
 
     @PostMapping
     public ResponseEntity<PostCommentsIdResponse> createComment(
@@ -68,6 +70,28 @@ public class PostCommentController {
 
         PostCommentsIdResponse response = postCommentService.deleteComment(userId, clubId, postId, commentId);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{commentId}/likes")
+    public ResponseEntity<Void> likeComment(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long clubId,
+            @PathVariable Long postId,
+            @PathVariable Long commentId) {
+        Long userId = requireUserId(principal);
+        commentLikeService.likeComment(commentId, userId);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{commentId}/likes")
+    public ResponseEntity<Void> unlikeComment(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long clubId,
+            @PathVariable Long postId,
+            @PathVariable Long commentId) {
+        Long userId = requireUserId(principal);
+        commentLikeService.unlikeComment(commentId, userId);
+        return ResponseEntity.ok().build();
     }
 
     private Long requireUserId(UserPrincipal principal) {

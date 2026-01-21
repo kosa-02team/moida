@@ -1,12 +1,14 @@
 package back.controller.ledger;
 
+import back.config.security.UserPrincipal;
 import back.domain.ledger.TransactionLog;
 import back.service.ledger.LedgerService;
 import back.controller.ledger.ManualTransactionRequest;
 import back.controller.ledger.TransactionUpdateRequest;
-// import back.common.response.SuccessResponse; // Removed if not exists
+import back.exception.ClubException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -46,12 +48,19 @@ public class LedgerController {
      */
     @PostMapping("/manual")
     public ResponseEntity<Void> createManualRecord(
+            @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable Long clubId,
             @RequestBody ManualTransactionRequest request) {
-        // TODO: 로그인된 사용자 ID 가져오기
-        Long editorId = 1L;
+        Long editorId = requireUserId(principal);
         ledgerService.createManualTransaction(clubId, request, editorId);
         return ResponseEntity.ok().build();
+    }
+
+    private Long requireUserId(UserPrincipal principal) {
+        if (principal == null) {
+            throw new ClubException.AuthLoginRequired();
+        }
+        return principal.getUserId();
     }
 
     /**

@@ -11,6 +11,7 @@ import back.repository.club.ClubMemberRepository;
 import back.repository.notifications.NotificationsRepository;
 import back.service.notifications.NotificationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -18,6 +19,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class NotificationEventListener {
@@ -114,7 +116,9 @@ public class NotificationEventListener {
         List<Notifications> savedNotifications = notificationsRepository.saveAll(notifications);
 
         for (Notifications notification : savedNotifications) {
-            NotificationResponse response = NotificationResponse.from(notification);
+            // SSE 전송 시에도 clubId를 포함하여 전송
+            Long clubId = notificationService.getClubIdFromNotification(notification);
+            NotificationResponse response = NotificationResponse.from(notification, clubId);
             notificationService.send(notification.getUserId(), response);
         }
     }

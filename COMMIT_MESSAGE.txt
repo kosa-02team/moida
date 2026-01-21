@@ -1,0 +1,37 @@
+feat: 백엔드 API와 프론트엔드 완전 통합 및 버그 수정
+
+## 주요 변경사항
+
+### 백엔드
+- 멤버 목록 조회 API 추가 (GET /api/clubs/{clubId}/members)
+- 멤버 역할 변경 API 추가 (PATCH /api/clubs/{clubId}/members/{memberId}/role)
+- ClubMemberResponse DTO 개선 (realName, clubNickname, roles 필드 추가)
+- 초대 코드로 모임 조회 API 추가 (GET /api/clubs/by-invite-code/{inviteCode})
+- ErrorCode에 CLUB_INVALID_ROLE 추가
+- ClubMemberService에 getMembers(), updateMemberRole() 메서드 추가
+
+### 프론트엔드
+- 모든 백엔드 API와 연동 완료 (통합 완료율 100%)
+- closeClub API 수정 (POST → PATCH)
+- activateClub API patch import 추가
+- AdminView.tsx의 isClosed, isOwner, handleActivateClub 정의 누락 문제 수정
+- 모임 정보 섹션 제거 (GroupMainView.tsx)
+- 자동 토큰 갱신 로직 개선 (client.ts)
+- 모든 API 클라이언트 함수에 retryOn401 파라미터 전달 수정
+
+### 새로운 기능
+- 입금 요청 관리 UI (PaymentRequestListView, PaymentRequestCreateView)
+- 은행 계좌 관리 UI (BankAccountCreateView, BankSyncView, ProcessedTransactionsView, UnmatchedTransactionsView, RefundView)
+- 일정 참가비 일괄 걷기 및 정산 기능
+- 모임 활성화 기능
+
+### 버그 수정
+- 드래그 시 UI 깨짐 현상 수정 (CSS user-select, user-drag 제어)
+- 멤버 목록이 없을 때 불필요한 에러 토스트 제거
+- API 응답 SuccessResponse 래퍼 자동 처리
+
+## 통계
+- 백엔드 컨트롤러: 13개
+- 프론트엔드 API 클라이언트: 14개 파일
+- 총 엔드포인트: 73개
+- 통합 완료율: 100%

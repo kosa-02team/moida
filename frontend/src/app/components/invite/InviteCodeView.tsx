@@ -1,0 +1,267 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, KeyRound, Users } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '../ui/button';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '../ui/input-otp';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { getClubByInviteCode } from '@/api/club-full';
+import { joinClub } from '@/api/member';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
+
+export function InviteCodeView() {
+  const navigate = useNavigate();
+  const [inviteCode, setInviteCode] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
+  const [showJoinDialog, setShowJoinDialog] = useState(false);
+  const [joinNickname, setJoinNickname] = useState('');
+  const [foundGroup, setFoundGroup] = useState<{
+    id: string;
+    name: string;
+    image: string;
+    memberCount: number;
+    clubId: number;
+  } | null>(null);
+
+  const handleSearch = async () => {
+    if (inviteCode.length < 6) {
+      toast.error('초대 코드 6자리를 입력해주세요');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const clubData = await getClubByInviteCode(inviteCode.toUpperCase());
+      setFoundGroup({
+        id: clubData.clubId.toString(),
+        name: clubData.clubName,
+        image: '',
+        memberCount: clubData.currentMembers || 0,
+        clubId: clubData.clubId,
+      });
+    } catch (error) {
+      console.error('모임 조회 실패:', error);
+      toast.error('초대 코드에 해당하는 모임을 찾을 수 없습니다.');
+      setFoundGroup(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleJoin = async () => {
+    if (!foundGroup || !joinNickname.trim()) {
+      toast.error('닉네임을 입력해주세요.');
+      return;
+    }
+    
+    try {
+      setIsJoining(true);
+      await joinClub(foundGroup.clubId, {
+        nickname: joinNickname.trim()
+      });
+      toast.success('가입 신청이 완료되었습니다. 승인을 기다려주세요.');
+      setShowJoinDialog(false);
+      navigate(`/group/${foundGroup.id}`);
+    } catch (error) {
+      console.error('가입 신청 실패:', error);
+      toast.error('가입 신청에 실패했습니다.');
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const handleReset = () => {
+    setFoundGroup(null);
+    setInviteCode('');
+  };
+
+  return (
+    <div className="min-h-screen bg-white">
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-white border-b border-stone-100">
+        <div className="flex items-center px-4 py-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(-1)}
+            className="-ml-2"
+          >
+            <ArrowLeft className="w-6 h-6 text-stone-800" />
+          </Button>
+          <h1 className="ml-2 text-lg font-semibold text-stone-800">초대 코드로 가입</h1>
+        </div>
+      </header>
+
+      <div className="p-6">
+        {!foundGroup ? (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            {/* Icon */}
+            <div className="flex justify-center">
+              <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center">
+                <KeyRound className="w-10 h-10 text-orange-500" />
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="text-center space-y-2">
+              <h2 className="text-xl font-bold text-stone-900">초대 코드 입력</h2>
+              <p className="text-stone-500">
+                모임장에게 받은 6자리 초대 코드를 입력하세요.
+              </p>
+            </div>
+
+            {/* Code Input */}
+            <div className="flex justify-center">
+              <InputOTP
+                maxLength={6}
+                value={inviteCode}
+                onChange={setInviteCode}
+              >
+                <InputOTPGroup className="gap-2">
+                  <InputOTPSlot index={0} className="w-12 h-14 text-xl border-stone-200 rounded-lg uppercase" />
+                  <InputOTPSlot index={1} className="w-12 h-14 text-xl border-stone-200 rounded-lg uppercase" />
+                  <InputOTPSlot index={2} className="w-12 h-14 text-xl border-stone-200 rounded-lg uppercase" />
+                  <InputOTPSlot index={3} className="w-12 h-14 text-xl border-stone-200 rounded-lg uppercase" />
+                  <InputOTPSlot index={4} className="w-12 h-14 text-xl border-stone-200 rounded-lg uppercase" />
+                  <InputOTPSlot index={5} className="w-12 h-14 text-xl border-stone-200 rounded-lg uppercase" />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+
+            {/* Or use full code */}
+            <div className="space-y-2">
+              <Label className="text-center block text-stone-500 text-sm">
+                또는 전체 초대 링크 입력
+              </Label>
+              <Input
+                placeholder="https://... 또는 초대코드"
+                className="h-12 bg-stone-50 border-stone-200 rounded-xl text-center"
+                value={inviteCode.length === 6 ? '' : inviteCode}
+                onChange={(e) => {
+                  // URL에서 코드 추출 시도
+                  const value = e.target.value;
+                  const codeMatch = value.match(/[A-Za-z0-9]{6}$/);
+                  if (codeMatch) {
+                    setInviteCode(codeMatch[0].toUpperCase());
+                  }
+                }}
+              />
+            </div>
+
+            {/* Search Button */}
+            <Button
+              onClick={handleSearch}
+              disabled={inviteCode.length < 6 || isLoading}
+              className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white text-lg font-medium rounded-xl disabled:opacity-50"
+            >
+              {isLoading ? '검색 중...' : '모임 찾기'}
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            {/* Found Group */}
+            <div className="text-center space-y-2">
+              <h2 className="text-xl font-bold text-stone-900">모임을 찾았습니다!</h2>
+              <p className="text-stone-500">아래 모임에 가입하시겠습니까?</p>
+            </div>
+
+            <div className="bg-stone-50 rounded-2xl p-6 text-center">
+              <div className="w-24 h-24 rounded-2xl overflow-hidden mx-auto mb-4 bg-gradient-to-br from-orange-100 to-orange-50 flex items-center justify-center">
+                {foundGroup.image ? (
+                  <img
+                    src={foundGroup.image}
+                    alt={foundGroup.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="text-3xl font-bold text-orange-300">
+                    {foundGroup.name[0]}
+                  </div>
+                )}
+              </div>
+              <h3 className="text-xl font-bold text-stone-900 mb-2">
+                {foundGroup.name}
+              </h3>
+              <div className="flex items-center justify-center gap-1 text-stone-500">
+                <Users className="w-4 h-4" />
+                <span>{foundGroup.memberCount}명의 멤버</span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Button
+                onClick={() => setShowJoinDialog(true)}
+                disabled={isLoading}
+                className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white text-lg font-medium rounded-xl"
+              >
+                가입하기
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleReset}
+                className="w-full h-12 rounded-xl"
+              >
+                다른 코드 입력
+              </Button>
+            </div>
+
+            {/* 가입 다이얼로그 */}
+            <Dialog open={showJoinDialog} onOpenChange={setShowJoinDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>모임 가입 신청</DialogTitle>
+                  <DialogDescription>
+                    이 모임에 가입하시겠습니까? 가입 후 관리자 승인을 기다려주세요.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="join-nickname">모임 내 닉네임</Label>
+                    <Input
+                      id="join-nickname"
+                      placeholder="닉네임을 입력하세요 (최대 10자)"
+                      value={joinNickname}
+                      onChange={(e) => setJoinNickname(e.target.value)}
+                      maxLength={10}
+                    />
+                    <p className="text-xs text-stone-500">
+                      모임 내에서 사용할 닉네임을 입력해주세요.
+                    </p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowJoinDialog(false)}>
+                    취소
+                  </Button>
+                  <Button 
+                    onClick={handleJoin}
+                    disabled={!joinNickname.trim() || isJoining}
+                    className="bg-orange-500 hover:bg-orange-600"
+                  >
+                    {isJoining ? '가입 중...' : '가입 신청'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+

@@ -13,6 +13,9 @@ public interface UserRepository extends JpaRepository<Users, Long> {
     Optional<Users> findByLoginId(String loginId);
 
     boolean existsByLoginId(String loginId);
+    
+    @Query("SELECT COUNT(u) > 0 FROM Users u WHERE u.loginId = :loginId AND u.status != 'DELETED'")
+    boolean existsActiveByLoginId(@Param("loginId") String loginId);
 
     long countByStatus(String status);
 
@@ -21,7 +24,7 @@ public interface UserRepository extends JpaRepository<Users, Long> {
     Page<Users> findByStatus(String status, Pageable pageable);
 
     @Query("SELECT u FROM Users u WHERE " +
-            "(:keyword IS NULL OR u.realName LIKE %:keyword%) AND " +
+            "(:keyword IS NULL OR u.realName LIKE CONCAT('%', :keyword, '%')) AND " +
             "(:status IS NULL OR u.status = :status)")
     Page<Users> searchUsers(@Param("keyword") String keyword,
                             @Param("status") String status,

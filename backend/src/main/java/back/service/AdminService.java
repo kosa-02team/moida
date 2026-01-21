@@ -64,10 +64,13 @@ public class AdminService {
         Reports report = reportsRepository.findById(reportId)
                 .orElseThrow(() -> new AdminException(ErrorCode.RESOURCE_NOT_FOUND));
 
-        if ("APPROVE".equalsIgnoreCase(action)) {
+        // 프론트엔드에서 사용하는 action과 백엔드 상태 매핑
+        if ("APPROVE".equalsIgnoreCase(action) || "resolved".equalsIgnoreCase(action)) {
             report.approve();
-        } else if ("REJECT".equalsIgnoreCase(action)) {
+        } else if ("REJECT".equalsIgnoreCase(action) || "dismissed".equalsIgnoreCase(action)) {
             report.reject();
+        } else if ("PROCESSED".equalsIgnoreCase(action)) {
+            report.process();
         } else {
             throw new AdminException(ErrorCode.INVALID_INPUT, "잘못된 처리 작업입니다: " + action);
         }

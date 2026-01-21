@@ -16,13 +16,17 @@ public record PostCommentsResponse(
             Long commentId,
             Long writerId,
             String content,
-            LocalDateTime createdAt) {
-        public static Item from(Comments c) {
+            LocalDateTime createdAt,
+            Long likeCount,
+            Boolean isLiked) {
+        public static Item from(Comments c, Long likeCount, Boolean isLiked) {
             return new Item(
                     c.getCommentId(),
                     c.getWriter().getUserId(),
                     c.getContent(),
-                    c.getCreatedAt());
+                    c.getCreatedAt(),
+                    likeCount,
+                    isLiked);
         }
     }
 
