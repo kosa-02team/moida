@@ -407,15 +407,10 @@ public class VoteService {
                     voteRecordRepository.deleteAll(existingRecords);
                 }
             } else {
-                // allowMultiple이 true면 같은 옵션 중복 선택 방지
-                List<Long> existingOptionIds = existingRecords.stream()
-                        .map(VoteRecords::getOptionId)
-                        .collect(Collectors.toList());
-
-                for (Long optionId : optionIds) {
-                    if (existingOptionIds.contains(optionId)) {
-                        throw new VoteException.OptionAlreadySelected();
-                    }
+                // allowMultiple이 true면 전체 선택 상태로 처리 (선택/해제 토글 지원)
+                // 기존 기록을 모두 삭제하고 새로운 선택 상태를 저장
+                if (!existingRecords.isEmpty()) {
+                    voteRecordRepository.deleteAll(existingRecords);
                 }
             }
         }

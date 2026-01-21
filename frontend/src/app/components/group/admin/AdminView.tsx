@@ -27,6 +27,7 @@ import {
 } from '../../../data/userRoles';
 import { ClubDetailResponse, activateClub, closeClub } from '../../../../api/club-full';
 import { getMembers } from '../../../../api/member';
+import { getMyInfo } from '../../../../api/user';
 
 interface GroupContextType {
   club: ClubDetailResponse | null;
@@ -47,6 +48,8 @@ export function AdminView() {
   const [pendingCount, setPendingCount] = useState(0);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
+  const [displayRole, setDisplayRole] = useState<string>('');
+  const [displayRoleColor, setDisplayRoleColor] = useState<string>('');
 
   useEffect(() => {
     async function fetchPendingCount() {
@@ -62,6 +65,40 @@ export function AdminView() {
       }
     }
     fetchPendingCount();
+  }, [groupId]);
+
+  // 실제 역할 정보 가져오기 (운영진 이상만 표시)
+  useEffect(() => {
+    async function fetchUserRole() {
+      if (!groupId) return;
+      try {
+        const [myInfo, members] = await Promise.all([
+          getMyInfo(),
+          getMembers(Number(groupId), 'ACTIVE')
+        ]);
+        const currentMember = members.find(m => m.userId === myInfo.userId);
+        if (currentMember) {
+          const roles = currentMember.roles || [];
+          // 역할 우선순위: OWNER > ACCOUNTANT > STAFF > MEMBER
+          if (roles.includes('OWNER')) {
+            setDisplayRole('모임장');
+            setDisplayRoleColor('bg-orange-500 text-white');
+          } else if (roles.includes('ACCOUNTANT')) {
+            setDisplayRole('총무');
+            setDisplayRoleColor('bg-green-500 text-white');
+          } else if (roles.includes('STAFF')) {
+            setDisplayRole('운영진');
+            setDisplayRoleColor('bg-blue-500 text-white');
+          } else {
+            setDisplayRole('회원');
+            setDisplayRoleColor('bg-stone-500 text-white');
+          }
+        }
+      } catch (error) {
+        console.error('사용자 역할 조회 실패:', error);
+      }
+    }
+    fetchUserRole();
   }, [groupId]);
 
   const groupName = club?.clubName || '모임';
@@ -119,11 +156,13 @@ export function AdminView() {
   return (
     <div className="space-y-6 pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       {/* 역할 표시 */}
-      <div className="flex justify-end">
-        <Badge className={`${multiRoleColor} text-xs`}>
-          {multiRoleLabel}
-        </Badge>
-      </div>
+      {displayRole && displayRole !== '회원' && (
+        <div className="flex justify-end">
+          <Badge className={`${displayRoleColor} text-xs`}>
+            {displayRole}
+          </Badge>
+        </div>
+      )}
 
       {/* 모임 정보 카드 */}
       {club && (

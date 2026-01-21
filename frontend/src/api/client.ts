@@ -140,15 +140,19 @@ export const apiClient = async <T>(
       // 에러 응답 한 번만 읽기
       const errorData = await response.json().catch(() => ({}));
       
-      // 에러 응답 상세 로깅
-      console.error('API Error Response:', {
-        status: response.status,
-        statusText: response.statusText,
-        url: url,
-        method: fetchOptions.method,
-        requiresAuth: requiresAuth,
-        errorData: errorData
-      });
+      // 500 에러는 서버 문제이므로 조용히 처리 (개발 환경에서만 로그 출력)
+      const isServerError = response.status >= 500;
+      if (!isServerError) {
+        // 에러 응답 상세 로깅 (500 에러 제외)
+        console.error('API Error Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: url,
+          method: fetchOptions.method,
+          requiresAuth: requiresAuth,
+          errorData: errorData
+        });
+      }
       
       // 401, 403은 인증 에러로 처리 (단, requiresAuth가 false인 경우는 일반 에러로 처리)
       if ((response.status === 401 || response.status === 403) && requiresAuth) {
@@ -175,11 +179,20 @@ export const apiClient = async <T>(
     if (error instanceof AuthenticationError) {
       throw error;
     }
-    console.error('API request failed:', {
-      url,
-      method: fetchOptions.method,
-      error: error
-    });
+    
+    // Error 객체에서 메시지를 확인하여 500 에러인지 판단
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isServerError = errorMessage.includes('500') || errorMessage.includes('Internal Server Error');
+    
+    // 500 에러는 서버 문제이므로 조용히 처리 (개발 환경에서만 로그 출력)
+    if (!isServerError) {
+      console.error('API request failed:', {
+        url,
+        method: fetchOptions.method,
+        error: error
+      });
+    }
+    
     throw error;
   }
 };

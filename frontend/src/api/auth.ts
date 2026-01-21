@@ -2,7 +2,7 @@
  * 인증 관련 API
  */
 
-import { post, get } from './client';
+import { post, get, del } from './client';
 
 export interface LoginRequest {
   loginId: string;

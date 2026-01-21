@@ -70,8 +70,9 @@ export function HomeView() {
         try {
           const unreadCount = await getUnreadCount();
           setUnreadNotifications(unreadCount);
-        } catch (error) {
-          console.error('알림 개수 조회 실패:', error);
+        } catch (error: any) {
+          // 500 에러 등 서버 에러는 조용히 처리 (백엔드 문제)
+          // console.error는 제거하여 과도한 에러 로그 방지
           setUnreadNotifications(0);
         }
 
@@ -256,11 +257,34 @@ export function HomeView() {
               >
                 <Card className="overflow-hidden hover:shadow-md transition-shadow border-stone-100 bg-white">
                   <div className="relative h-32 bg-gradient-to-br from-orange-50 via-stone-50 to-orange-100">
-                    <div className="w-full h-full flex items-center justify-center">
-                      <div className="text-4xl font-bold text-orange-200">
-                        {club.name[0]}
-                      </div>
-                    </div>
+                    {(() => {
+                      const clubImage = localStorage.getItem(`club_image_${club.clubId}`);
+                      return clubImage ? (
+                        <img 
+                          src={clubImage} 
+                          alt={club.name} 
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            // 이미지 로드 실패 시 기본 placeholder 표시
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent) {
+                              const fallback = document.createElement('div');
+                              fallback.className = 'w-full h-full flex items-center justify-center';
+                              fallback.innerHTML = `<div class="text-4xl font-bold text-orange-200">${club.name[0]}</div>`;
+                              parent.appendChild(fallback);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <div className="text-4xl font-bold text-orange-200">
+                            {club.name[0]}
+                          </div>
+                        </div>
+                      );
+                    })()}
                     {/* 역할 배지 - 내 모임만 표시 */}
                     {roleLabel && (
                       <div className="absolute bottom-2 left-2">

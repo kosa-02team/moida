@@ -67,22 +67,44 @@ const TYPE_LABELS: Record<ReportType, string> = {
   group: '모임',
 };
 
-export function ReportDialog({ open, onOpenChange, type, targetName }: ReportDialogProps) {
+export function ReportDialog({ open, onOpenChange, type, targetId, targetName, clubId }: ReportDialogProps) {
+  const { groupId } = useParams();
   const [reason, setReason] = useState('');
   const [detail, setDetail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const reasons = REPORT_REASONS[type];
   const typeLabel = TYPE_LABELS[type];
+  const currentClubId = clubId || (groupId ? Number(groupId) : undefined);
 
-  const handleReport = () => {
+  const handleReport = async () => {
     if (!reason) {
       toast.error('신고 사유를 선택해주세요');
       return;
     }
-    toast.success('신고가 접수되었습니다. 검토 후 조치하겠습니다.');
-    onOpenChange(false);
-    setReason('');
-    setDetail('');
+
+    if (!currentClubId) {
+      toast.error('모임 ID를 찾을 수 없습니다');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await createReport(currentClubId, {
+        targetId,
+        reason,
+        photoUrl: null
+      });
+      toast.success('신고가 접수되었습니다. 검토 후 조치하겠습니다.');
+      onOpenChange(false);
+      setReason('');
+      setDetail('');
+    } catch (error) {
+      console.error('신고 생성 실패:', error);
+      toast.error('신고 접수에 실패했습니다.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleClose = () => {

@@ -32,6 +32,7 @@ export interface VoteDetailResponse {
   createdAt: string;
   updatedAt: string;
   options: VoteOptionResponse[];
+  mySelectedOptionIds?: number[]; // 현재 사용자가 선택한 옵션 ID들
 }
 
 export interface VoteOptionResponse {

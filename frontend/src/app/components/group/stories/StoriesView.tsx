@@ -1,96 +1,90 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { getRecentPosts, getRecentAlbums, deletePost as deletePostAPI, likePost as likePostAPI, unlikePost as unlikePostAPI, type PostCardResponse, type AlbumCardResponse } from '../../../../api/post';
-import { Folder, Heart, MessageCircle, Plus, Camera, ArrowUpDown, MoreVertical, Trash2, Flag, AlertTriangle } from 'lucide-react';
-import { Card } from '../../ui/card';
+import { useState, useEffect } from 'react';
+import { useParams, Link, useOutletContext } from 'react-router-dom';
+import { getRecentPosts, type PostCardResponse } from '@/api/post';
+import { getVotes, getVote, answerVote, type VoteListResponse, type VoteDetailResponse } from '@/api/vote';
+import { Card, CardContent } from '../../ui/card';
+import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
+import { Heart, MessageCircle, Calendar, Clock, Users, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../../ui/dropdown-menu';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '../../ui/alert-dialog';
-import { useUserPermissions } from '../../../data/userRoles';
-import { ReportDialog } from '../../report/ReportDialog';
+import { ClubDetailResponse } from '@/api/club-full';
 
-type SortType = 'latest' | 'oldest' | 'popular';
+interface GroupContextType {
+  club: ClubDetailResponse | null;
+  loading: boolean;
+}
 
-interface Post {
-  id: string;
-  user: string;
-  userImg: string;
-  image: string;
-  content: string;
-  likes: number;
-  comments: number;
-  date: string;
-  dateDisplay: string;
-  isMyPost?: boolean;
-  isLiked?: boolean;
-  writerId?: number;
+interface PostWithVote extends PostCardResponse {
+  voteId?: number;
+  voteDetail?: VoteDetailResponse;
+  mySelectedOptionIds?: number[];
+  totalVoteCount?: number;
 }
 
 export function StoriesView() {
-  const { groupId } = useParams();
-  const permissions = useUserPermissions(groupId || '1');
-  const [sortBy, setSortBy] = useState<SortType>('latest');
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showReportDialog, setShowReportDialog] = useState(false);
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const { groupId } = useParams<{ groupId: string }>();
+  useOutletContext<GroupContextType>(); // context 구독
+  const [allPosts, setAllPosts] = useState<PostWithVote[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
-  const [albums, setAlbums] = useState<AlbumCardResponse[]>([]);
-  
+  // 게시글과 투표 데이터 가져오기
   useEffect(() => {
-    async function fetchAlbums() {
+    async function fetchPostsAndVotes() {
       if (!groupId) return;
-      try {
-        const albumsData = await getRecentAlbums(Number(groupId), 10);
-        setAlbums(albumsData);
-      } catch (error) {
-        console.error('앨범 목록 불러오기 실패:', error);
-      }
-    }
-    fetchAlbums();
-  }, [groupId]);
 
-  const [allPosts, setAllPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  // API에서 게시글 목록 가져오기
-  useEffect(() => {
-    async function fetchPosts() {
-      if (!groupId) return;
       try {
         setLoading(true);
-        const posts = await getRecentPosts(Number(groupId));
-        // PostCardResponse를 Post 형식으로 변환
-        const convertedPosts: Post[] = posts.map((p) => ({
-          id: String(p.postId),
-          user: p.writerName,
-          userImg: '',
-          image: p.imagesUrl && p.imagesUrl.length > 0 ? p.imagesUrl[0] : '',
-          content: p.content,
-          likes: p.postLikes,
-          comments: p.commentCount,
-          date: p.createdAt,
-          dateDisplay: formatDateDisplay(p.createdAt),
-          isMyPost: false,
-          isLiked: false,
-          writerId: p.writerId, // 신고를 위한 작성자 ID
-        }));
-        setAllPosts(convertedPosts);
+        // Promise.all에 as const를 적용하여 타입 추론 문제 해결
+        const [posts, votes] = await Promise.all([
+          getRecentPosts(Number(groupId), page, 20),
+          getVotes(Number(groupId))
+        ] as const);
+        // 타입 단언으로 명시적 타입 지정
+        const typedPosts = posts as PostCardResponse[];
+        const typedVotes = votes as VoteListResponse[];
+
+        // 투표를 postId로 매핑
+        const voteMap = new Map<number, VoteListResponse>();
+        for (const vote of typedVotes) {
+          const postId = vote.postId;
+          if (postId !== null && postId !== undefined && typeof postId === 'number') {
+            voteMap.set(postId, vote);
+          }
+        }
+
+        // 게시글에 투표 정보 추가
+        const postsWithVotes: PostWithVote[] = await Promise.all(
+          typedPosts.map(async (post): Promise<PostWithVote> => {
+            const vote = voteMap.get(post.postId);
+            if (vote) {
+              try {
+                const voteDetail = await getVote(Number(groupId), vote.voteId);
+                return {
+                  ...post,
+                  voteId: vote.voteId,
+                  voteDetail,
+                  mySelectedOptionIds: voteDetail.mySelectedOptionIds || [],
+                  totalVoteCount: voteDetail.options.reduce((sum, opt) => sum + (opt.voteCount || 0), 0)
+                };
+              } catch (error) {
+                console.error(`투표 ${vote.voteId} 조회 실패:`, error);
+                return { ...post, voteId: vote.voteId };
+              }
+            }
+            return post as PostWithVote;
+          })
+        );
+
+        if (page === 0) {
+          setAllPosts(postsWithVotes);
+        } else {
+          setAllPosts(prev => [...prev, ...postsWithVotes]);
+        }
+
+        setHasMore(typedPosts.length === 20);
       } catch (error) {
         console.error('게시글 불러오기 실패:', error);
         toast.error('게시글을 불러오는데 실패했습니다.');
@@ -98,297 +92,285 @@ export function StoriesView() {
         setLoading(false);
       }
     }
-    fetchPosts();
-  }, [groupId]);
 
-  // 날짜 표시 형식 변환
-  function formatDateDisplay(dateString: string): string {
+    fetchPostsAndVotes();
+  }, [groupId, page]);
+
+  // 날짜 포맷팅
+  const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    if (hours < 1) return '방금 전';
-    if (hours < 24) return `${hours}시간 전`;
-    if (days === 1) return '어제';
-    if (days < 7) return `${days}일 전`;
-    return date.toLocaleDateString('ko-KR');
+    const diffTime = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+      if (diffHours === 0) {
+        const diffMinutes = Math.floor(diffTime / (1000 * 60));
+        return diffMinutes <= 0 ? '방금 전' : `${diffMinutes}분 전`;
+      }
+      return `${diffHours}시간 전`;
+    }
+    if (diffDays === 1) return '어제';
+    if (diffDays < 7) return `${diffDays}일 전`;
+    return date.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+  };
+
+  // 투표 옵션 토글 핸들러
+  const handleVoteOptionToggle = async (post: PostWithVote, optionId: number) => {
+    if (!groupId || !post.voteId || !post.voteDetail) return;
+
+    const voteDetail = post.voteDetail;
+    const currentSelected = post.mySelectedOptionIds || [];
+    const isSelected = currentSelected.includes(optionId);
+
+    try {
+      let newSelected: number[];
+
+      if (voteDetail.allowMultiple) {
+        // 복수 선택: 토글 방식
+        if (isSelected) {
+          newSelected = currentSelected.filter(id => id !== optionId);
+        } else {
+          newSelected = [...currentSelected, optionId];
+        }
+      } else {
+        // 단일 선택: 현재 선택된 옵션을 다시 클릭하면 에러
+        if (isSelected) {
+          toast.error('단일 선택 투표에서는 최소 하나의 옵션을 선택해야 합니다.');
+          return;
+        }
+        newSelected = [optionId];
+      }
+
+      // 백엔드에 투표 전송 (백엔드가 전체 교체 방식으로 처리)
+      await answerVote(Number(groupId), post.voteId, { optionIds: newSelected });
+
+      // 투표 후 최신 데이터 가져오기
+      const updatedVoteDetail = await getVote(Number(groupId), post.voteId);
+
+      // UI 업데이트
+      setAllPosts(posts => posts.map(p => {
+        if (p.postId === post.postId) {
+          return {
+            ...p,
+            voteDetail: updatedVoteDetail,
+            mySelectedOptionIds: updatedVoteDetail.mySelectedOptionIds || [],
+            totalVoteCount: updatedVoteDetail.options.reduce((sum, opt) => sum + (opt.voteCount || 0), 0)
+          };
+        }
+        return p;
+      }));
+
+      const hasVoted = newSelected.length > 0;
+      toast.success(hasVoted ? '투표가 수정되었습니다!' : '투표가 완료되었습니다!');
+    } catch (error: any) {
+      console.error('투표 실패:', error);
+      toast.error(error.message || '투표에 실패했습니다.');
+    }
+  };
+
+  // 더보기 버튼 클릭
+  const handleLoadMore = () => {
+    if (hasMore && !loading) {
+      setPage(prev => prev + 1);
+    }
+  };
+
+  if (loading && page === 0) {
+    return (
+      <div className="space-y-4 pb-20">
+        {[1, 2, 3].map(i => (
+          <Card key={i} className="animate-pulse">
+            <CardContent className="p-4">
+              <div className="h-4 bg-stone-200 rounded w-3/4 mb-2"></div>
+              <div className="h-4 bg-stone-200 rounded w-1/2"></div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
   }
 
-  // 정렬된 게시글
-  const sortedPosts = [...allPosts].sort((a, b) => {
-    switch (sortBy) {
-      case 'latest':
-        return new Date(b.date).getTime() - new Date(a.date).getTime();
-      case 'oldest':
-        return new Date(a.date).getTime() - new Date(b.date).getTime();
-      case 'popular':
-        return (b.likes + b.comments) - (a.likes + a.comments);
-      default:
-        return 0;
-    }
-  });
-
-  const sortLabels: Record<SortType, string> = {
-    latest: '최신순',
-    oldest: '오래된순',
-    popular: '인기순',
-  };
-
-
-  const handleDeletePost = async () => {
-    if (!selectedPost || !groupId) return;
-    try {
-      await deletePostAPI(Number(groupId), Number(selectedPost.id));
-      setAllPosts(posts => posts.filter(p => p.id !== selectedPost.id));
-      toast.success('게시글이 삭제되었습니다');
-      setShowDeleteDialog(false);
-      setSelectedPost(null);
-    } catch (error) {
-      console.error('게시글 삭제 실패:', error);
-      toast.error('게시글 삭제에 실패했습니다.');
-    }
-  };
-
-  const handleLikePost = async (post: Post) => {
-    if (!groupId) return;
-    try {
-      if (post.isLiked) {
-        await unlikePostAPI(Number(groupId), Number(post.id));
-        setAllPosts(posts => posts.map(p => 
-          p.id === post.id 
-            ? { ...p, isLiked: false, likes: Math.max(0, p.likes - 1) }
-            : p
-        ));
-      } else {
-        await likePostAPI(Number(groupId), Number(post.id));
-        setAllPosts(posts => posts.map(p => 
-          p.id === post.id 
-            ? { ...p, isLiked: true, likes: p.likes + 1 }
-            : p
-        ));
-      }
-    } catch (error) {
-      console.error('좋아요 처리 실패:', error);
-      toast.error('좋아요 처리에 실패했습니다.');
-    }
-  };
-
-  const canDeletePost = (post: Post) => {
-    return post.isMyPost || permissions.canDeletePosts;
-  };
-
   return (
-    <div className="space-y-8 pb-20">
-      {/* Create Album Button */}
-      <div className="flex justify-between items-center px-1">
-        <h3 className="font-bold text-lg text-stone-800">앨범</h3>
-        <Link to="create">
-          <Button className="bg-orange-500 hover:bg-orange-600 rounded-full">
-            <Camera className="w-4 h-4 mr-2" />
-            앨범 작성
-          </Button>
-        </Link>
-      </div>
-
-      {/* Albums / Folders */}
-      <section>
-        <h3 className="font-bold text-lg text-stone-800 px-1 mb-3">앨범</h3>
-        {albums.length > 0 ? (
-          <div className="grid grid-cols-2 gap-4">
-            {albums.map(album => (
-              <Link to={`../albums/${album.postId || album.scheduleId}`} key={album.postId || album.scheduleId}>
-                <Card className="border-none shadow-none group cursor-pointer">
-                  <div className="relative aspect-square rounded-2xl overflow-hidden mb-2">
-                    <img src={album.coverImageUrl || 'https://via.placeholder.com/400'} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors" />
-                    <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                      <Folder className="w-3 h-3" /> {album.imageCount}
-                    </div>
-                  </div>
-                  <h4 className="font-medium text-stone-900 truncate px-1">{album.scheduleName || '앨범'}</h4>
-                  <p className="text-xs text-stone-500 px-1">{new Date(album.lastCreatedAt).toLocaleDateString('ko-KR')}</p>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8 text-stone-500 text-sm">앨범이 없습니다</div>
-        )}
-      </section>
-
-      {/* Feed */}
-      <section>
-        <div className="flex justify-between items-center px-1 mb-3">
-          <h3 className="font-bold text-lg text-stone-800">게시글</h3>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 gap-1">
-                <ArrowUpDown className="w-4 h-4" />
-                {sortLabels[sortBy]}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setSortBy('latest')}>
-                최신순
-                {sortBy === 'latest' && ' ✓'}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setSortBy('oldest')}>
-                오래된순
-                {sortBy === 'oldest' && ' ✓'}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setSortBy('popular')}>
-                인기순(좋아요+댓글)
-                {sortBy === 'popular' && ' ✓'}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {sortedPosts.length > 0 ? (
-          <div className="space-y-6">
-            {sortedPosts.map(post => (
-            <div key={post.id} className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-              <div className="p-3 flex items-center justify-between">
-                <Link to={post.id} className="flex items-center gap-3">
-                  <img 
-                    src={post.userImg || `https://api.dicebear.com/7.x/initials/svg?seed=${post.user}`} 
-                    alt="" 
-                    className="w-8 h-8 rounded-full bg-stone-200" 
-                  />
-                  <div>
-                    <p className="font-bold text-sm text-stone-900">{post.user}</p>
-                    <p className="text-xs text-stone-400">{post.dateDisplay}</p>
-                  </div>
-                </Link>
-                
-                {/* 더보기 메뉴 */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-stone-400">
-                      <MoreVertical className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {canDeletePost(post) && (
-                      <>
-                        <DropdownMenuItem 
-                          className="text-red-600"
-                          onClick={() => {
-                            setSelectedPost(post);
-                            setShowDeleteDialog(true);
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          삭제하기
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                      </>
-                    )}
-                    <DropdownMenuItem 
-                      className="text-orange-600"
-                      onClick={() => {
-                        setSelectedPost(post);
-                        setShowReportDialog(true);
-                      }}
-                    >
-                      <Flag className="w-4 h-4 mr-2" />
-                      신고하기
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+    <div className="space-y-4 pb-20">
+      {/* 게시글 목록 */}
+      {allPosts.map((post) => (
+        <Card key={post.postId} className="overflow-hidden">
+          <CardContent className="p-0">
+            {/* 게시글 헤더 */}
+            <div className="p-4 border-b border-stone-100">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={undefined} />
+                  <AvatarFallback className="bg-stone-100 text-stone-600">
+                    {post.writerName.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-stone-900">{post.writerName}</div>
+                  <div className="text-sm text-stone-500">{formatDate(post.createdAt)}</div>
+                </div>
               </div>
-              
-              <Link to={post.id}>
-                {post.image ? (
-                  <div className="aspect-[4/3] bg-stone-100">
-                    <img src={post.image} alt="" className="w-full h-full object-cover" onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                      if (target.parentElement) {
-                        target.parentElement.style.display = 'none';
-                      }
-                    }} />
-                  </div>
-                ) : null}
-                <div className="p-4 space-y-3">
-                  <div className="flex gap-4">
-                    <span className="flex items-center gap-1 text-stone-600">
-                      <Heart className={`w-5 h-5 ${post.isLiked ? 'fill-red-500 text-red-500' : 'text-stone-600'} cursor-pointer hover:scale-110 transition-transform`} onClick={(e) => { e.preventDefault(); handleLikePost(post); }} />
-                      <span className="text-sm font-medium">{post.likes}</span>
-                    </span>
-                    <span className="flex items-center gap-1 text-stone-600">
-                      <MessageCircle className="w-5 h-5" />
-                      <span className="text-sm font-medium">{post.comments}</span>
-                    </span>
-                  </div>
-                  <p className="text-stone-800 text-sm leading-relaxed line-clamp-2">
+            </div>
+
+            {/* 게시글 내용 */}
+            <Link to={`/group/${groupId}/posts/${post.postId}`} className="block">
+              <div className="p-4 space-y-3">
+                {post.title && (
+                  <h3 className="font-semibold text-stone-900 text-lg">{post.title}</h3>
+                )}
+                {post.content && (
+                  <p className="text-stone-700 whitespace-pre-wrap line-clamp-3">
                     {post.content}
                   </p>
-                </div>
-              </Link>
-            </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12 text-stone-500">
-            <p className="text-sm">아직 게시글이 없습니다</p>
-            <Link to="create">
-              <Button className="mt-4 bg-orange-500 hover:bg-orange-600">
-                첫 게시글 작성하기
-              </Button>
-            </Link>
-          </div>
-        )}
-      </section>
-
-      {/* FAB */}
-      <div className="fixed bottom-20 right-4 md:right-[calc(50%-220px+1rem)] z-40">
-        <Link to="create">
-          <Button size="lg" className="rounded-full w-14 h-14 shadow-lg bg-orange-500 hover:bg-orange-600 text-white p-0">
-            <Plus className="w-7 h-7" />
-          </Button>
-        </Link>
-      </div>
-
-      {/* 삭제 확인 다이얼로그 */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-red-100 rounded-full">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
+                )}
+                {post.imagesUrl && post.imagesUrl.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    {post.imagesUrl.slice(0, 4).map((img, idx) => (
+                      <img
+                        key={idx}
+                        src={img}
+                        alt={`${post.title || '게시글'} 이미지 ${idx + 1}`}
+                        className="w-full h-32 object-cover rounded-lg"
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-              <AlertDialogTitle className="text-xl">게시글 삭제</AlertDialogTitle>
-            </div>
-            <AlertDialogDescription>
-              이 게시글을 삭제하시겠습니까? 삭제된 게시글은 복구할 수 없습니다.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeletePost}
-              className="bg-red-500 hover:bg-red-600"
-            >
-              삭제하기
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Link>
 
-      {/* 신고 다이얼로그 */}
-      {selectedPost && (
-        <ReportDialog
-          open={showReportDialog}
-          onOpenChange={(open) => {
-            setShowReportDialog(open);
-            if (!open) setSelectedPost(null);
-          }}
-          type="post"
-          targetId={selectedPost.writerId || Number(selectedPost.id)}
-          targetName={selectedPost.user}
-        />
+            {/* 투표 섹션 */}
+            {(post.voteDetail && post.voteId !== undefined) ? (
+              <div className="px-4 pb-4 border-t border-stone-100">
+                <Link
+                  to={`/group/${groupId}/votes/${post.voteId}`}
+                  className="block mb-3 pt-3"
+                  onClick={(e) => {
+                    // 투표 옵션 클릭 시에는 Link 동작 방지
+                    if ((e.target as HTMLElement).closest('.vote-option')) {
+                      e.preventDefault();
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant="outline" className="text-xs">
+                      투표
+                    </Badge>
+                    <span className="font-medium text-stone-900">{post.voteDetail.title}</span>
+                    {post.voteDetail.deadline && (
+                      <span className="text-xs text-stone-500 ml-auto flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {new Date(post.voteDetail.deadline).toLocaleDateString('ko-KR', {
+                          month: 'short',
+                          day: 'numeric'
+                        })}
+                      </span>
+                    )}
+                  </div>
+                </Link>
+
+                {/* 투표 옵션 (최대 4개) */}
+                <div className="space-y-2">
+                  {post.voteDetail.options.slice(0, 4).map((option) => {
+                    const isSelected = post.mySelectedOptionIds?.includes(option.optionId) || false;
+                    const voteCount = option.voteCount || 0;
+                    const totalCount = post.totalVoteCount || 0;
+                    const percentage = totalCount > 0 ? (voteCount / totalCount) * 100 : 0;
+
+                    return (
+                      <div
+                        key={option.optionId}
+                        className={`vote-option p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-stone-200 hover:border-stone-300'
+                        }`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleVoteOptionToggle(post, option.optionId);
+                        }}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-stone-900'}`}>
+                            {option.optionText}
+                          </span>
+                          <span className={`text-xs ${isSelected ? 'text-blue-600' : 'text-stone-500'}`}>
+                            {voteCount}표 ({percentage.toFixed(0)}%)
+                          </span>
+                        </div>
+                        {totalCount > 0 && (
+                          <div className="h-1.5 bg-stone-200 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all ${
+                                isSelected ? 'bg-blue-500' : 'bg-stone-400'
+                              }`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 4개 이상 옵션이 있으면 상세보기 링크 */}
+                {post.voteDetail.options.length > 4 && post.voteId !== undefined && (
+                  <Link
+                    to={`/group/${groupId}/votes/${post.voteId}`}
+                    className="mt-3 flex items-center justify-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    더보기 ({post.voteDetail.options.length - 4}개 옵션 더)
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
+                )}
+
+                {/* 투표 통계 */}
+                {post.totalVoteCount !== undefined && post.totalVoteCount > 0 ? (
+                  <div className="mt-3 pt-3 border-t border-stone-100 flex items-center gap-2 text-xs text-stone-500">
+                    <Users className="h-3 w-3" />
+                    <span>총 {post.totalVoteCount}명 참여</span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {/* 게시글 하단 (좋아요, 댓글) */}
+            <div className="px-4 py-3 border-t border-stone-100 flex items-center gap-4 text-stone-500">
+              <div className="flex items-center gap-1">
+                <Heart className="h-4 w-4" />
+                <span className="text-sm">{post.postLikes}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <MessageCircle className="h-4 w-4" />
+                <span className="text-sm">{post.commentCount}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+
+      {/* 더보기 버튼 */}
+      {hasMore && (
+        <div className="flex justify-center pt-4">
+          <Button
+            variant="outline"
+            onClick={handleLoadMore}
+            disabled={loading}
+          >
+            {loading ? '불러오는 중...' : '더보기'}
+          </Button>
+        </div>
+      )}
+
+      {/* 게시글이 없을 때 */}
+      {!loading && allPosts.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 text-stone-500">
+          <Calendar className="h-12 w-12 mb-4 text-stone-300" />
+          <p className="text-lg font-medium mb-1">아직 게시글이 없습니다</p>
+          <p className="text-sm">첫 게시글을 작성해보세요!</p>
+        </div>
       )}
     </div>
   );

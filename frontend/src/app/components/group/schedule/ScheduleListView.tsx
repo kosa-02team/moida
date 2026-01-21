@@ -13,6 +13,8 @@ import {
   getRoleColor,
 } from '../../../data/userRoles';
 import { getSchedules, getScheduleParticipants, type ScheduleResponse } from '../../../../api/schedule';
+import { getMembers } from '../../../../api/member';
+import { getMyInfo } from '../../../../api/user';
 
 interface Schedule {
   id: number;
@@ -31,13 +33,49 @@ export function ScheduleListView() {
   const { groupId } = useParams();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string>('');
+  const [roleColor, setRoleColor] = useState<string>('');
   
   // 모임별 역할 가져오기
-  const { userRole } = useUserRole(groupId || '1');
+  const { userRole: mockUserRole } = useUserRole(groupId || '1');
   const permissions = useUserPermissions(groupId || '1');
   
   // 일정 마무리 권한 체크
   const showFinalizeButton = permissions.canFinalizeSchedule;
+
+  // 실제 역할 정보 가져오기 (운영진 이상만 표시)
+  useEffect(() => {
+    async function fetchUserRole() {
+      if (!groupId) return;
+      try {
+        const [myInfo, members] = await Promise.all([
+          getMyInfo(),
+          getMembers(Number(groupId), 'ACTIVE')
+        ]);
+        const currentMember = members.find(m => m.userId === myInfo.userId);
+        if (currentMember) {
+          const roles = currentMember.roles || [];
+          // 역할 우선순위: OWNER > ACCOUNTANT > STAFF > MEMBER
+          if (roles.includes('OWNER')) {
+            setUserRole('모임장');
+            setRoleColor('bg-orange-500 text-white');
+          } else if (roles.includes('ACCOUNTANT')) {
+            setUserRole('총무');
+            setRoleColor('bg-green-500 text-white');
+          } else if (roles.includes('STAFF')) {
+            setUserRole('운영진');
+            setRoleColor('bg-blue-500 text-white');
+          } else {
+            setUserRole('회원');
+            setRoleColor('bg-stone-500 text-white');
+          }
+        }
+      } catch (error) {
+        console.error('사용자 역할 조회 실패:', error);
+      }
+    }
+    fetchUserRole();
+  }, [groupId]);
 
   useEffect(() => {
     async function fetchData() {
@@ -147,11 +185,13 @@ export function ScheduleListView() {
   return (
     <div className="space-y-4 pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       {/* User Role Badge */}
-      <div className="flex justify-end">
-        <Badge className={`${getRoleColor(groupId || '1')} text-xs`}>
-          {getRoleLabel(groupId || '1')}
-        </Badge>
-      </div>
+      {userRole && userRole !== '회원' && (
+        <div className="flex justify-end">
+          <Badge className={`${roleColor} text-xs`}>
+            {userRole}
+          </Badge>
+        </div>
+      )}
 
       {schedules.length > 0 ? (
         schedules.map((item) => {

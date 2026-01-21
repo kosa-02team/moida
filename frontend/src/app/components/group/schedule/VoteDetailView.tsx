@@ -80,7 +80,8 @@ export function VoteDetailView() {
   const maxVotes = vote.options.length > 0 ? Math.max(...vote.options.map(o => o.voteCount || 0)) : 0;
 
   const toggleOption = (optionId: number) => {
-    if (hasVoted) return;
+    // 이미 투표한 경우에도 수정 가능하도록 변경
+    if (vote.status === 'CLOSED') return;
     
     if (vote.allowMultiple) {
       setSelectedOptions(prev =>
@@ -103,19 +104,32 @@ export function VoteDetailView() {
     try {
       await answerVote(Number(groupId), Number(voteId), { optionIds: selectedOptions });
       setHasVoted(true);
-      toast.success('투표가 완료되었습니다!');
+      toast.success(hasVoted ? '투표가 수정되었습니다!' : '투표가 완료되었습니다!');
       // 투표 후 데이터 다시 불러오기
       const voteData = await getVote(Number(groupId), Number(voteId));
       setVote(voteData);
-    } catch (error) {
+      
+      // 수정 후 다시 선택된 옵션 설정
+      if (currentUserId) {
+        const votedOptions = voteData.options
+          .filter(option => option.voters?.some(voter => voter.userId === currentUserId))
+          .map(option => option.optionId);
+        setSelectedOptions(votedOptions);
+      }
+    } catch (error: any) {
       console.error('투표 실패:', error);
-      toast.error('투표에 실패했습니다.');
+      // 409 에러는 이미 선택한 옵션이므로 다른 메시지 표시
+      if (error.message?.includes('이미 선택한 옵션')) {
+        toast.error('이미 선택한 옵션입니다. 다른 옵션을 선택해주세요.');
+      } else {
+        toast.error('투표에 실패했습니다.');
+      }
     }
   };
 
   const handleChangeVote = () => {
+    // 기존 선택 유지하고 수정 모드로 전환
     setHasVoted(false);
-    toast.info('투표를 수정할 수 있습니다');
   };
 
   const handleCloseVote = async () => {
@@ -217,12 +231,12 @@ export function VoteDetailView() {
               <button
                 key={option.optionId}
                 onClick={() => toggleOption(option.optionId)}
-                disabled={hasVoted || vote.status === 'CLOSED'}
+                disabled={vote.status === 'CLOSED'}
                 className={`w-full text-left bg-white rounded-2xl p-4 border-2 transition-all ${
                   isSelected
                     ? 'border-orange-500 bg-orange-50'
                     : 'border-stone-100 hover:border-stone-200'
-                } ${hasVoted || vote.status === 'CLOSED' ? 'cursor-default' : ''}`}
+                } ${vote.status === 'CLOSED' ? 'cursor-default opacity-60' : 'cursor-pointer'}`}
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
@@ -306,23 +320,17 @@ export function VoteDetailView() {
       {/* Bottom Button */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-100 p-4 safe-area-pb">
         <div className="max-w-md mx-auto">
-          {hasVoted ? (
-            <Button
-              onClick={handleChangeVote}
-              variant="outline"
-              className="w-full h-12 rounded-xl"
-            >
-              투표 수정하기
-            </Button>
-          ) : (
-            <Button
-              onClick={handleVote}
-              disabled={selectedOptions.length === 0 || vote.status === 'CLOSED'}
-              className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white rounded-xl disabled:opacity-50"
-            >
-              {vote.status === 'CLOSED' ? '마감된 투표' : `투표하기 (${selectedOptions.length}개 선택)`}
-            </Button>
-          )}
+          <Button
+            onClick={handleVote}
+            disabled={selectedOptions.length === 0 || vote.status === 'CLOSED'}
+            className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white rounded-xl disabled:opacity-50"
+          >
+            {vote.status === 'CLOSED' 
+              ? '마감된 투표' 
+              : hasVoted 
+                ? `투표 수정하기 (${selectedOptions.length}개 선택)`
+                : `투표하기 (${selectedOptions.length}개 선택)`}
+          </Button>
         </div>
       </div>
     </div>

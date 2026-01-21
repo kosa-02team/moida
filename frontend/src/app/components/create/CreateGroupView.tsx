@@ -53,6 +53,34 @@ export function CreateGroupView() {
     }
   };
 
+  const handleImageUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        // 파일 크기 체크 (5MB 제한)
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error('이미지 크기는 5MB 이하여야 합니다');
+          return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const result = event.target?.result as string;
+          setImage(result);
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    input.click();
+  };
+
+  const removeImage = () => {
+    setImage(null);
+  };
+
   const handleSubmit = async () => {
     if (isSubmitting) return;
 

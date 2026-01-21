@@ -13,12 +13,37 @@ export function EditGroupView() {
   const navigate = useNavigate();
   const { groupId } = useParams();
   const [loading, setLoading] = useState(true);
+  const [canEdit, setCanEdit] = useState(false);
   
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [image, setImage] = useState<string | null>(null);
+
+  // 권한 체크 (운영진 이상만 수정 가능)
+  const permissions = useUserPermissions(groupId || '1');
+  
+  useEffect(() => {
+    async function checkPermission() {
+      if (!groupId) return;
+      try {
+        const [myInfo, members] = await Promise.all([
+          getMyInfo(),
+          getMembers(Number(groupId), 'ACTIVE')
+        ]);
+        const currentMember = members.find(m => m.userId === myInfo.userId);
+        if (currentMember) {
+          const roles = currentMember.roles || [];
+          // 운영진(STAFF) 이상만 수정 가능
+          setCanEdit(roles.includes('OWNER') || roles.includes('STAFF'));
+        }
+      } catch (error) {
+        console.error('권한 확인 실패:', error);
+      }
+    }
+    checkPermission();
+  }, [groupId]);
 
   useEffect(() => {
     async function fetchClubData() {
@@ -29,7 +54,12 @@ export function EditGroupView() {
         setName(club.clubName || '');
         setDescription(''); // TODO: 백엔드에 description 필드 추가 필요
         setTags([]); // TODO: 백엔드에 tags 필드 추가 필요
-        setImage(null); // TODO: 백엔드에 image 필드 추가 필요
+        
+        // localStorage에서 기존 이미지 불러오기
+        const savedImage = localStorage.getItem(`club_image_${groupId}`);
+        if (savedImage) {
+          setImage(savedImage);
+        }
       } catch (error) {
         console.error('모임 정보 조회 실패:', error);
         toast.error('모임 정보를 불러오는데 실패했습니다.');
@@ -68,6 +98,15 @@ export function EditGroupView() {
         // TODO: description, tags, image 필드 추가 (백엔드 API 확장 필요)
       };
       await updateClub(Number(groupId), request);
+      
+      // 모임 이미지를 로컬 스토리지에 저장
+      if (image && groupId) {
+        localStorage.setItem(`club_image_${groupId}`, image);
+      } else if (!image && groupId) {
+        // 이미지가 제거된 경우 localStorage에서도 삭제
+        localStorage.removeItem(`club_image_${groupId}`);
+      }
+      
       toast.success('모임 정보가 저장되었습니다');
       setTimeout(() => navigate(-1), 500);
     } catch (error) {
@@ -80,6 +119,20 @@ export function EditGroupView() {
     return (
       <div className="min-h-screen bg-stone-50 pb-20 flex items-center justify-center">
         <div className="text-stone-500">로딩 중...</div>
+      </div>
+    );
+  }
+
+  if (!canEdit) {
+    return (
+      <div className="min-h-screen bg-stone-50 pb-20 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-stone-700 font-medium mb-2">권한이 없습니다</p>
+          <p className="text-sm text-stone-500 mb-4">모임장 또는 운영진만 모임 정보를 수정할 수 있습니다.</p>
+          <Button onClick={() => navigate(-1)} variant="outline">
+            돌아가기
+          </Button>
+        </div>
       </div>
     );
   }
@@ -108,12 +161,21 @@ export function EditGroupView() {
                 <Camera className="w-8 h-8 text-stone-400" />
               )}
             </div>
-            <button 
-              className="absolute bottom-0 right-0 p-2 bg-orange-500 text-white rounded-full shadow-lg hover:bg-orange-600 transition-colors"
-              onClick={() => toast.info('이미지 업로드 기능은 준비 중입니다')}
-            >
-              <Camera className="w-4 h-4" />
-            </button>
+            {image ? (
+              <button 
+                className="absolute bottom-0 right-0 p-2 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-colors"
+                onClick={removeImage}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            ) : (
+              <button 
+                className="absolute bottom-0 right-0 p-2 bg-orange-500 text-white rounded-full shadow-lg hover:bg-orange-600 transition-colors"
+                onClick={handleImageUpload}
+              >
+                <Camera className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 

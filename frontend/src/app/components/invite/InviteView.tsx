@@ -5,10 +5,10 @@ import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { getClubByInviteCode, type ClubDetailResponse } from '../../api/club-full';
-import { getMyInfo } from '../../api/user';
-import { joinClub } from '../../api/member';
-import { getToken } from '../../api/client';
+import { getClubByInviteCode, type ClubDetailResponse } from '@/api/club-full';
+import { getMyInfo } from '@/api/user';
+import { joinClub } from '@/api/member';
+import { getToken } from '@/api/client';
 
 export function InviteView() {
   const navigate = useNavigate();

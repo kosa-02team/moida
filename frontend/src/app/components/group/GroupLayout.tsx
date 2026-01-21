@@ -32,6 +32,7 @@ export function GroupLayout() {
           const currentMember = members.find(m => m.userId === myInfo.userId);
           if (currentMember) {
             const roles = currentMember.roles || [];
+            // 역할 우선순위: OWNER > ACCOUNTANT > STAFF > MEMBER
             if (roles.includes('OWNER')) {
               setUserRole('모임장');
               setRoleColor('bg-orange-500 text-white');
@@ -86,11 +87,13 @@ export function GroupLayout() {
         </header>
 
         {/* 역할 배지 */}
-        <div className="flex justify-end px-4 py-2 bg-white border-b border-stone-100 sticky top-[57px] z-20">
-          <Badge className={`${roleColor} text-xs`}>
-            {userRole}
-          </Badge>
-        </div>
+        {userRole && userRole !== '회원' && (
+          <div className="flex justify-end px-4 py-2 bg-white border-b border-stone-100 sticky top-[57px] z-20">
+            <Badge className={`${roleColor} text-xs`}>
+              {userRole}
+            </Badge>
+          </div>
+        )}
 
         {/* Scrollable Tabs */}
         <div className="flex overflow-x-auto scrollbar-hide border-b border-stone-100 bg-white sticky top-[97px] z-20 md:justify-center">
