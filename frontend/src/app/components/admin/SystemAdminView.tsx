@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import * as React from 'react';
 import {
   ArrowLeft,
@@ -57,13 +57,6 @@ import {
   SelectValue,
 } from '../ui/select';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
-import {
   getDashboard,
   getReports,
   getReportDetail,
@@ -102,6 +95,7 @@ export function SystemAdminView() {
   const [reports, setReports] = useState<AdminReportResponse[]>([]);
   const [users, setUsers] = useState<AdminUserResponse[]>([]);
   const [clubs, setClubs] = useState<AdminClubResponse[]>([]);
+  const [activeMenu, setActiveMenu] = useState<{ type: 'user' | 'group', id: number } | null>(null);
 
   // API 데이터 불러오기
   const fetchData = async () => {
@@ -164,32 +158,26 @@ export function SystemAdminView() {
     );
   }
 
-  // isAdmin check removed - validation is done via API calls and backend security
-
   const statusLabels: Record<string, string> = {
-    pending: '대기 중',
-    reviewing: '검토 중',
-    resolved: '처리 완료',
-    dismissed: '기각',
-    active: '활성',
-    suspended: '일시정지',
-    banned: '영구정지',
+    PENDING: '대기 중',
+    REVIEWING: '검토 중',
+    RESOLVED: '처리 완료',
+    DISMISSED: '기각',
+    ACTIVE: '활성',
+    INACTIVE: '정지(비활성)',
+    BANNED: '정지',
+    DELETED: '삭제됨',
   };
 
   const statusColors: Record<string, string> = {
-    pending: 'bg-amber-100 text-amber-700',
-    reviewing: 'bg-blue-100 text-blue-700',
-    resolved: 'bg-green-100 text-green-700',
-    dismissed: 'bg-stone-100 text-stone-600',
-    active: 'bg-green-100 text-green-700',
-    suspended: 'bg-amber-100 text-amber-700',
-    banned: 'bg-red-100 text-red-700',
-  };
-
-  const typeLabels: Record<string, string> = {
-    user: '사용자',
-    group: '모임',
-    post: '게시글',
+    PENDING: 'bg-amber-100 text-amber-700',
+    REVIEWING: 'bg-blue-100 text-blue-700',
+    RESOLVED: 'bg-green-100 text-green-700',
+    DISMISSED: 'bg-stone-100 text-stone-600',
+    ACTIVE: 'bg-green-100 text-green-700',
+    INACTIVE: 'bg-amber-100 text-amber-700',
+    BANNED: 'bg-red-100 text-red-700',
+    DELETED: 'bg-stone-200 text-stone-500',
   };
 
   const durationLabels: Record<SuspendDuration, string> = {
@@ -232,55 +220,58 @@ export function SystemAdminView() {
     }
   };
 
-  const handleSuspend = () => {
+  const handleSuspend = async () => {
     if (!suspendTarget || !suspendReason) {
       toast.error('정지 사유를 입력해주세요');
       return;
     }
 
-    if (suspendTarget.type === 'user') {
-      setUsers(prev => prev.map(u =>
-        u.userId === suspendTarget.id
-          ? { ...u, status: suspendDuration === 'permanent' ? 'banned' : 'suspended' }
-          : u
-      ));
-    } else {
-      setClubs(prev => prev.map(g =>
-        g.clubId === suspendTarget.id
-          ? { ...g, status: suspendDuration === 'permanent' ? 'banned' : 'suspended' }
-          : g
-      ));
-    }
+    try {
+      if (suspendTarget.type === 'user') {
+        // User -> BAN
+        await manageUser(suspendTarget.id, 'BAN');
+        setUsers(prev => prev.map(u =>
+          u.userId === suspendTarget.id ? { ...u, status: 'BANNED' } : u
+        ));
+      } else {
+        // Group -> CLOSE (INACTIVE)
+        await manageClub(suspendTarget.id, 'CLOSE');
+        setClubs(prev => prev.map(g =>
+          g.clubId === suspendTarget.id ? { ...g, status: 'INACTIVE' } : g
+        ));
+      }
 
-    const action = suspendDuration === 'permanent' ? '영구정지' : `${durationLabels[suspendDuration]} 정지`;
-    toast.success(`${suspendTarget.name}이(가) ${action} 처리되었습니다`);
-    setShowSuspendDialog(false);
-    setSuspendTarget(null);
-    setSuspendReason('');
-    setSuspendDuration('7days');
+      toast.success(`${suspendTarget.name}이(가) 정지 처리되었습니다`);
+      setShowSuspendDialog(false);
+      setSuspendTarget(null);
+      setSuspendReason('');
+      setSuspendDuration('7days');
+    } catch (error) {
+      console.error('정지 처리 실패:', error);
+      toast.error('정지 처리에 실패했습니다');
+    }
   };
 
   const handleDelete = () => {
-    if (!deleteTarget) return;
-
-    if (deleteTarget.type === 'user') {
-      setUsers(prev => prev.filter(u => u.userId !== deleteTarget.id));
-    } else {
-      setClubs(prev => prev.filter(g => g.clubId !== deleteTarget.id));
-    }
-
-    toast.success(`${deleteTarget.name}이(가) 삭제되었습니다`);
+    toast.error('삭제 기능은 현재 지원하지 않습니다. 정지 기능을 이용해주세요.');
     setShowDeleteDialog(false);
     setDeleteTarget(null);
   };
 
-  const handleActivate = (type: 'user' | 'group', id: string, name: string) => {
-    if (type === 'user') {
-      setUsers(prev => prev.map(u => u.userId === Number(id) ? { ...u, status: 'active' } : u));
-    } else {
-      setClubs(prev => prev.map(g => g.clubId === Number(id) ? { ...g, status: 'active' } : g));
+  const handleActivate = async (type: 'user' | 'group', id: string, name: string) => {
+    try {
+      if (type === 'user') {
+        await manageUser(Number(id), 'ACTIVATE');
+        setUsers(prev => prev.map(u => u.userId === Number(id) ? { ...u, status: 'ACTIVE' } : u));
+      } else {
+        await manageClub(Number(id), 'ACTIVATE');
+        setClubs(prev => prev.map(g => g.clubId === Number(id) ? { ...g, status: 'ACTIVE' } : g));
+      }
+      toast.success(`${name}의 정지가 해제되었습니다`);
+    } catch (error) {
+      console.error('정지 해제 실패:', error);
+      toast.error('정지 해제에 실패했습니다');
     }
-    toast.success(`${name}의 정지가 해제되었습니다`);
   };
 
   const stats = {
@@ -296,6 +287,8 @@ export function SystemAdminView() {
 
   return (
     <div className="min-h-screen bg-stone-50 pb-20">
+      {activeMenu && <div className="fixed inset-0 z-40" onClick={() => setActiveMenu(null)} />}
+
       {/* Header */}
       <header className="sticky top-0 z-30 bg-gradient-to-r from-red-600 to-red-700 text-white">
         <div className="flex items-center justify-between px-4 py-3">
@@ -381,7 +374,6 @@ export function SystemAdminView() {
 
           {/* Reports Tab */}
           <TabsContent value="reports" className="space-y-4">
-            {/* Search & Filter */}
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
@@ -398,16 +390,15 @@ export function SystemAdminView() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체</SelectItem>
-                  <SelectItem value="pending">대기 중</SelectItem>
-                  <SelectItem value="reviewing">검토 중</SelectItem>
-                  <SelectItem value="resolved">처리 완료</SelectItem>
-                  <SelectItem value="dismissed">기각</SelectItem>
+                  <SelectItem value="PENDING">대기 중</SelectItem>
+                  <SelectItem value="REVIEWING">검토 중</SelectItem>
+                  <SelectItem value="RESOLVED">처리 완료</SelectItem>
+                  <SelectItem value="DISMISSED">기각</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Reports List */}
-            <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
+            <div className="bg-white rounded-2xl border border-stone-100">
               {filteredReports.length === 0 ? (
                 <div className="p-8 text-center text-stone-500">
                   <Flag className="w-12 h-12 mx-auto mb-3 text-stone-300" />
@@ -457,7 +448,7 @@ export function SystemAdminView() {
               />
             </div>
 
-            <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
+            <div className="bg-white rounded-2xl border border-stone-100">
               <div className="divide-y divide-stone-100">
                 {filteredUsers.map(user => (
                   <div key={user.userId} className="p-4">
@@ -474,52 +465,61 @@ export function SystemAdminView() {
                             </Badge>
                           </div>
                           <p className="text-xs text-stone-500">{user.loginId}</p>
-                          <div className="flex items-center gap-3 mt-1 text-xs text-stone-400">
-                            {/* Stats not available in API */}
-                          </div>
                         </div>
                       </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {user.status === 'active' && (
-                            <DropdownMenuItem
-                              className="text-amber-600"
+
+                      <div className="relative">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setActiveMenu(activeMenu?.id === user.userId && activeMenu?.type === 'user' ? null : { type: 'user', id: user.userId })}
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+
+                        {activeMenu?.id === user.userId && activeMenu?.type === 'user' && (
+                          <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-md shadow-lg border border-stone-200 z-50 overflow-hidden py-1">
+                            {user.status === 'ACTIVE' && (
+                              <button
+                                className="w-full text-left px-3 py-2 text-sm text-amber-600 hover:bg-stone-50 flex items-center"
+                                onClick={() => {
+                                  setSuspendTarget({ type: 'user', id: user.userId, name: user.realName });
+                                  setShowSuspendDialog(true);
+                                  setActiveMenu(null);
+                                }}
+                              >
+                                <PauseCircle className="w-4 h-4 mr-2" />
+                                정지하기
+                              </button>
+                            )}
+                            {(user.status === 'BANNED' || user.status === 'INACTIVE') && (
+                              <button
+                                className="w-full text-left px-3 py-2 text-sm text-green-600 hover:bg-stone-50 flex items-center"
+                                onClick={() => {
+                                  handleActivate('user', String(user.userId), user.realName);
+                                  setActiveMenu(null);
+                                }}
+                              >
+                                <PlayCircle className="w-4 h-4 mr-2" />
+                                정지 해제
+                              </button>
+                            )}
+                            <div className="h-px bg-stone-100 my-1" />
+                            <button
+                              className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-stone-50 flex items-center"
                               onClick={() => {
-                                setSuspendTarget({ type: 'user', id: user.userId, name: user.realName });
-                                setShowSuspendDialog(true);
+                                setDeleteTarget({ type: 'user', id: user.userId, name: user.realName });
+                                setShowDeleteDialog(true);
+                                setActiveMenu(null);
                               }}
                             >
-                              <PauseCircle className="w-4 h-4 mr-2" />
-                              정지하기
-                            </DropdownMenuItem>
-                          )}
-                          {(user.status === 'suspended' || user.status === 'banned') && (
-                            <DropdownMenuItem
-                              className="text-green-600"
-                              onClick={() => handleActivate('user', String(user.userId), user.realName)}
-                            >
-                              <PlayCircle className="w-4 h-4 mr-2" />
-                              정지 해제
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-red-600"
-                            onClick={() => {
-                              setDeleteTarget({ type: 'user', id: user.userId, name: user.realName });
-                              setShowDeleteDialog(true);
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            계정 삭제
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              계정 삭제
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -539,7 +539,7 @@ export function SystemAdminView() {
               />
             </div>
 
-            <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
+            <div className="bg-white rounded-2xl border border-stone-100">
               <div className="divide-y divide-stone-100">
                 {filteredGroups.map(group => (
                   <div key={group.clubId} className="p-4">
@@ -556,52 +556,61 @@ export function SystemAdminView() {
                             </Badge>
                           </div>
                           <p className="text-xs text-stone-500">모임장: {group.ownerName}</p>
-                          <div className="flex items-center gap-3 mt-1 text-xs text-stone-400">
-                            {/* Stats not available */}
-                          </div>
                         </div>
                       </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {group.status === 'active' && (
-                            <DropdownMenuItem
-                              className="text-amber-600"
+
+                      <div className="relative">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setActiveMenu(activeMenu?.id === group.clubId && activeMenu?.type === 'group' ? null : { type: 'group', id: group.clubId })}
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+
+                        {activeMenu?.id === group.clubId && activeMenu?.type === 'group' && (
+                          <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-md shadow-lg border border-stone-200 z-50 overflow-hidden py-1">
+                            {group.status === 'ACTIVE' && (
+                              <button
+                                className="w-full text-left px-3 py-2 text-sm text-amber-600 hover:bg-stone-50 flex items-center"
+                                onClick={() => {
+                                  setSuspendTarget({ type: 'group', id: group.clubId, name: group.name });
+                                  setShowSuspendDialog(true);
+                                  setActiveMenu(null);
+                                }}
+                              >
+                                <PauseCircle className="w-4 h-4 mr-2" />
+                                정지하기
+                              </button>
+                            )}
+                            {(group.status === 'INACTIVE' || group.status === 'BANNED') && (
+                              <button
+                                className="w-full text-left px-3 py-2 text-sm text-green-600 hover:bg-stone-50 flex items-center"
+                                onClick={() => {
+                                  handleActivate('group', String(group.clubId), group.name);
+                                  setActiveMenu(null);
+                                }}
+                              >
+                                <PlayCircle className="w-4 h-4 mr-2" />
+                                정지 해제
+                              </button>
+                            )}
+                            <div className="h-px bg-stone-100 my-1" />
+                            <button
+                              className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-stone-50 flex items-center"
                               onClick={() => {
-                                setSuspendTarget({ type: 'group', id: group.clubId, name: group.name });
-                                setShowSuspendDialog(true);
+                                setDeleteTarget({ type: 'group', id: group.clubId, name: group.name });
+                                setShowDeleteDialog(true);
+                                setActiveMenu(null);
                               }}
                             >
-                              <PauseCircle className="w-4 h-4 mr-2" />
-                              정지하기
-                            </DropdownMenuItem>
-                          )}
-                          {(group.status === 'suspended' || group.status === 'banned') && (
-                            <DropdownMenuItem
-                              className="text-green-600"
-                              onClick={() => handleActivate('group', String(group.clubId), group.name)}
-                            >
-                              <PlayCircle className="w-4 h-4 mr-2" />
-                              정지 해제
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-red-600"
-                            onClick={() => {
-                              setDeleteTarget({ type: 'group', id: group.clubId, name: group.name });
-                              setShowDeleteDialog(true);
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            모임 삭제
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              모임 삭제
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -627,7 +636,7 @@ export function SystemAdminView() {
                   <div className="bg-stone-50 rounded-lg p-4 space-y-2">
                     <div className="flex justify-between">
                       <span className="text-stone-500">유형</span>
-                      <span className="font-medium">{typeLabels[selectedReportDetail.type] || '게시글'}</span>
+                      <span className="font-medium">신고</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-stone-500">모임</span>
