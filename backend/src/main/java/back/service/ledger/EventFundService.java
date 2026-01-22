@@ -1,5 +1,7 @@
 package back.service.ledger;
 
+import back.bank.domain.BankAccounts;
+import back.bank.repository.BankAccountRepository;
 import back.domain.Notifications;
 import back.domain.NotificationType;
 import back.domain.Users;
@@ -8,6 +10,7 @@ import back.domain.ledger.TransactionLog;
 import back.domain.schedule.Schedules;
 import back.domain.schedule.ScheduleParticipants;
 import back.dto.NotificationResponse;
+import back.exception.ScheduleException;
 import back.repository.UserRepository;
 import back.repository.ledger.PaymentRequestRepository;
 import back.repository.ledger.TransactionLogRepository;
@@ -23,6 +26,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,6 +40,7 @@ public class EventFundService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final NotificationsRepository notificationsRepository;
+    private final BankAccountRepository bankAccountRepository;
 
     /**
      * 1. 참가비 일괄 요청 (Collect)
@@ -124,7 +129,22 @@ public class EventFundService {
     @Transactional
     public void settleAndRefund(Long clubId, Long scheduleId, BigDecimal inputTotalSpent) {
         Schedules schedule = scheduleRepository.findById(scheduleId)
-                .orElseThrow(() -> new IllegalArgumentException("일정을 찾을 수 없습니다."));
+                .orElseThrow(ScheduleException.NotFound::new);
+
+        // 일정이 해당 모임에 속하는지 확인
+        if (!schedule.getClubId().equals(clubId)) {
+            throw new ScheduleException.NotFound();
+        }
+
+        // 이미 마감된 일정인지 확인
+        if ("CLOSED".equals(schedule.getStatus())) {
+            throw new ScheduleException.AlreadyClosed();
+        }
+
+        // 이미 취소된 일정인지 확인
+        if ("CANCELLED".equals(schedule.getStatus())) {
+            throw new ScheduleException.AlreadyCancelled();
+        }
 
         // A. 총 수입 (입금 완료된 건만)
         List<PaymentRequest> paidRequests = paymentRequestRepository.findByScheduleIdAndStatus(
@@ -150,11 +170,17 @@ public class EventFundService {
         // C. 잔액 및 환급 계산
         BigDecimal balance = totalIncome.subtract(totalSpent);
         BigDecimal refundPerPerson = BigDecimal.ZERO;
+        BigDecimal remainder = BigDecimal.ZERO; // 나머지 금액 (귀속)
 
         if (balance.compareTo(BigDecimal.ZERO) > 0 && !paidRequests.isEmpty()) {
+            // 환급액 계산: 잔액 / 납부 인원수 (FLOOR 처리)
             refundPerPerson = balance.divide(BigDecimal.valueOf(paidRequests.size()), 0, RoundingMode.FLOOR);
+            
+            // 나머지 금액 계산: 잔액 - (환급액 × 납부 인원수)
+            BigDecimal totalRefund = refundPerPerson.multiply(BigDecimal.valueOf(paidRequests.size()));
+            remainder = balance.subtract(totalRefund);
 
-            // D. 환급 데이터 생성 (여기서는 PaymentRequest로 환급 대기 내역 생성 예시)
+            // D. 환급 데이터 생성
             for (PaymentRequest originalReq : paidRequests) {
                 PaymentRequest refundReq = new PaymentRequest(
                         clubId,
@@ -168,9 +194,33 @@ public class EventFundService {
                         scheduleId,
                         null
                 );
-                // 환급은 보통 상태를 다르게 가져가거나 별도 로직 필요
                 paymentRequestRepository.save(refundReq);
             }
+        }
+
+        // E. 나머지 금액을 모임 통장에 귀속 (TransactionLog에 DEPOSIT 기록)
+        if (remainder.compareTo(BigDecimal.ZERO) > 0) {
+            // 모임의 계좌 조회
+            Optional<BankAccounts> accountOpt = bankAccountRepository.findByClubId(clubId);
+            Long accountId = accountOpt.map(BankAccounts::getAccountId).orElse(null);
+            
+            // 이전 잔액 조회
+            Optional<TransactionLog> latestLog = transactionLogRepository.findLatestByClubId(clubId);
+            BigDecimal previousBalance = latestLog.map(TransactionLog::getBalanceAfter).orElse(BigDecimal.ZERO);
+            BigDecimal currentBalance = previousBalance.add(remainder);
+            
+            // TransactionLog에 나머지 금액을 DEPOSIT으로 기록
+            TransactionLog remainderLog = new TransactionLog(
+                    clubId,
+                    scheduleId,
+                    accountId,
+                    "DEPOSIT",
+                    remainder,
+                    currentBalance,
+                    String.format("일정 정산 잔액 귀속: %s", schedule.getScheduleName()),
+                    null // editorId (시스템 자동 처리)
+            );
+            transactionLogRepository.save(remainderLog);
         }
 
         // 일정에 정산 결과 업데이트 (잔액이 0 이하여도 기록)

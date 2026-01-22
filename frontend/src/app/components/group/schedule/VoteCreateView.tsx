@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, MapPin, Clock, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -24,6 +24,7 @@ export function VoteCreateView() {
   const [voteDeadline, setVoteDeadline] = useState('');
   const [entryFee, setEntryFee] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // 권한 체크: 일정 생성은 운영진 이상만 가능
   useEffect(() => {
@@ -31,6 +32,20 @@ export function VoteCreateView() {
       // 운영진 이상 권한이 없으면 접근 불가
     }
   }, [permissions]);
+
+  // selectstart는 div 표준 prop이 아니므로 ref + addEventListener 사용
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: Event) => {
+      const t = e.target as Node;
+      if (!(t instanceof HTMLTextAreaElement || t instanceof HTMLInputElement)) {
+        e.preventDefault();
+      }
+    };
+    el.addEventListener('selectstart', handler);
+    return () => el.removeEventListener('selectstart', handler);
+  }, []);
 
   if (!permissions.canFinalizeSchedule && !permissions.canManageGroup) {
     return <NoPermissionView message="일정 생성은 운영진 이상만 가능합니다." />;
@@ -116,15 +131,45 @@ export function VoteCreateView() {
   };
 
   return (
-    <div className="bg-white min-h-screen pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
-      <header className="flex items-center p-4 border-b border-stone-100 sticky top-0 bg-white z-10">
+    <div 
+      ref={containerRef}
+      className="bg-white min-h-screen pb-20 select-none" 
+      onDragStart={(e) => {
+        if (!(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement)) {
+          e.preventDefault();
+          e.dataTransfer.effectAllowed = 'none';
+          const canvas = document.createElement('canvas');
+          canvas.width = 1;
+          canvas.height = 1;
+          e.dataTransfer.setDragImage(canvas, 0, 0);
+        }
+      }} 
+      onDragOver={(e) => {
+        if (!(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement)) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'none';
+        }
+      }}
+      onDragEnd={(e) => {
+        if (!(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement)) {
+          e.preventDefault();
+        }
+      }}
+      style={{ 
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitUserDrag: 'none',
+        backgroundColor: '#ffffff'
+      } as CSSProperties}
+    >
+      <header className="flex items-center p-4 border-b border-stone-100 sticky top-0 bg-white z-10" style={{ backgroundColor: '#ffffff' }}>
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="-ml-2">
           <ArrowLeft className="w-5 h-5 text-stone-600" />
         </Button>
         <h1 className="text-lg font-semibold ml-2 text-stone-800">일정 투표 만들기</h1>
       </header>
 
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6" style={{ backgroundColor: '#ffffff' }}>
         {/* 안내 메시지 */}
         <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 flex gap-3">
           <AlertCircle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
@@ -143,9 +188,10 @@ export function VoteCreateView() {
             <Input
               id="title"
               placeholder="예: 4월 정기 산행"
-              className="h-12 bg-stone-50 border-stone-200 rounded-xl"
+              className="h-12 bg-stone-50 border-stone-200 rounded-xl select-text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onDragStart={(e) => e.stopPropagation()}
             />
           </div>
 
@@ -158,9 +204,10 @@ export function VoteCreateView() {
               <Input
                 id="location"
                 placeholder="모임 장소를 입력하세요"
-                className="h-12 pl-12 bg-stone-50 border-stone-200 rounded-xl"
+                className="h-12 pl-12 bg-stone-50 border-stone-200 rounded-xl select-text"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
+                onDragStart={(e) => e.stopPropagation()}
               />
             </div>
           </div>
@@ -182,7 +229,8 @@ export function VoteCreateView() {
                   type="datetime-local"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="h-12 bg-stone-50 border-stone-200 rounded-xl pl-11 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:relative [&::-webkit-calendar-picker-indicator]:z-20"
+                  className="h-12 bg-stone-50 border-stone-200 rounded-xl pl-11 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:relative [&::-webkit-calendar-picker-indicator]:z-20 select-text"
+                  onDragStart={(e) => e.stopPropagation()}
                   placeholder="시작 일시 선택"
                 />
               </div>
@@ -195,7 +243,8 @@ export function VoteCreateView() {
                   type="datetime-local"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="h-12 bg-stone-50 border-stone-200 rounded-xl pl-11 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:relative [&::-webkit-calendar-picker-indicator]:z-20"
+                  className="h-12 bg-stone-50 border-stone-200 rounded-xl pl-11 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:relative [&::-webkit-calendar-picker-indicator]:z-20 select-text"
+                  onDragStart={(e) => e.stopPropagation()}
                   placeholder="종료 일시 선택"
                 />
               </div>
@@ -218,7 +267,8 @@ export function VoteCreateView() {
                 type="datetime-local"
                 value={voteDeadline}
                 onChange={(e) => setVoteDeadline(e.target.value)}
-                className="h-12 bg-stone-50 border-stone-200 rounded-xl pl-11 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:relative [&::-webkit-calendar-picker-indicator]:z-20"
+                className="h-12 bg-stone-50 border-stone-200 rounded-xl pl-11 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:relative [&::-webkit-calendar-picker-indicator]:z-20 select-text"
+                onDragStart={(e) => e.stopPropagation()}
                 placeholder="투표 마감일 선택"
               />
             </div>
@@ -239,9 +289,10 @@ export function VoteCreateView() {
                 id="entryFee"
                 type="number"
                 placeholder="0"
-                className="h-12 bg-stone-50 border-stone-200 rounded-xl pr-12"
+                className="h-12 bg-stone-50 border-stone-200 rounded-xl pr-12 select-text"
                 value={entryFee}
                 onChange={(e) => setEntryFee(e.target.value)}
+                onDragStart={(e) => e.stopPropagation()}
                 min="0"
               />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-500">원</span>
@@ -258,9 +309,10 @@ export function VoteCreateView() {
           <Textarea
             id="description"
             placeholder="일정에 대한 상세 설명을 입력하세요"
-            className="bg-stone-50 border-stone-200 rounded-xl resize-none min-h-[100px]"
+            className="bg-stone-50 border-stone-200 rounded-xl resize-none min-h-[100px] select-text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            onDragStart={(e) => e.stopPropagation()}
           />
         </div>
 

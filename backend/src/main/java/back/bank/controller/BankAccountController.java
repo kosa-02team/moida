@@ -4,6 +4,7 @@ import back.bank.domain.BankAccounts;
 import back.bank.domain.BankTransactionHistory;
 import back.domain.ledger.PaymentRequest;
 import back.bank.dto.request.AccountCreateRequest;
+import back.bank.repository.BankAccountRepository;
 import back.dto.ledger.request.RefundRequest;
 import back.dto.ledger.response.ProcessedTransactionResponse;
 import back.dto.ledger.response.RefundResponse;
@@ -29,13 +30,27 @@ public class BankAccountController {
     private final BankService bankService;
     private final BankTransactionHistoryRepository transactionHistoryRepository;
     private final PaymentRequestRepository paymentRequestRepository;
+    private final BankAccountRepository bankAccountRepository;
 
     public BankAccountController(BankService bankService,
             BankTransactionHistoryRepository transactionHistoryRepository,
-            PaymentRequestRepository paymentRequestRepository) {
+            PaymentRequestRepository paymentRequestRepository,
+            BankAccountRepository bankAccountRepository) {
         this.bankService = bankService;
         this.transactionHistoryRepository = transactionHistoryRepository;
         this.paymentRequestRepository = paymentRequestRepository;
+        this.bankAccountRepository = bankAccountRepository;
+    }
+
+    /**
+     * 모임 가상계좌 조회
+     * GET /clubs/{clubId}/bank/account
+     */
+    @GetMapping("/account")
+    public ResponseEntity<BankAccounts> getAccount(@PathVariable Long clubId) {
+        BankAccounts account = bankAccountRepository.findByClubId(clubId)
+                .orElseThrow(() -> new IllegalArgumentException("모임 계좌를 찾을 수 없습니다."));
+        return ResponseEntity.ok(account);
     }
 
     /**

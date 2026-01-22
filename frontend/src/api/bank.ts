@@ -77,6 +77,16 @@ export interface RefundResponse {
 // ==================== API Functions ====================
 
 /**
+ * 모임 가상계좌 조회
+ */
+export const getBankAccount = async (
+  clubId: number
+): Promise<BankAccounts> => {
+  const url = `/api/clubs/${clubId}/bank/account`;
+  return get<BankAccounts>(url);
+};
+
+/**
  * 모임 가상계좌 생성
  */
 export const createBankAccount = async (

@@ -1,24 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getPost, deletePost as deletePostAPI, likePost as likePostAPI, unlikePost as unlikePostAPI, blindPost as blindPostAPI, updatePost, type PostDetailResponse, type StoryUpdateRequest } from '../../../../api/post';
+import { getPost, deletePost as deletePostAPI, likePost as likePostAPI, unlikePost as unlikePostAPI, updatePost, type PostDetailResponse, type StoryUpdateRequest } from '../../../../api/post';
 import { ReportDialog } from '../../report/ReportDialog';
 import { getPostComments, createComment, updateComment, deleteComment, likeComment, unlikeComment, type PostCommentItem } from '../../../../api/comment';
 import { getMyInfo } from '../../../../api/user';
 import { getMembers, type MemberListResponse } from '../../../../api/member';
 import { getVotes, getVote, answerVote, closeVote, type VoteDetailResponse, type VoteListResponse } from '../../../../api/vote';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Heart, MessageCircle, Send, MoreVertical, Trash2, Flag, AlertTriangle, Edit2, EyeOff, Image, X, MapPin, Users, Clock, Vote, XCircle, Check } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Heart, MessageCircle, Send, Trash2, Flag, AlertTriangle, Edit2, Image, X, MapPin, Users, Clock, Vote, XCircle, Check, MoreVertical } from 'lucide-react';
 import { Badge } from '../../ui/badge';
 import { Progress } from '../../ui/progress';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { toast } from 'sonner';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../../ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +23,13 @@ import {
   AlertDialogTitle,
 } from '../../ui/alert-dialog';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../../ui/dropdown-menu';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -39,8 +39,6 @@ import {
 } from '../../ui/dialog';
 import { Label } from '../../ui/label';
 import { Textarea } from '../../ui/textarea';
-import { RadioGroup, RadioGroupItem } from '../../ui/radio-group';
-import { Avatar, AvatarFallback } from '../../ui/avatar';
 import { useUserPermissions } from '../../../data/userRoles';
 
 export function StoryDetailView() {
@@ -55,7 +53,7 @@ export function StoryDetailView() {
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<'post' | 'comment'>('post');
   const [selectedComment, setSelectedComment] = useState<PostCommentItem | null>(null);
-  const [reportTarget, setReportTarget] = useState<'post' | 'comment'>('post');
+  const [ setReportTarget] = useState<'post' | 'comment'>('post');
   const [post, setPost] = useState<PostDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [comments, setComments] = useState<PostCommentItem[]>([]);
@@ -220,7 +218,7 @@ export function StoryDetailView() {
   const handleAddComment = async () => {
     if (!newComment.trim() || !groupId || !storyId) return;
     try {
-      const response = await createComment(Number(groupId), Number(storyId), {
+      await createComment(Number(groupId), Number(storyId), {
         content: newComment.trim()
       });
       // 댓글 목록 새로고침
@@ -312,21 +310,7 @@ export function StoryDetailView() {
       setShowDeleteDialog(false);
     }
   };
-
-
-  const handleBlindPost = async () => {
-    if (!groupId || !storyId) return;
-    try {
-      await blindPostAPI(Number(groupId), Number(storyId));
-      toast.success('게시글이 숨겨졌습니다');
-      navigate(-1);
-    } catch (error) {
-      console.error('게시글 블라인드 실패:', error);
-      toast.error('게시글 숨기기에 실패했습니다.');
-    }
-  };
-
-  // 투표 옵션 토글
+// 투표 옵션 토글
   const toggleVoteOption = (optionId: number) => {
     if (!linkedVote || linkedVote.status === 'CLOSED') return;
     
@@ -469,7 +453,6 @@ export function StoryDetailView() {
   // 백엔드 응답에 isMyPost가 없을 수 있으므로 writerId와 currentUserId 비교로 보완
   const isMyPost = post ? (post.isMyPost !== undefined ? post.isMyPost : (currentUserId !== null && post.writerId === currentUserId)) : false;
   const canDeletePost = isMyPost || permissions.canDeletePosts;
-  const canBlindPost = isMyPost || permissions.canDeletePosts;
   const canEditPost = isMyPost || permissions.canDeletePosts; // 작성자 또는 운영진 이상
   const canDeleteComment = (comment: PostCommentItem) => comment.writerId === currentUserId || permissions.canDeleteComments;
   const canEditComment = (comment: PostCommentItem) => comment.writerId === currentUserId;
@@ -491,66 +474,48 @@ export function StoryDetailView() {
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <span className="font-medium">게시글</span>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <MoreVertical className="w-5 h-5" />
+          <div className="flex flex-col gap-1">
+            {canEditPost && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleStartEdit}
+                className="h-8 w-8"
+                aria-label="게시글 수정"
+              >
+                <Edit2 className="w-4 h-4 text-stone-600" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <>
-                {canEditPost ? (
-                  <>
-                    <DropdownMenuItem 
-                      className="text-stone-600"
-                      onClick={handleStartEdit}
-                    >
-                      <Edit2 className="w-4 h-4 mr-2" />
-                      게시글 수정
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                ) : null}
-                {canBlindPost ? (
-                  <>
-                    <DropdownMenuItem 
-                      className="text-stone-600"
-                      onClick={handleBlindPost}
-                    >
-                      <EyeOff className="w-4 h-4 mr-2" />
-                      게시글 숨기기
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                ) : null}
-                {canDeletePost ? (
-                  <>
-                    <DropdownMenuItem 
-                      className="text-red-600"
-                      onClick={() => {
-                        setDeleteTarget('post');
-                        setShowDeleteDialog(true);
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      게시글 삭제
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                ) : null}
-                <DropdownMenuItem 
-                  className="text-orange-600"
-                  onClick={() => {
-                    setReportTarget('post');
-                    setShowReportDialog(true);
-                  }}
-                >
-                  <Flag className="w-4 h-4 mr-2" />
-                  신고하기
-                </DropdownMenuItem>
-              </>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+            {canDeletePost && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setDeleteTarget('post');
+                  setShowDeleteDialog(true);
+                }}
+                className="h-8 w-8"
+                aria-label="게시글 삭제"
+              >
+                <Trash2 className="w-4 h-4 text-red-600" />
+              </Button>
+            )}
+            {!canEditPost && !canDeletePost && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  // @ts-ignore
+                  setReportTarget('post');
+                  setShowReportDialog(true);
+                }}
+                className="h-8 w-8"
+                aria-label="신고하기"
+              >
+                <Flag className="w-4 h-4 text-orange-600" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -732,10 +697,8 @@ export function StoryDetailView() {
                 // 댓글 작성자 정보 조회
                 const commentWriter = members.find(m => m.userId === comment.writerId);
                 const commentWriterName = commentWriter?.clubNickname || commentWriter?.realName || `사용자${comment.writerId}`;
-                const isMyComment = currentUserId !== null && comment.writerId === currentUserId;
-                
                 return (
-                  <div key={comment.commentId} className="flex gap-3">
+                    <div key={comment.commentId} className="flex gap-3">
                     <div className="w-8 h-8 rounded-full bg-stone-200 shrink-0 flex items-center justify-center">
                       <span className="text-xs font-medium text-stone-600">
                         {commentWriterName[0] || 'U'}
@@ -795,6 +758,7 @@ export function StoryDetailView() {
                                 className="text-orange-600"
                                 onClick={() => {
                                   setSelectedComment(comment);
+                                  // @ts-ignore
                                   setReportTarget('comment');
                                   setShowReportDialog(true);
                                 }}

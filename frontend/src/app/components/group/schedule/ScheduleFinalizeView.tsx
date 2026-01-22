@@ -3,11 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, X, UserCheck, UserX, AlertTriangle, Calculator, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
+import { Input } from '../../ui/input';
+import { Label } from '../../ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
 import { Badge } from '../../ui/badge';
-import { Checkbox } from '../../ui/checkbox';
-import { getSchedule, getScheduleParticipants, updateSettlement, closeSchedule, updateParticipantAttendance, type ScheduleResponse, type ScheduleParticipantResponse, type ScheduleParticipantUpdateRequest } from '../../../../api/schedule';
+import { getSchedule, getScheduleParticipants, updateParticipantAttendance, finalizeSchedule, type ScheduleResponse, type ScheduleParticipantResponse, type ScheduleParticipantUpdateRequest } from '../../../../api/schedule';
+import { useUserPermissions } from '../../../data/userRoles';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +34,7 @@ interface Participant {
 export function ScheduleFinalizeView() {
   const navigate = useNavigate();
   const { groupId, scheduleId } = useParams();
+  const permissions = useUserPermissions(groupId || '1');
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
   const [participants, setParticipants] = useState<ScheduleParticipantResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,14 +74,27 @@ export function ScheduleFinalizeView() {
     fetchData();
   }, [groupId, scheduleId, navigate]);
 
-  // refundPerPerson 재계산 (participants 변경 시) - early return 전에 위치해야 함
+  // refundPerPerson 재계산 (participants, totalSpent 변경 시)
+  // 돈 낸 사람들(PAID 상태) 기준으로 계산
   useEffect(() => {
     if (participants.length > 0 && schedule) {
-      const attendingCount = participants.filter(p => p.attendanceStatus === 'ATTENDING').length;
-      const calculatedRefundPerPerson = attendingCount > 0 && totalSpent 
-        ? totalSpent / attendingCount 
-        : 0;
-      setRefundPerPerson(calculatedRefundPerPerson);
+      // 납부 완료한 사람들만 필터링
+      const paidParticipants = participants.filter(p => p.feeStatus === 'PAID');
+      const paidCount = paidParticipants.length;
+      
+      if (paidCount > 0 && schedule.entryFee) {
+        // 총 수입 = 납부 완료 인원 × 참가비
+        const totalIncome = paidCount * schedule.entryFee;
+        // 잔액 = 총 수입 - 총 지출
+        const balance = totalIncome - totalSpent;
+        // 환급액 = 잔액 / 납부 인원수 (FLOOR 처리)
+        const calculatedRefundPerPerson = balance > 0 
+          ? Math.floor(balance / paidCount)
+          : 0;
+        setRefundPerPerson(calculatedRefundPerPerson);
+      } else {
+        setRefundPerPerson(0);
+      }
     }
   }, [participants, totalSpent, schedule]);
 
@@ -180,23 +196,19 @@ export function ScheduleFinalizeView() {
     
     setIsSubmitting(true);
     try {
-      // 정산 정보 업데이트
-      if (totalSpent > 0 || refundPerPerson > 0) {
-        await updateSettlement(Number(groupId), Number(scheduleId), {
-          totalSpent,
-          refundPerPerson,
-        });
-      }
-      
-      // 일정 마감
-      await closeSchedule(Number(groupId), Number(scheduleId));
+      // 일정 마무리 (정산 및 환급 처리)
+      await finalizeSchedule(Number(groupId), Number(scheduleId), {
+        totalSpent: totalSpent || 0,
+      });
       
       toast.success('일정이 마무리되었습니다. 정산이 처리됩니다.');
       setShowConfirmDialog(false);
-      navigate(-1);
-    } catch (error) {
+      // 일정 상세 페이지로 이동 (데이터 새로고침을 위해)
+      navigate(`/group/${groupId}/schedule/${scheduleId}`);
+    } catch (error: any) {
       console.error('일정 마무리 실패:', error);
-      toast.error('일정 마무리에 실패했습니다.');
+      const errorMessage = error?.response?.data?.message || error?.message || '일정 마무리에 실패했습니다.';
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -222,15 +234,38 @@ export function ScheduleFinalizeView() {
             <p className="text-sm text-orange-700">
               {new Date(schedule.eventDate).toLocaleDateString('ko-KR')} · {schedule.location || '미정'}
             </p>
-            <div className="mt-3 flex gap-4 text-sm">
-              <div>
-                <span className="text-orange-600">총 비용:</span>
-                <span className="font-bold text-orange-900 ml-1">{totalSpent.toLocaleString()}원</span>
+            <div className="mt-3 space-y-3">
+              <div className="flex gap-4 text-sm">
+                {schedule.entryFee && (
+                  <div>
+                    <span className="text-orange-600">참가비:</span>
+                    <span className="font-bold text-orange-900 ml-1">{schedule.entryFee.toLocaleString()}원</span>
+                  </div>
+                )}
               </div>
-              {schedule.entryFee && (
+              {permissions.canWithdraw && (
+                <div className="space-y-2">
+                  <Label htmlFor="totalSpent" className="text-sm font-medium text-orange-800">
+                    총 지출 금액 (총무 이상 수정 가능)
+                  </Label>
+                  <Input
+                    id="totalSpent"
+                    type="number"
+                    value={totalSpent}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || 0;
+                      setTotalSpent(value);
+                    }}
+                    className="bg-white border-orange-200"
+                    placeholder="0"
+                    min="0"
+                  />
+                </div>
+              )}
+              {!permissions.canWithdraw && (
                 <div>
-                  <span className="text-orange-600">1인당:</span>
-                  <span className="font-bold text-orange-900 ml-1">{schedule.entryFee.toLocaleString()}원</span>
+                  <span className="text-orange-600">총 지출:</span>
+                  <span className="font-bold text-orange-900 ml-1">{totalSpent.toLocaleString()}원</span>
                 </div>
               )}
             </div>
@@ -331,30 +366,41 @@ export function ScheduleFinalizeView() {
                       </p>
                     )}
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => toggleActualStatus(p.id, 'attended')}
-                      disabled={updatingParticipantId === Number(p.id)}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                        p.actualStatus === 'attended' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-stone-100 text-stone-400 hover:bg-green-100 hover:text-green-600'
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      <Check className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => toggleActualStatus(p.id, 'absent')}
-                      disabled={updatingParticipantId === Number(p.id)}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                        p.actualStatus === 'absent' 
-                          ? 'bg-red-500 text-white' 
-                          : 'bg-stone-100 text-stone-400 hover:bg-red-100 hover:text-red-600'
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
+                  {permissions.canWithdraw && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => toggleActualStatus(p.id, 'attended')}
+                        disabled={updatingParticipantId === Number(p.id)}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                          p.actualStatus === 'attended' 
+                            ? 'bg-green-500 text-white' 
+                            : 'bg-stone-100 text-stone-400 hover:bg-green-100 hover:text-green-600'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        <Check className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => toggleActualStatus(p.id, 'absent')}
+                        disabled={updatingParticipantId === Number(p.id)}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                          p.actualStatus === 'absent' 
+                            ? 'bg-red-500 text-white' 
+                            : 'bg-stone-100 text-stone-400 hover:bg-red-100 hover:text-red-600'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  )}
+                  {!permissions.canWithdraw && (
+                    <Badge variant="secondary" className={
+                      p.actualStatus === 'attended' ? 'bg-green-100 text-green-700' :
+                      p.actualStatus === 'absent' ? 'bg-red-100 text-red-700' :
+                      'bg-stone-100 text-stone-600'
+                    }>
+                      {p.actualStatus === 'attended' ? '참석' : p.actualStatus === 'absent' ? '불참' : '미확인'}
+                    </Badge>
+                  )}
                 </div>
               </div>
             ))}
