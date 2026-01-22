@@ -283,6 +283,7 @@ class VoteServiceTest {
             Clubs club = club(clubId, 1L);
             Posts post = Posts.vote(club, user(creatorId), null, "제목", "설명");
             ReflectionTestUtils.setField(post, "postId", 1L);
+            ReflectionTestUtils.setField(post, "club", club);
 
             Votes vote = newEntity(Votes.class);
             ReflectionTestUtils.setField(vote, "voteId", voteId);
@@ -292,7 +293,7 @@ class VoteServiceTest {
             ReflectionTestUtils.setField(vote, "status", "OPEN");
 
             given(voteRepository.findById(voteId)).willReturn(Optional.of(vote));
-            given(postRepository.findById(1L)).willReturn(Optional.of(post));
+            given(postRepository.findByIdWithClub(1L)).willReturn(Optional.of(post));
 
             // when
             voteService.closeVote(clubId, voteId, creatorId);
@@ -455,7 +456,8 @@ class VoteServiceTest {
             // then
             then(voteRecordRepository).should(times(1)).deleteAll(List.of(existingRecord));
             then(voteRecordRepository).should(times(1)).saveAll(anyList());
-            then(scheduleParticipantRepository).should(times(1)).save(any(ScheduleParticipants.class));
+            // ATTENDANCE 타입: 새 participant 생성 시 orElseGet 내부에서 1번, 상태 업데이트 시 1번 = 총 2번
+            then(scheduleParticipantRepository).should(times(2)).save(any(ScheduleParticipants.class));
         }
 
         @Test
@@ -526,6 +528,7 @@ class VoteServiceTest {
             Clubs club = club(clubId, 1L);
             Posts post = Posts.vote(club, user(userId), null, "투표 제목", "설명");
             ReflectionTestUtils.setField(post, "postId", 1L);
+            ReflectionTestUtils.setField(post, "club", club);
 
             Votes vote = newEntity(Votes.class);
             ReflectionTestUtils.setField(vote, "voteId", voteId);
@@ -548,7 +551,7 @@ class VoteServiceTest {
             ReflectionTestUtils.setField(option2, "optionOrder", 2);
 
             given(voteRepository.findById(voteId)).willReturn(Optional.of(vote));
-            given(postRepository.findById(1L)).willReturn(Optional.of(post));
+            given(postRepository.findByIdWithClub(1L)).willReturn(Optional.of(post));
             given(voteOptionRepository.findByVoteIdOrderByOptionOrderAsc(voteId))
                     .willReturn(List.of(option1, option2));
             given(voteRecordRepository.countByOptionId(100L)).willReturn(5L);

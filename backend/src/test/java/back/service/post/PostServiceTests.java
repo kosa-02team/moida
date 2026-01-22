@@ -18,12 +18,9 @@ import back.dto.post.story.request.StoryUpdateRequest;
 import back.dto.post.story.response.PostDetailResponse;
 import back.exception.ClubException;
 import back.exception.PostsException;
+import back.repository.post.*;
 import back.repository.schedule.ScheduleRepository;
 import back.repository.club.ClubRepository;
-import back.repository.post.PostCommentRepository;
-import back.repository.post.PostImageRepository;
-import back.repository.post.PostMemberTagRepository;
-import back.repository.post.PostRepository;
 import back.repository.club.ClubMemberRepository;
 import back.service.club.ClubAuthService;
 import back.service.post.ai.PostVectorService;
@@ -75,6 +72,9 @@ public class PostServiceTests {
 
         @Mock
         private PostCommentRepository postCommentRepository;
+
+        @Mock
+        private PostLikeRepository postLikeRepository;
 
         @InjectMocks
         private PostService postService;
@@ -241,6 +241,10 @@ public class PostServiceTests {
 
                         given(postRepository.findByPostIdAndClub_ClubId(postId, clubId))
                                         .willReturn(Optional.of(post));
+                        given(postImageRepository.findByPostIdIn(List.of(postId)))
+                                        .willReturn(List.of());
+                        given(postLikeRepository.countByPostId(postId)).willReturn(0L);
+                        given(postLikeRepository.existsByPostIdAndUserId(postId, viewerId)).willReturn(false);
 
                         // when
                         PostDetailResponse res = postService.getPost(clubId, postId, viewerId);
@@ -318,6 +322,10 @@ public class PostServiceTests {
 
                         given(postRepository.findByPostIdAndClub_ClubId(postId, clubId))
                                         .willReturn(Optional.of(post));
+                        given(postImageRepository.findByPostIdIn(List.of(postId)))
+                                        .willReturn(List.of());
+                        given(postLikeRepository.countByPostId(postId)).willReturn(0L);
+                        given(postLikeRepository.existsByPostIdAndUserId(postId, viewerId)).willReturn(false);
 
                         // when
                         PostDetailResponse res = postService.getPost(clubId, postId, viewerId);
