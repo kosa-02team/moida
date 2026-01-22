@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, X, MapPin, Users, ChevronRight, SlidersHorizontal, Eye, ArrowLeft } from 'lucide-react';
+import { Search, X, MapPin, Users, ChevronRight, SlidersHorizontal, Eye, ArrowLeft, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
+import { Avatar, AvatarFallback } from '../ui/avatar';
 import {
   Sheet,
   SheetContent,
@@ -17,6 +18,8 @@ import {
 import { Label } from '../ui/label';
 import { Checkbox } from '../ui/checkbox';
 import { getAllClubs, getClubsByCategory, searchClubs, type PageResponse, type ClubDetailResponse } from '@/api/club-full';
+import { getToken } from '@/api/client';
+import { getMyInfo, type UserResponse } from '@/api/user';
 
 // 백엔드 Category enum과 일치
 type CategoryType = 'STUDY' | 'SPORTS' | 'SOCIAL' | 'HOBBY' | 'FINANCE' | 'ETC';
@@ -50,6 +53,8 @@ export function ExploreView() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [totalElements, setTotalElements] = useState(0);
+  const [userInfo, setUserInfo] = useState<UserResponse | null>(null);
+  const isLoggedIn = !!getToken();
 
   const fetchClubs = async (pageNum: number = 0, reset: boolean = false) => {
     try {
@@ -127,6 +132,21 @@ export function ExploreView() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // 로그인 시 유저 정보 로드
+  useEffect(() => {
+    async function fetchUserInfo() {
+      if (isLoggedIn && !userInfo) {
+        try {
+          const info = await getMyInfo();
+          setUserInfo(info);
+        } catch (error) {
+          console.error('유저 정보 로드 실패:', error);
+        }
+      }
+    }
+    fetchUserInfo();
+  }, [isLoggedIn, userInfo]);
+
   const handleLoadMore = () => {
     if (!loading && hasMore) {
       fetchClubs(page + 1, false);
@@ -163,11 +183,28 @@ export function ExploreView() {
               </Button>
               <h1 className="text-xl font-bold text-stone-900">모임 둘러보기</h1>
             </div>
-            <Link to="/login">
-              <Button variant="outline" size="sm" className="rounded-full">
-                로그인
-              </Button>
-            </Link>
+            {isLoggedIn ? (
+              <div className="flex items-center gap-2">
+                <Link to="/">
+                  <Button variant="ghost" size="sm" className="text-stone-600">
+                    내 모임
+                  </Button>
+                </Link>
+                <Link to="/profile">
+                  <Avatar className="w-8 h-8 cursor-pointer border border-stone-200">
+                    <AvatarFallback className="bg-orange-100 text-orange-600 text-xs">
+                      {userInfo?.realName ? userInfo.realName[0] : <User className="w-4 h-4" />}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
+              </div>
+            ) : (
+              <Link to="/login">
+                <Button variant="outline" size="sm" className="rounded-full">
+                  로그인
+                </Button>
+              </Link>
+            )}
           </div>
 
           {/* Search */}

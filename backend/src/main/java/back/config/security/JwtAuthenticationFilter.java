@@ -43,12 +43,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String role = jwtTokenProvider.getRole(token);
 
             // 3. SecurityContext에 인증 객체(Authentication) 저장
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(principal, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(principal,
+                    null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
 
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authentication);
-            }
+        }
 
         filterChain.doFilter(request, response);
     }
@@ -59,6 +59,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
         }
+
+        // SSE 연결 등 헤더를 사용할 수 없는 경우를 위해 쿼리 파라미터 지원
+        String paramToken = request.getParameter("token");
+        if (StringUtils.hasText(paramToken)) {
+            return paramToken;
+        }
+
         return null;
     }
 }
