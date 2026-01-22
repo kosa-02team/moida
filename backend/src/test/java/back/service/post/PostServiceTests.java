@@ -28,6 +28,7 @@ import back.repository.club.ClubMemberRepository;
 import back.service.club.ClubAuthService;
 import back.service.post.ai.PostVectorService;
 import org.springframework.context.ApplicationEventPublisher;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -82,6 +83,12 @@ public class PostServiceTests {
         private PostCommentService postCommentService;
 
         @Mock private PostVectorService postVectorService;
+
+        // PostService의 postVectorService는 Optional이므로 ReflectionTestUtils로 설정
+        @BeforeEach
+        void setupPostVectorService() {
+            ReflectionTestUtils.setField(postService, "postVectorService", Optional.empty());
+        }
 
     private static <T> T newEntity(Class<T> type) {
                 try {
@@ -497,6 +504,8 @@ public class PostServiceTests {
                         Clubs clubRef = club(clubId);
                         ClubMembers writerRef = user(writerId);
 
+                        willDoNothing().given(clubAuthorizationService)
+                                        .assertActiveMember(clubId, writerId);
                         given(clubsRepository.getReferenceById(clubId)).willReturn(clubRef);
                         given(clubMemberRepository.getReferenceById(writerId)).willReturn(writerRef);
 
@@ -517,6 +526,7 @@ public class PostServiceTests {
                 @Test
                 @DisplayName("[MEMBER] 모임 게시글 생성 성공 - 이미지/태그 저장 포함")
                 void create_post_member_success_with_images_tags() {
+                        setupPostVectorService();
                         Long clubId = 1L;
                         Long writerId = 1L;
 
@@ -531,6 +541,8 @@ public class PostServiceTests {
                         ClubMembers writerRef = user(writerId);
                         Schedules scheduleRef = schedule(1L);
 
+                        willDoNothing().given(clubAuthorizationService)
+                                        .assertActiveMember(clubId, writerId);
                         given(clubsRepository.getReferenceById(clubId)).willReturn(clubRef);
                         given(clubMemberRepository.getReferenceById(writerId)).willReturn(writerRef);
                         given(scheduleRepository.getReferenceById(1L)).willReturn(scheduleRef);
