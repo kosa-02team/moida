@@ -114,11 +114,9 @@ export function ScheduleDetailView() {
       if (!groupId || !scheduleId) return;
       try {
         setLoading(true);
-        const [scheduleData, participantsData, membersData] = await Promise.all([
-          getSchedule(Number(groupId), Number(scheduleId)),
-          getScheduleParticipants(Number(groupId), Number(scheduleId)),
-          getMembers(Number(groupId), 'ACTIVE').catch(() => []) // 멤버 목록 조회
-        ]);
+        const scheduleData = await getSchedule(Number(groupId), Number(scheduleId));
+        const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
+        const membersData = await getMembers(Number(groupId), 'ACTIVE').catch(() => [] as MemberListResponse[]);
         setSchedule(scheduleData);
         setParticipants(participantsData);
         setMembers(membersData);
@@ -187,35 +185,50 @@ export function ScheduleDetailView() {
     fetchData();
     
     // 실시간 업데이트를 위한 인터벌 (5초마다)
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       if (groupId && scheduleId) {
-        Promise.all([
-          getSchedule(Number(groupId), Number(scheduleId)), // 참가비 집계 정보 실시간 반영
-          getScheduleParticipants(Number(groupId), Number(scheduleId)),
-          getVotes(Number(groupId)).then(votes => {
+        try {
+          const scheduleData = await getSchedule(Number(groupId), Number(scheduleId));
+          const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
+          setSchedule(scheduleData);
+          setParticipants(participantsData);
+          
+          // 투표 정보 업데이트
+          try {
+            const votes = await getVotes(Number(groupId));
             const attendanceVote = votes.find(v => 
               v.voteType === 'ATTENDANCE' && 
               v.status === 'OPEN'
             );
             if (attendanceVote) {
-              return getVote(Number(groupId), attendanceVote.voteId);
+              const voteDetail = await getVote(Number(groupId), attendanceVote.voteId);
+              if (voteDetail && voteDetail.scheduleId === Number(scheduleId)) {
+                setVote(voteDetail);
+              }
             }
-            return null;
-          }).then(voteDetail => {
-            if (voteDetail && voteDetail.scheduleId === Number(scheduleId)) {
-              setVote(voteDetail);
-            }
-          }).catch(console.error),
-          fetchLinkedPostComments()
-        ]).then(([scheduleData, participantsData]) => {
-          setSchedule(scheduleData); // 일정 정보 업데이트 (참가비 집계 포함)
-          setParticipants(participantsData);
-        }).catch(console.error);
+          } catch (error) {
+            console.error('투표 정보 갱신 실패:', error);
+          }
+          
+          // 연결된 게시글 댓글 업데이트
+          await fetchLinkedPostComments();
+        } catch (error) {
+          console.error('일정 정보 갱신 실패:', error);
+        }
       }
     }, 5000);
     
     return () => clearInterval(interval);
   }, [groupId, scheduleId, navigate, currentUserId, fetchLinkedPostComments]);
+
+  // 참석자 수 즉시 반영을 위해 useMemo 사용 (early return 전에 호출해야 함 - Hook 규칙)
+  const { attendingCount, notAttendingCount, pendingCount, paidCount } = useMemo(() => {
+    const attending = participants.filter(p => p.attendanceStatus === 'ATTENDING').length;
+    const notAttending = participants.filter(p => p.attendanceStatus === 'NOT_ATTENDING').length;
+    const pending = participants.filter(p => p.attendanceStatus === 'PENDING' || p.attendanceStatus === 'UNDECIDED').length;
+    const paid = participants.filter(p => p.feeStatus === 'PAID').length;
+    return { attendingCount: attending, notAttendingCount: notAttending, pendingCount: pending, paidCount: paid };
+  }, [participants]);
 
   if (loading || !schedule) {
     return (
@@ -229,14 +242,6 @@ export function ScheduleDetailView() {
   const endDate = new Date(schedule.endDate);
   const now = new Date();
   const isEventStarted = eventDate <= now; // 일정이 시작되었는지 확인
-  
-  // 참석자 수 즉시 반영을 위해 useMemo 사용
-  const { attendingCount, notAttendingCount, pendingCount } = useMemo(() => {
-    const attending = participants.filter(p => p.attendanceStatus === 'ATTENDING').length;
-    const notAttending = participants.filter(p => p.attendanceStatus === 'NOT_ATTENDING').length;
-    const pending = participants.filter(p => p.attendanceStatus === 'PENDING' || p.attendanceStatus === 'UNDECIDED').length;
-    return { attendingCount: attending, notAttendingCount: notAttending, pendingCount: pending };
-  }, [participants]);
 
   const handleResponse = async (response: 'attending' | 'not_attending') => {
     if (!groupId || !scheduleId || !vote) return;
@@ -282,32 +287,44 @@ export function ScheduleDetailView() {
       
       await answerVote(Number(groupId), vote.voteId, request);
       
-      // 상태 업데이트 (다른 옵션으로 변경된 경우)
-      if ((response === 'attending' && myResponse === 'attending') || 
-          (response === 'not_attending' && myResponse === 'not_attending')) {
-        setMyResponse(response === 'attending' ? 'not_attending' : 'attending');
-      } else {
-        setMyResponse(response);
-      }
+      // 토글인 경우와 새로 선택한 경우 메시지 구분 (API 호출 전의 상태로 판단)
+      const wasToggled = (response === 'attending' && myResponse === 'attending') || 
+                         (response === 'not_attending' && myResponse === 'not_attending');
       
       // 참석자 목록 및 투표 정보 즉시 새로고침
-      const [participantsData, updatedVote] = await Promise.all([
-        getScheduleParticipants(Number(groupId), Number(scheduleId)),
-        getVote(Number(groupId), vote.voteId)
-      ]);
+      const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
+      const updatedVote = await getVote(Number(groupId), vote.voteId);
       
       // 상태 업데이트
       setParticipants(participantsData);
       setVote(updatedVote);
       
-      // 참석자 수 재계산 (즉시 반영)
-      const newAttendingCount = participantsData.filter(p => p.attendanceStatus === 'ATTENDING').length;
-      const newNotAttendingCount = participantsData.filter(p => p.attendanceStatus === 'NOT_ATTENDING').length;
-      const newPendingCount = participantsData.filter(p => p.attendanceStatus === 'UNDECIDED' || p.attendanceStatus === 'PENDING').length;
-      
-      // 토글인 경우와 새로 선택한 경우 메시지 구분
-      const wasToggled = (response === 'attending' && myResponse === 'attending') || 
-                         (response === 'not_attending' && myResponse === 'not_attending');
+      // 서버 응답을 기반으로 myResponse 상태 업데이트
+      if (currentUserId) {
+        // 먼저 participants에서 확인
+        const myParticipant = participantsData.find(p => p.userId === currentUserId);
+        if (myParticipant) {
+          if (myParticipant.attendanceStatus === 'ATTENDING') {
+            setMyResponse('attending');
+          } else if (myParticipant.attendanceStatus === 'NOT_ATTENDING') {
+            setMyResponse('not_attending');
+          } else {
+            setMyResponse(null);
+          }
+        } else if (updatedVote.mySelectedOptionIds && updatedVote.mySelectedOptionIds.length > 0) {
+          // participants에 없으면 투표 데이터로 확인
+          const selectedOption = updatedVote.options.find(opt => 
+            updatedVote.mySelectedOptionIds?.includes(opt.optionId)
+          );
+          if (selectedOption) {
+            if (selectedOption.optionText === '참석' || selectedOption.optionText.includes('참석')) {
+              setMyResponse('attending');
+            } else if (selectedOption.optionText === '불참' || selectedOption.optionText.includes('불참')) {
+              setMyResponse('not_attending');
+            }
+          }
+        }
+      }
       
       if (wasToggled) {
         toast.success(response === 'attending' ? '불참으로 변경되었습니다' : '참석으로 변경되었습니다');
@@ -401,10 +418,8 @@ export function ScheduleDetailView() {
       toast.success('일정 마무리가 완료되었습니다. 환급이 처리됩니다.');
       setShowFinalizeDialog(false);
       // 일정 정보 새로고침
-      const [scheduleData, participantsData] = await Promise.all([
-        getSchedule(Number(groupId), Number(scheduleId)),
-        getScheduleParticipants(Number(groupId), Number(scheduleId))
-      ]);
+      const scheduleData = await getSchedule(Number(groupId), Number(scheduleId));
+      const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
       setSchedule(scheduleData);
       setParticipants(participantsData);
     } catch (error) {
@@ -560,7 +575,7 @@ export function ScheduleDetailView() {
     
     try {
       setIsCancelling(true);
-      const request: ScheduleCancelRequest = cancelReason.trim() 
+      const request: ScheduleCancelRequest | undefined = cancelReason.trim() 
         ? { cancelReason: cancelReason.trim() } 
         : undefined;
       await cancelSchedule(Number(groupId), Number(scheduleId), request);
@@ -681,7 +696,7 @@ export function ScheduleDetailView() {
               <div className="flex items-center justify-between">
                 <span className="text-stone-600">참가비 금액</span>
                 <p className="text-lg font-semibold text-orange-600">
-                  {schedule.entryFee.toLocaleString()}원
+                  {(schedule.entryFee || 0).toLocaleString()}원
                 </p>
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-stone-100">
@@ -749,36 +764,48 @@ export function ScheduleDetailView() {
               return (
                 <div className={`mb-3 p-2 rounded-lg ${isPaid ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
                   <p className={`text-xs font-medium ${isPaid ? 'text-green-700' : 'text-orange-700'}`}>
-                    {isPaid ? '✓ 입금 완료' : `입금 필요: ${schedule.entryFee.toLocaleString()}원`}
+                    {isPaid ? '✓ 입금 완료' : `입금 필요: ${(schedule.entryFee || 0).toLocaleString()}원`}
                   </p>
                 </div>
               );
             })()}
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                variant={myResponse === 'attending' ? 'default' : 'outline'}
-                className={`h-12 rounded-xl ${
-                  myResponse === 'attending' 
-                    ? 'bg-green-500 hover:bg-green-600 text-white' 
-                    : 'border-stone-200'
-                }`}
-                onClick={() => handleResponse('attending')}
-              >
-                <Check className="w-5 h-5 mr-2" />
-                참석
-              </Button>
-              <Button
-                variant={myResponse === 'not_attending' ? 'default' : 'outline'}
-                className={`h-12 rounded-xl ${
-                  myResponse === 'not_attending' 
-                    ? 'bg-red-500 hover:bg-red-600 text-white' 
-                    : 'border-stone-200'
-                }`}
-                onClick={() => handleResponse('not_attending')}
-              >
-                <X className="w-5 h-5 mr-2" />
-                불참
-              </Button>
+            <div className={`grid grid-cols-2 gap-3 ${vote.status !== 'OPEN' && !permissions.canWithdraw ? 'opacity-60' : ''}`}>
+              {(() => {
+                const attendingVariant: 'default' | 'outline' = myResponse === 'attending' ? 'default' : 'outline';
+                return (
+                  <Button
+                    variant={attendingVariant}
+                    className={`h-12 rounded-xl ${
+                      myResponse === 'attending' 
+                        ? 'bg-green-500 hover:bg-green-600 text-white' 
+                        : 'border-stone-200'
+                    }`}
+                    onClick={() => handleResponse('attending')}
+                    disabled={vote.status !== 'OPEN' && !permissions.canWithdraw}
+                  >
+                    <Check className="w-5 h-5 mr-2" />
+                    참석
+                  </Button>
+                );
+              })()}
+              {(() => {
+                const notAttendingVariant: 'default' | 'outline' = myResponse === 'not_attending' ? 'default' : 'outline';
+                return (
+                  <Button
+                    variant={notAttendingVariant}
+                    className={`h-12 rounded-xl ${
+                      myResponse === 'not_attending' 
+                        ? 'bg-red-500 hover:bg-red-600 text-white' 
+                        : 'border-stone-200'
+                    }`}
+                    onClick={() => handleResponse('not_attending')}
+                    disabled={vote.status !== 'OPEN' && !permissions.canWithdraw}
+                  >
+                    <X className="w-5 h-5 mr-2" />
+                    불참
+                  </Button>
+                );
+              })()}
             </div>
             {schedule.voteDeadline && vote.status === 'OPEN' && (
               <p className="text-xs text-stone-500 mt-2 text-center">
@@ -796,6 +823,12 @@ export function ScheduleDetailView() {
               <span className="text-green-600">참석 {attendingCount}</span>
               <span className="text-red-500">불참 {notAttendingCount}</span>
               <span className="text-stone-400">미정 {pendingCount}</span>
+              {schedule.entryFee && schedule.entryFee > 0 && (
+                <>
+                  <span className="text-stone-300">|</span>
+                  <span className="text-blue-600">납부 {paidCount}/{attendingCount}</span>
+                </>
+              )}
             </div>
           </div>
           
@@ -854,7 +887,7 @@ export function ScheduleDetailView() {
                           <div className="flex items-center gap-2 mt-0.5">
                             {isAttending && !isPaid && (
                               <span className="text-xs font-medium text-orange-600">
-                                입금 필요: {schedule.entryFee?.toLocaleString()}원
+                                입금 필요: {(schedule.entryFee || 0).toLocaleString()}원
                               </span>
                             )}
                             {isAttending && isPaid && (
@@ -968,7 +1001,7 @@ export function ScheduleDetailView() {
                 variant="outline"
                 className="flex-1 h-12 rounded-xl border-orange-300 text-orange-600 hover:bg-orange-50"
                 onClick={() => setShowCloseDialog(true)}
-                disabled={schedule.entryFee && schedule.entryFee > 0 && !permissions.canWithdraw}
+                disabled={!!(schedule.entryFee && schedule.entryFee > 0 && !permissions.canWithdraw)}
               >
                 <Check className="w-5 h-5 mr-2" />
                 참석 투표 마감
@@ -977,7 +1010,7 @@ export function ScheduleDetailView() {
                 variant="outline"
                 className="flex-1 h-12 rounded-xl border-red-300 text-red-600 hover:bg-red-50"
                 onClick={() => setShowCancelDialog(true)}
-                disabled={schedule.entryFee && schedule.entryFee > 0 && !permissions.canWithdraw}
+                disabled={!!(schedule.entryFee && schedule.entryFee > 0 && !permissions.canWithdraw)}
               >
                 <X className="w-5 h-5 mr-2" />
                 일정 취소

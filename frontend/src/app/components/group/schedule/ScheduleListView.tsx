@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Calendar as CalendarIcon, MapPin, CheckCircle2, ClipboardCheck, ArrowUp, ArrowDown, Check, X, TrendingUp } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, MapPin, CheckCircle2, ClipboardCheck, ArrowUp, ArrowDown, Check, X, TrendingUp, Clock } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { Button } from '../../ui/button';
 import { Card, CardContent } from '../../ui/card';
@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../ui/select';
-import { getSchedules, getScheduleParticipants, type ScheduleResponse } from '../../../../api/schedule';
+import { getSchedules, getScheduleParticipants, type ScheduleResponse, type ScheduleParticipantResponse } from '../../../../api/schedule';
 import { getVotes, getVote, answerVote, type VoteDetailResponse, type VoteAnswerRequest } from '../../../../api/vote';
 import { getMyInfo } from '../../../../api/user';
 import { getRecentPosts, type PostCardResponse } from '../../../../api/post';
@@ -46,7 +46,7 @@ export function ScheduleListView() {
   const { groupId } = useParams();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'popular' | 'upcoming'>('newest');
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [votingScheduleId, setVotingScheduleId] = useState<number | null>(null);
   
@@ -106,7 +106,7 @@ export function ScheduleListView() {
             let voteId: number | undefined = undefined;
             
             try {
-              const participants = await getScheduleParticipants(Number(groupId), s.scheduleId);
+              const participants: ScheduleParticipantResponse[] = await getScheduleParticipants(Number(groupId), s.scheduleId);
               attendees = participants.filter(p => p.attendanceStatus === 'ATTENDING').length;
               
               // 내 참석 상태 및 납부 상태 확인
@@ -187,7 +187,7 @@ export function ScheduleListView() {
           })
         );
         
-        setSchedules(schedulesWithAttendees);
+        setSchedules(schedulesWithAttendees as Schedule[]);
       } catch (error) {
         console.error('일정 목록 불러오기 실패:', error);
         toast.error('일정 목록을 불러오는데 실패했습니다.');
@@ -254,11 +254,26 @@ export function ScheduleListView() {
       // 좋아요 수 기준 내림차순 (좋아요가 같으면 최신순)
       const likesDiff = (b.postLikes || 0) - (a.postLikes || 0);
       return likesDiff !== 0 ? likesDiff : b.id - a.id;
+    } else if (sortOrder === 'upcoming') {
+      // 일정순: 가장 빨리 다가오는 일정 순 (과거 일정은 뒤로)
+      const now = new Date().getTime();
+      // date 문자열에서 실제 날짜 추출 (date 필드는 formatScheduleDate 결과이므로 원본 데이터 필요)
+      // isPast와 dDay를 기준으로 정렬
+      // 과거 일정은 뒤로
+      if (a.isPast !== b.isPast) return a.isPast ? 1 : -1;
+      // 둘 다 미래 일정인 경우: dDay가 작은 것(더 가까운 일정)이 앞으로
+      if (!a.isPast && !b.isPast) {
+        const aDDay = a.dDay ?? Infinity;
+        const bDDay = b.dDay ?? Infinity;
+        return aDDay - bDDay;
+      }
+      // 둘 다 과거 일정인 경우: 최신순
+      return b.id - a.id;
     }
     return b.id - a.id;
   });
 
-  const handleSortChange = (order: 'newest' | 'oldest' | 'popular') => {
+  const handleSortChange = (order: 'newest' | 'oldest' | 'popular' | 'upcoming') => {
     setSortOrder(order);
   };
 
@@ -311,6 +326,14 @@ export function ScheduleListView() {
         scheduleData.map(s => getScheduleParticipants(Number(groupId), s.scheduleId).catch(() => []))
       );
       
+      // 게시글 목록 조회 (좋아요 수를 위해)
+      let refreshedPosts: PostCardResponse[] = [];
+      try {
+        refreshedPosts = await getRecentPosts(Number(groupId), 0, 100);
+      } catch (error) {
+        console.error('게시글 목록 조회 실패:', error);
+      }
+      
       // 투표 목록 다시 조회
       const voteList = await getVotes(Number(groupId));
       const attendanceVotes = voteList.filter(v => v.voteType === 'ATTENDANCE');
@@ -321,7 +344,7 @@ export function ScheduleListView() {
       // 상태 업데이트
       const updatedSchedules = await Promise.all(
         scheduleData.map(async (s, idx) => {
-          const participants = participantsData[idx];
+          const participants: ScheduleParticipantResponse[] = participantsData[idx];
           const attendees = participants.filter(p => p.attendanceStatus === 'ATTENDING').length;
           
           let myResponse: 'attending' | 'not_attending' | null = null;
@@ -357,7 +380,7 @@ export function ScheduleListView() {
           const isFinalized = s.status === 'CLOSED' && s.totalSpent !== undefined && s.totalSpent > 0;
           
           // 일정과 연결된 게시글 찾기 (좋아요 수를 위해)
-          const linkedPost = posts.find(p => p.scheduleId === s.scheduleId);
+          const linkedPost = refreshedPosts.find(p => p.scheduleId === s.scheduleId);
           const postLikes = linkedPost?.postLikes || 0;
           
           return {
@@ -382,7 +405,7 @@ export function ScheduleListView() {
         })
       );
       
-      setSchedules(updatedSchedules);
+      setSchedules(updatedSchedules as Schedule[]);
       toast.success(response === 'attending' ? '참석으로 응답했습니다' : '불참으로 응답했습니다');
     } catch (error) {
       console.error('투표 실패:', error);
@@ -396,27 +419,35 @@ export function ScheduleListView() {
     <div className="space-y-4 pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       {/* 정렬 옵션 */}
       <div className="flex justify-start items-center">
-        <Select value={sortOrder} onValueChange={(value) => handleSortChange(value as 'newest' | 'oldest' | 'popular')}>
+        <Select value={sortOrder} onValueChange={(value) => handleSortChange(value as 'newest' | 'oldest' | 'popular' | 'upcoming')}>
           <SelectTrigger className="w-[130px] h-9 text-stone-600 px-3">
             <SelectValue>
-              {sortOrder === 'newest' && (
-                <span className="flex items-center gap-2">
-                  <ArrowDown className="w-4 h-4" />
-                  최신순
-                </span>
-              )}
-              {sortOrder === 'oldest' && (
-                <span className="flex items-center gap-2">
-                  <ArrowUp className="w-4 h-4" />
-                  오래된순
-                </span>
-              )}
-              {sortOrder === 'popular' && (
-                <span className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4" />
-                  인기순
-                </span>
-              )}
+              <>
+                {sortOrder === 'newest' && (
+                  <span className="flex items-center gap-2">
+                    <ArrowDown className="w-4 h-4" />
+                    최신순
+                  </span>
+                )}
+                {sortOrder === 'oldest' && (
+                  <span className="flex items-center gap-2">
+                    <ArrowUp className="w-4 h-4" />
+                    오래된순
+                  </span>
+                )}
+                {sortOrder === 'popular' && (
+                  <span className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4" />
+                    인기순
+                  </span>
+                )}
+                {sortOrder === 'upcoming' && (
+                  <span className="flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    일정순
+                  </span>
+                )}
+              </>
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -438,12 +469,19 @@ export function ScheduleListView() {
                 인기순
               </span>
             </SelectItem>
+            <SelectItem value="upcoming">
+              <span className="flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                일정순
+              </span>
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {sortedSchedules.length > 0 ? (
         sortedSchedules.map((item) => {
+        const detailVariant: 'default' | 'outline' = item.status === 'voting' ? 'default' : 'outline';
         return (
           <Card 
             key={item.id}
@@ -497,42 +535,52 @@ export function ScheduleListView() {
                 {/* 투표 버튼 (투표 중인 일정만) */}
                 {item.status === 'voting' && item.voteId && item.status !== 'cancelled' && (
                   <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant={item.myResponse === 'attending' ? 'default' : 'outline'}
-                      className={`flex-1 h-10 ${
-                        item.myResponse === 'attending' 
-                          ? 'bg-green-500 hover:bg-green-600 text-white' 
-                          : 'border-stone-200'
-                      }`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleVoteInList(item.id, 'attending', item.voteId!);
-                      }}
-                      disabled={votingScheduleId === item.id}
-                    >
-                      <Check className="w-4 h-4 mr-1" />
-                      참석
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={item.myResponse === 'not_attending' ? 'default' : 'outline'}
-                      className={`flex-1 h-10 ${
-                        item.myResponse === 'not_attending' 
-                          ? 'bg-red-500 hover:bg-red-600 text-white' 
-                          : 'border-stone-200'
-                      }`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleVoteInList(item.id, 'not_attending', item.voteId!);
-                      }}
-                      disabled={votingScheduleId === item.id}
-                    >
-                      <X className="w-4 h-4 mr-1" />
-                      불참
-                    </Button>
+                    {(() => {
+                      const attendingVariant: 'default' | 'outline' = item.myResponse === 'attending' ? 'default' : 'outline';
+                      return (
+                        <Button
+                          size="sm"
+                          variant={attendingVariant}
+                          className={`flex-1 h-10 ${
+                            item.myResponse === 'attending' 
+                              ? 'bg-green-500 hover:bg-green-600 text-white' 
+                              : 'border-stone-200'
+                          }`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleVoteInList(item.id, 'attending', item.voteId!);
+                          }}
+                          disabled={votingScheduleId === item.id}
+                        >
+                          <Check className="w-4 h-4 mr-1" />
+                          참석
+                        </Button>
+                      );
+                    })()}
+                    {(() => {
+                      const notAttendingVariant: 'default' | 'outline' = item.myResponse === 'not_attending' ? 'default' : 'outline';
+                      return (
+                        <Button
+                          size="sm"
+                          variant={notAttendingVariant}
+                          className={`flex-1 h-10 ${
+                            item.myResponse === 'not_attending' 
+                              ? 'bg-red-500 hover:bg-red-600 text-white' 
+                              : 'border-stone-200'
+                          }`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleVoteInList(item.id, 'not_attending', item.voteId!);
+                          }}
+                          disabled={votingScheduleId === item.id}
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          불참
+                        </Button>
+                      );
+                    })()}
                   </div>
                 )}
                 
@@ -565,7 +613,7 @@ export function ScheduleListView() {
                   <Link to={`${item.id}`}>
                     <Button 
                       size="sm" 
-                      variant={item.status === 'voting' ? 'default' : 'outline'} 
+                      variant={detailVariant} 
                       className={item.status === 'voting' ? 'bg-orange-500 hover:bg-orange-600' : ''}
                     >
                       상세보기

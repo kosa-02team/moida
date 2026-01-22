@@ -485,7 +485,7 @@ export function StoryDetailView() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <div className="sticky top-[97px] bg-white z-[70] shadow-sm">
+      <div className="sticky top-0 bg-white z-[70] shadow-sm">
         <div className="flex items-center justify-between p-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-5 h-5" />
@@ -655,10 +655,10 @@ export function StoryDetailView() {
 
               {/* Vote Options */}
               <div className="space-y-2">
-                {linkedVote.options.map(option => {
+                {(linkedVote.options || []).map(option => {
                   const isSelected = selectedVoteOptions.includes(option.optionId);
                   const voteCount = option.voteCount || 0;
-                  const totalVotes = linkedVote.options.reduce((sum, opt) => sum + (opt.voteCount || 0), 0);
+                  const totalVotes = (linkedVote.options || []).reduce((sum, opt) => sum + (opt.voteCount || 0), 0);
                   const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
 
                   return (
@@ -682,7 +682,7 @@ export function StoryDetailView() {
                             {isSelected && <Check className="w-3 h-3 text-white" />}
                           </div>
                           <span className={`font-medium ${isSelected ? 'text-orange-700' : 'text-stone-900'}`}>
-                            {option.optionText}
+                            {option.optionText || '옵션'}
                           </span>
                         </div>
                         <span className={`text-sm ${isSelected ? 'text-orange-600' : 'text-stone-500'}`}>
@@ -701,7 +701,7 @@ export function StoryDetailView() {
               {/* Vote Statistics */}
               <div className="mt-4 pt-3 border-t border-stone-200 flex items-center justify-between">
                 <span className="text-sm text-stone-500">
-                  총 {linkedVote.options.reduce((sum, opt) => sum + (opt.voteCount || 0), 0)}명 참여
+                  총 {(linkedVote.options || []).reduce((sum, opt) => sum + (opt.voteCount || 0), 0)}명 참여
                 </span>
                 {linkedVote.status === 'OPEN' && (
                   <Button

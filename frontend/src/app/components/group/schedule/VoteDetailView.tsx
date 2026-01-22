@@ -20,6 +20,7 @@ export function VoteDetailView() {
   const [hasVoted, setHasVoted] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [hasPendingChanges, setHasPendingChanges] = useState(false); // 사용자가 아직 제출하지 않은 변경사항 추적
 
   useEffect(() => {
     async function fetchVote() {
@@ -73,18 +74,16 @@ export function VoteDetailView() {
           setVote(voteData);
           
           // 현재 사용자의 투표 상태 업데이트
+          // 단, 사용자가 선택 중인 경우(hasPendingChanges)에는 selectedOptions를 덮어쓰지 않음
           if (currentUserId) {
             const userHasVoted = voteData.options.some(option => 
               option.voters?.some(voter => voter.userId === currentUserId)
             );
             setHasVoted(userHasVoted);
             
-            if (userHasVoted) {
-              const votedOptions = voteData.options
-                .filter(option => option.voters?.some(voter => voter.userId === currentUserId))
-                .map(option => option.optionId);
-              setSelectedOptions(votedOptions);
-            }
+            // 사용자가 아직 제출하지 않은 변경사항이 없을 때만 서버 데이터로 selectedOptions 업데이트
+            // hasPendingChanges 상태는 함수 외부에서 확인할 수 없으므로 함수형 업데이트 사용 안함
+            // 대신 이 부분은 건너뛰고, handleVote 성공 후에만 업데이트하도록 변경
           }
         } catch (error) {
           // 에러 발생 시 조용히 무시 (투표가 삭제되었거나 권한이 없는 경우)
@@ -113,6 +112,9 @@ export function VoteDetailView() {
     // 이미 투표한 경우에도 수정 가능하도록 변경
     if (vote.status === 'CLOSED') return;
     
+    // 사용자가 선택을 변경했음을 표시 (폴링에서 덮어쓰지 않도록)
+    setHasPendingChanges(true);
+    
     if (vote.allowMultiple) {
       setSelectedOptions(prev =>
         prev.includes(optionId)
@@ -134,6 +136,7 @@ export function VoteDetailView() {
     try {
       await answerVote(Number(groupId), Number(voteId), { optionIds: selectedOptions });
       setHasVoted(true);
+      setHasPendingChanges(false); // 제출 완료 후 pending 상태 해제
       toast.success(hasVoted ? '투표가 수정되었습니다!' : '투표가 완료되었습니다!');
       // 투표 후 데이터 다시 불러오기
       const voteData = await getVote(Number(groupId), Number(voteId));

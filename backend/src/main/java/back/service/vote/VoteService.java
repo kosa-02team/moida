@@ -393,26 +393,13 @@ public class VoteService {
         // 6. 기존 투표 기록 확인 (중복 투표 체크)
         List<VoteRecords> existingRecords = voteRecordRepository.findByVoteIdAndUserId(voteId, userId);
 
-        // ATTENDANCE 타입은 기존 기록이 있으면 업데이트 (참석 → 불참 변경 가능)
-        if ("ATTENDANCE".equals(vote.getVoteType())) {
-            if (!existingRecords.isEmpty()) {
-                // 기존 기록 삭제 (참석 → 불참 변경)
-                voteRecordRepository.deleteAll(existingRecords);
-            }
-        } else {
-            // GENERAL 타입
-            if (!vote.getAllowMultiple()) {
-                // allowMultiple이 false면 기존 기록이 있으면 삭제 (투표 변경 허용)
-                if (!existingRecords.isEmpty()) {
-                    voteRecordRepository.deleteAll(existingRecords);
-                }
-            } else {
-                // allowMultiple이 true면 전체 선택 상태로 처리 (선택/해제 토글 지원)
-                // 기존 기록을 모두 삭제하고 새로운 선택 상태를 저장
-                if (!existingRecords.isEmpty()) {
-                    voteRecordRepository.deleteAll(existingRecords);
-                }
-            }
+        // 기존 기록이 있으면 삭제 (투표 변경 허용)
+        // ATTENDANCE, GENERAL 타입 모두 투표 변경 시 기존 기록 삭제 후 새로 저장
+        if (!existingRecords.isEmpty()) {
+            voteRecordRepository.deleteAll(existingRecords);
+            // flush()를 호출하여 DELETE가 INSERT보다 먼저 실행되도록 보장
+            // 이렇게 하지 않으면 JPA가 작업 순서를 재정렬하여 UniqueConstraint 위반 발생 가능
+            voteRecordRepository.flush();
         }
 
         // 7. 투표 기록 저장
