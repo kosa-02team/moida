@@ -156,7 +156,7 @@ export const searchClubs = async (
   params.append('size', size.toString());
   if (category) params.append('category', category);
   if (clubName) params.append('clubName', clubName);
-  
+
   const url = `/api/clubs/search?${params.toString()}`;
   return get<PageResponse<ClubDetailResponse>>(url, false);
 };
@@ -175,11 +175,21 @@ export interface TransferOwnershipRequest {
 }
 
 /**
+ * 모임 가입 신청
+ */
+export const joinClub = async (
+  clubId: number,
+  nickname: string
+): Promise<void> => {
+  return post<void>(`/api/club-member/${clubId}/join`, { nickname });
+};
+
+/**
  * 모임장 위임
  */
 export const transferOwnership = async (
   clubId: number,
   request: TransferOwnershipRequest
 ): Promise<void> => {
-  return patch<void>(`/api/clubs/${clubId}/transfer-ownership`, request);
+  return patch<void>(`/api/club-member/${clubId}/transfer-ownership`, request);
 };

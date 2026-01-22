@@ -7,10 +7,10 @@ import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Avatar, AvatarFallback } from './ui/avatar';
-import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
+
 import { getMyClubs, MyClubResponse, getMyInfo, UserResponse } from '@/api/user';
 import { getUnreadCount } from '@/api/notification';
-import { get, getToken, AuthenticationError } from '@/api/client';
+import { getToken, AuthenticationError } from '@/api/client';
 
 // 백엔드 Category enum과 일치
 type CategoryType = 'all' | 'STUDY' | 'SPORTS' | 'SOCIAL' | 'HOBBY' | 'FINANCE' | 'ETC';
@@ -26,12 +26,7 @@ const CATEGORY_LABELS: Record<CategoryType, string> = {
 };
 
 // 역할 아이콘 컴포넌트
-function RoleIcon({ role }: { role: string }) {
-  if (role.includes('모임장')) return <Crown className="w-3 h-3" />;
-  if (role.includes('총무')) return <Wallet className="w-3 h-3" />;
-  if (role.includes('운영진')) return <Shield className="w-3 h-3" />;
-  return null;
-}
+
 
 export function HomeView() {
   const navigate = useNavigate();
@@ -99,7 +94,7 @@ export function HomeView() {
     const matchesSearch =
       club.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = filterCategory === 'all' || club.category === filterCategory;
-    
+
     return matchesSearch && matchesCategory;
   });
 
@@ -143,6 +138,16 @@ export function HomeView() {
         </div>
       </header>
 
+
+      {/* System Admin Link (Only for Admin) */}
+      {userInfo?.systemRole === 'ADMIN' && (
+        <Link to="/system-admin">
+          <Button className="w-full h-12 mb-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-xl shadow-md">
+            <Shield className="w-5 h-5 mr-2" />
+            <span className="font-bold">시스템 관리자 페이지 이동</span>
+          </Button>
+        </Link>
+      )}
 
       {/* Quick Actions */}
       <div className="flex gap-2">
@@ -260,9 +265,9 @@ export function HomeView() {
                     {(() => {
                       const clubImage = localStorage.getItem(`club_image_${club.clubId}`);
                       return clubImage ? (
-                        <img 
-                          src={clubImage} 
-                          alt={club.name} 
+                        <img
+                          src={clubImage}
+                          alt={club.name}
                           className="w-full h-full object-cover"
                           onError={(e) => {
                             // 이미지 로드 실패 시 기본 placeholder 표시
