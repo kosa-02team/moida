@@ -84,7 +84,6 @@ public class PostVectorService {
 
 
 
-
     private List<Float> toList(float[] arr) {
         List<Float> list = new ArrayList<>(arr.length);
         for (float v : arr) list.add(v);
