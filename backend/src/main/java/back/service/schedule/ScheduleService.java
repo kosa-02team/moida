@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -102,6 +103,8 @@ public class ScheduleService {
         Schedules savedSchedule = scheduleRepository.save(schedule);
 
         // 2. 일정 생성과 동시에 ATTENDANCE 타입 투표 자동 생성
+        // voteDeadline이 있으면 투표의 deadline도 설정, 없으면 null (일정 시작 5분 전 자동 종료)
+        LocalDateTime voteDeadlineForVote = request.voteDeadline() != null ? request.voteDeadline() : null;
         Votes vote = new Votes(
                 null, // postId는 null (ATTENDANCE 타입은 게시글과 무관)
                 "ATTENDANCE",
@@ -111,7 +114,7 @@ public class ScheduleService {
                 request.description(),
                 false, // isAnonymous
                 false, // allowMultiple
-                null // deadline은 null (ATTENDANCE 타입은 일정 시작 5분 전 자동 종료)
+                voteDeadlineForVote // voteDeadline이 있으면 설정, 없으면 null (일정 시작 5분 전 자동 종료)
         );
         Votes savedVote = voteRepository.save(vote);
 

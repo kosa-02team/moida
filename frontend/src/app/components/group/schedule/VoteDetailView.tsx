@@ -64,7 +64,37 @@ export function VoteDetailView() {
       }
     }
     fetchVote();
-  }, [groupId, voteId, navigate]);
+    
+    // 실시간 업데이트를 위한 인터벌 (5초마다)
+    const interval = setInterval(async () => {
+      if (groupId && voteId) {
+        try {
+          const voteData = await getVote(Number(groupId), Number(voteId));
+          setVote(voteData);
+          
+          // 현재 사용자의 투표 상태 업데이트
+          if (currentUserId) {
+            const userHasVoted = voteData.options.some(option => 
+              option.voters?.some(voter => voter.userId === currentUserId)
+            );
+            setHasVoted(userHasVoted);
+            
+            if (userHasVoted) {
+              const votedOptions = voteData.options
+                .filter(option => option.voters?.some(voter => voter.userId === currentUserId))
+                .map(option => option.optionId);
+              setSelectedOptions(votedOptions);
+            }
+          }
+        } catch (error) {
+          // 에러 발생 시 조용히 무시 (투표가 삭제되었거나 권한이 없는 경우)
+          console.error('투표 정보 갱신 실패:', error);
+        }
+      }
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [groupId, voteId, navigate, currentUserId]);
 
   if (loading || !vote) {
     return (
