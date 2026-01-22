@@ -37,6 +37,7 @@ export function StoriesView() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'popular'>('newest');
 
   // 게시글과 투표 데이터 가져오기
   useEffect(() => {
@@ -45,18 +46,13 @@ export function StoriesView() {
 
       try {
         setLoading(true);
-        // Promise.all에 as const를 적용하여 타입 추론 문제 해결
-        const [posts, votes] = await Promise.all([
-          getRecentPosts(Number(groupId), page, 20),
-          getVotes(Number(groupId))
-        ] as const);
-        // 타입 단언으로 명시적 타입 지정
-        const typedPosts = posts as PostCardResponse[];
-        const typedVotes = votes as VoteListResponse[];
+        // 개별 await 호출로 타입 추론 문제 해결
+        const posts = await getRecentPosts(Number(groupId), page, 20);
+        const votes = await getVotes(Number(groupId));
 
         // 투표를 postId로 매핑
         const voteMap = new Map<number, VoteListResponse>();
-        for (const vote of typedVotes) {
+        for (const vote of votes) {
           const postId = vote.postId;
           if (postId !== null && postId !== undefined && typeof postId === 'number') {
             voteMap.set(postId, vote);
@@ -65,7 +61,7 @@ export function StoriesView() {
 
         // 게시글에 투표 정보 추가
         const postsWithVotes: PostWithVote[] = await Promise.all(
-          typedPosts.map(async (post): Promise<PostWithVote> => {
+          posts.map(async (post): Promise<PostWithVote> => {
             const vote = voteMap.get(post.postId);
             if (vote) {
               try {
@@ -92,7 +88,7 @@ export function StoriesView() {
           setAllPosts(prev => [...prev, ...postsWithVotes]);
         }
 
-        setHasMore(typedPosts.length === 20);
+        setHasMore(posts.length === 20);
       } catch (error) {
         console.error('게시글 불러오기 실패:', error);
         toast.error('게시글을 불러오는데 실패했습니다.');
@@ -227,7 +223,7 @@ export function StoriesView() {
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     } else if (sortOrder === 'popular') {
       // 좋아요 수 기준 내림차순 (좋아요가 같으면 최신순)
-      const likesDiff = b.postLikes - a.postLikes;
+      const likesDiff = (b.postLikes || 0) - (a.postLikes || 0);
       return likesDiff !== 0 ? likesDiff : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     }
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -258,26 +254,7 @@ export function StoriesView() {
       <div className="flex justify-start items-center">
         <Select value={sortOrder} onValueChange={(value) => handleSortChange(value as 'newest' | 'oldest' | 'popular')}>
           <SelectTrigger className="w-[130px] h-9 text-stone-600 px-3">
-            <SelectValue>
-              {sortOrder === 'newest' && (
-                <span className="flex items-center gap-2">
-                  <ArrowDown className="w-4 h-4" />
-                  최신순
-                </span>
-              )}
-              {sortOrder === 'oldest' && (
-                <span className="flex items-center gap-2">
-                  <ArrowUp className="w-4 h-4" />
-                  오래된순
-                </span>
-              )}
-              {sortOrder === 'popular' && (
-                <span className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4" />
-                  인기순
-                </span>
-              )}
-            </SelectValue>
+            <SelectValue placeholder="정렬" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="newest">
@@ -349,8 +326,9 @@ export function StoriesView() {
             </Link>
 
             {/* 투표 섹션 */}
-            {(post.voteDetail && post.voteId !== undefined) ? (
-              <div className="px-4 pb-4 border-t border-stone-100">
+            <>
+              {(post.voteDetail && post.voteId !== undefined) ? (
+                <div className="px-4 pb-4 border-t border-stone-100">
                 <Link
                   to={`/group/${groupId}/votes/${post.voteId}`}
                   className="block mb-3 pt-3"
@@ -443,6 +421,7 @@ export function StoriesView() {
                 ) : null}
               </div>
             ) : null}
+            </>
 
             {/* 게시글 하단 (좋아요, 댓글) */}
             <div className="px-4 py-3 border-t border-stone-100 flex items-center gap-4 text-stone-500">

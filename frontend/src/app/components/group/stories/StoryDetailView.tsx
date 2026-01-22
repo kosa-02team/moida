@@ -134,11 +134,9 @@ export function StoryDetailView() {
       if (!groupId || !storyId) return;
       try {
         setLoading(true);
-        const [postData, userInfo, votesData] = await Promise.all([
-          getPost(Number(groupId), Number(storyId)),
-          getMyInfo().catch(() => null), // 실패해도 계속 진행
-          getVotes(Number(groupId)).catch(() => []) // 투표 목록 조회
-        ]);
+        const postData = await getPost(Number(groupId), Number(storyId));
+        const userInfo = await getMyInfo().catch(() => null); // 실패해도 계속 진행
+        const votesData = await getVotes(Number(groupId)).catch(() => [] as VoteListResponse[]);
         
         // 멤버 목록에서 작성자 정보 찾기
         const writerMember = members.find(m => m.userId === postData.writerId);
@@ -487,7 +485,7 @@ export function StoryDetailView() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <div className="sticky top-0 bg-white/80 backdrop-blur-lg z-10 border-b border-stone-100">
+      <div className="sticky top-[97px] bg-white z-[70] shadow-sm">
         <div className="flex items-center justify-between p-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-5 h-5" />
@@ -500,55 +498,57 @@ export function StoryDetailView() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {canEditPost && (
-                <>
-                  <DropdownMenuItem 
-                    className="text-stone-600"
-                    onClick={handleStartEdit}
-                  >
-                    <Edit2 className="w-4 h-4 mr-2" />
-                    게시글 수정
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              {canBlindPost && (
-                <>
-                  <DropdownMenuItem 
-                    className="text-stone-600"
-                    onClick={handleBlindPost}
-                  >
-                    <EyeOff className="w-4 h-4 mr-2" />
-                    게시글 숨기기
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              {canDeletePost && (
-                <>
-                  <DropdownMenuItem 
-                    className="text-red-600"
-                    onClick={() => {
-                      setDeleteTarget('post');
-                      setShowDeleteDialog(true);
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    게시글 삭제
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              <DropdownMenuItem 
-                className="text-orange-600"
-                onClick={() => {
-                  setReportTarget('post');
-                  setShowReportDialog(true);
-                }}
-              >
-                <Flag className="w-4 h-4 mr-2" />
-                신고하기
-              </DropdownMenuItem>
+              <>
+                {canEditPost ? (
+                  <>
+                    <DropdownMenuItem 
+                      className="text-stone-600"
+                      onClick={handleStartEdit}
+                    >
+                      <Edit2 className="w-4 h-4 mr-2" />
+                      게시글 수정
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                ) : null}
+                {canBlindPost ? (
+                  <>
+                    <DropdownMenuItem 
+                      className="text-stone-600"
+                      onClick={handleBlindPost}
+                    >
+                      <EyeOff className="w-4 h-4 mr-2" />
+                      게시글 숨기기
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                ) : null}
+                {canDeletePost ? (
+                  <>
+                    <DropdownMenuItem 
+                      className="text-red-600"
+                      onClick={() => {
+                        setDeleteTarget('post');
+                        setShowDeleteDialog(true);
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      게시글 삭제
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                ) : null}
+                <DropdownMenuItem 
+                  className="text-orange-600"
+                  onClick={() => {
+                    setReportTarget('post');
+                    setShowReportDialog(true);
+                  }}
+                >
+                  <Flag className="w-4 h-4 mr-2" />
+                  신고하기
+                </DropdownMenuItem>
+              </>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -763,45 +763,46 @@ export function StoryDetailView() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {canEditComment(comment) && (
-                              <>
-                                <DropdownMenuItem 
-                                  onClick={() => handleStartEditComment(comment)}
-                                >
-                                  <Edit2 className="w-4 h-4 mr-2" />
-                                  수정
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            )}
-                            {canDeleteComment(comment) && (
-                              <>
-                                <DropdownMenuItem 
-                                  className="text-red-600"
-                                  onClick={() => {
-                                    setSelectedComment(comment);
-                                    setDeleteTarget('comment');
-                                    setShowDeleteDialog(true);
-                                  }}
-                                >
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  삭제
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            )}
-                            <DropdownMenuItem 
-                              className="text-orange-600"
-                              onClick={() => {
-                                setSelectedComment(comment);
-                                setReportTarget('comment');
-                              setSelectedComment(comment);
-                              setShowReportDialog(true);
-                              }}
-                            >
-                              <Flag className="w-4 h-4 mr-2" />
-                              신고
-                            </DropdownMenuItem>
+                            <>
+                              {canEditComment(comment) ? (
+                                <>
+                                  <DropdownMenuItem 
+                                    onClick={() => handleStartEditComment(comment)}
+                                  >
+                                    <Edit2 className="w-4 h-4 mr-2" />
+                                    수정
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              ) : null}
+                              {canDeleteComment(comment) ? (
+                                <>
+                                  <DropdownMenuItem 
+                                    className="text-red-600"
+                                    onClick={() => {
+                                      setSelectedComment(comment);
+                                      setDeleteTarget('comment');
+                                      setShowDeleteDialog(true);
+                                    }}
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    삭제
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              ) : null}
+                              <DropdownMenuItem 
+                                className="text-orange-600"
+                                onClick={() => {
+                                  setSelectedComment(comment);
+                                  setReportTarget('comment');
+                                  setShowReportDialog(true);
+                                }}
+                              >
+                                <Flag className="w-4 h-4 mr-2" />
+                                신고
+                              </DropdownMenuItem>
+                            </>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -924,7 +925,7 @@ export function StoryDetailView() {
           onOpenChange={setShowReportDialog}
           type={selectedComment ? 'comment' : 'post'}
           targetId={selectedComment ? selectedComment.writerId : post.writerId}
-          targetName={selectedComment ? (selectedComment.writerName || '작성자') : (post.writerName || '작성자')}
+          targetName={selectedComment ? '댓글 작성자' : (post.writerName || '작성자')}
         />
       )}
 

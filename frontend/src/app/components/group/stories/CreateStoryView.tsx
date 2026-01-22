@@ -46,11 +46,9 @@ export function CreateStoryView() {
       if (!groupId) return;
       try {
         setLoading(true);
-        const [membersData, schedulesData, myInfo] = await Promise.all([
-          getMembers(Number(groupId), 'ACTIVE'),
-          getSchedules(Number(groupId)),
-          getMyInfo()
-        ]);
+        const membersData = await getMembers(Number(groupId), 'ACTIVE');
+        const schedulesData = await getSchedules(Number(groupId));
+        const myInfo = await getMyInfo();
         setMembers(membersData);
         setSchedules(schedulesData.map(s => ({
           scheduleId: s.scheduleId,
@@ -229,7 +227,7 @@ export function CreateStoryView() {
   return (
     <div className="min-h-screen bg-white pb-24" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white border-b border-stone-100">
+      <header className="sticky top-[145px] z-[70] bg-white shadow-sm">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center">
             <Button
@@ -253,12 +251,16 @@ export function CreateStoryView() {
             }
             className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-4"
           >
-            {isSubmitting ? '작성 중...' : (
-              <>
-                <Send className="w-4 h-4 mr-1" />
-                게시
-              </>
-            )}
+            <>
+              {isSubmitting ? (
+                <span>작성 중...</span>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-1" />
+                  게시
+                </>
+              )}
+            </>
           </Button>
         </div>
       </header>
