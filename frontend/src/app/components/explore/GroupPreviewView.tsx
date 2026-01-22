@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { ArrowLeft, MapPin, Users, Calendar, Share2, Heart, MessageCircle, Lock, Eye, Flag } from 'lucide-react';
+import { ArrowLeft, MapPin, Users, Calendar, Share2, Heart, MessageCircle, Lock, Eye, Flag, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Card, CardContent } from '../ui/card';
+import { Input } from '../ui/input';
 import {
   Dialog,
   DialogContent,
@@ -14,12 +15,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import { ReportDialog } from '../report/ReportDialog';
-import { getClub } from '@/api/club-full';
-import { getRecentPosts, PostCardResponse } from '@/api/post';
-import { get } from '@/api/client';
+import { getClub, joinClub } from '@/api/club-full';
+import { getRecentPosts } from '@/api/post';
+import { getToken } from '@/api/client';
+import { getMyInfo, UserResponse } from '@/api/user';
 
 export function GroupPreviewView() {
   const navigate = useNavigate();
@@ -27,8 +28,10 @@ export function GroupPreviewView() {
   const [isLiked, setIsLiked] = useState(false);
   const [showJoinDialog, setShowJoinDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
-  const [joinMessage, setJoinMessage] = useState('');
+  const [nickname, setNickname] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [userInfo, setUserInfo] = useState<UserResponse | null>(null);
+  const isLoggedIn = !!getToken();
   const [group, setGroup] = useState<{
     id: string | undefined;
     name: string;
@@ -62,7 +65,7 @@ export function GroupPreviewView() {
         setLoading(true);
         const clubId = parseInt(groupId);
         const clubData = await getClub(clubId);
-        
+
         // 최근 게시글 조회 (게시글 공개 모임인 경우)
         let publicPosts: Array<{ id: string; title: string; content: string; image: string; author: string; date: string; likes: number; comments: number }> = [];
         if (clubData.visibility === 'PUBLIC') {
@@ -121,6 +124,23 @@ export function GroupPreviewView() {
     fetchGroup();
   }, [groupId, navigate]);
 
+  // 로그인한 경우 유저 정보 불러오기
+  useEffect(() => {
+    async function fetchUserInfo() {
+      if (isLoggedIn && !userInfo) {
+        try {
+          const info = await getMyInfo();
+          setUserInfo(info);
+          // 기본 닉네임 설정 (유저 실명)
+          setNickname(info.realName);
+        } catch (error) {
+          console.error('유저 정보 로드 실패:', error);
+        }
+      }
+    }
+    fetchUserInfo();
+  }, [isLoggedIn, userInfo]);
+
   if (loading || !group) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center">
@@ -134,13 +154,26 @@ export function GroupPreviewView() {
     toast.success('링크가 복사되었습니다');
   };
 
-  const handleJoinRequest = () => {
-    setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+  const handleJoinRequest = async () => {
+    if (!groupId) return;
+
+    if (!nickname.trim()) {
+      toast.error('활동할 닉네임을 입력해주세요');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await joinClub(parseInt(groupId), nickname);
+      toast.success('가입 신청이 완료되었습니다.');
       setShowJoinDialog(false);
-      toast.success('가입 신청이 완료되었습니다. 관리자 승인을 기다려주세요.');
-    }, 1000);
+      // 필요하다면 여기서 모임 정보를 새로고침하거나 내가 가입한 모임 목록을 갱신
+    } catch (error: any) {
+      console.error('가입 신청 실패:', error);
+      toast.error(error.message || '가입 신청에 실패했습니다.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handlePostClick = (postId: string) => {
@@ -163,7 +196,7 @@ export function GroupPreviewView() {
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        
+
         {/* Top Navigation */}
         <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
           <Button
@@ -313,7 +346,7 @@ export function GroupPreviewView() {
           </div>
         )}
 
-        {/* Public Posts - 게시글 공개/비공개 */}
+        {/* Public Posts */}
         <div className="bg-white rounded-xl p-4 border border-stone-100">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-stone-900">게시글</h3>
@@ -331,11 +364,10 @@ export function GroupPreviewView() {
           </div>
 
           {group.privacySettings.showPostsToNonMembers ? (
-            // 게시글 공개: 게시글 미리보기
             <div className="space-y-3">
               {group.publicPosts.map(post => (
-                <Card 
-                  key={post.id} 
+                <Card
+                  key={post.id}
                   className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                   onClick={() => handlePostClick(post.id)}
                 >
@@ -360,7 +392,6 @@ export function GroupPreviewView() {
               </p>
             </div>
           ) : (
-            // 게시글 비공개: 권한 없음 안내
             <div className="py-8 text-center">
               <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Lock className="w-8 h-8 text-stone-400" />
@@ -369,7 +400,7 @@ export function GroupPreviewView() {
               <p className="text-sm text-stone-500 mb-4">
                 게시글은 모임 회원만 볼 수 있습니다.
               </p>
-              <Button 
+              <Button
                 onClick={() => setShowJoinDialog(true)}
                 className="bg-orange-500 hover:bg-orange-600"
               >
@@ -379,26 +410,7 @@ export function GroupPreviewView() {
           )}
         </div>
 
-        {/* 회비 현황 - 회원 전용 */}
-        <div className="bg-white rounded-xl p-4 border border-stone-100">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-stone-900">회비 현황</h3>
-            <Badge variant="secondary" className="bg-stone-100 text-stone-600">
-              <Lock className="w-3 h-3 mr-1" />
-              회원 전용
-            </Badge>
-          </div>
-          <div className="py-6 text-center">
-            <div className="w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Lock className="w-6 h-6 text-stone-400" />
-            </div>
-            <p className="text-sm text-stone-500">
-              회비 현황은 모임 회원만<br/>확인할 수 있습니다
-            </p>
-          </div>
-        </div>
-
-        {/* Gallery - 게시글 공개 시에만 표시 */}
+        {/* Gallery */}
         {group.privacySettings.showPostsToNonMembers && group.gallery.length > 0 && (
           <div className="bg-white rounded-xl p-4 border border-stone-100">
             <h3 className="font-bold text-stone-900 mb-3">갤러리</h3>
@@ -419,7 +431,15 @@ export function GroupPreviewView() {
           <Button
             variant="outline"
             className="flex-1 h-12 rounded-xl"
-            onClick={() => toast.info('로그인 후 문의할 수 있습니다')}
+            onClick={() => {
+              if (isLoggedIn) {
+                // 문의하기 기능 구현 필요 (예: 채팅방 생성)
+                toast.info('준비 중인 기능입니다.');
+              } else {
+                toast.info('로그인이 필요합니다.');
+                navigate('/login');
+              }
+            }}
           >
             <MessageCircle className="w-5 h-5 mr-2" />
             문의하기
@@ -440,34 +460,53 @@ export function GroupPreviewView() {
             <DialogTitle>가입 신청</DialogTitle>
             <DialogDescription>
               "{group.name}" 모임에 가입을 신청합니다.
-              관리자 승인 후 모임에 참여할 수 있습니다.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>가입 인사 (선택)</Label>
-              <Textarea
-                placeholder="모임장에게 전할 인사말을 작성해주세요"
-                className="min-h-24 resize-none"
-                value={joinMessage}
-                onChange={(e) => setJoinMessage(e.target.value)}
-              />
-            </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-xs text-blue-800">
-                💡 로그인이 필요합니다. 가입 신청을 위해 먼저 로그인해주세요.
-              </p>
-            </div>
+
+          <div className="py-4">
+            {isLoggedIn ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>활동할 닉네임</Label>
+                  <Input
+                    placeholder="모임에서 사용할 닉네임을 입력하세요"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                  />
+                  <p className="text-xs text-stone-500">
+                    기본값은 회원님의 실명입니다.
+                  </p>
+                </div>
+                {/* 닉네임 유효성 검사 경고 등은 생략하거나 Input에 maxLength 추가 가능 */}
+              </div>
+            ) : (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-800">
+                  💡 로그인이 필요합니다. 가입 신청을 위해 먼저 로그인해주세요.
+                </p>
+              </div>
+            )}
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowJoinDialog(false)}>
               취소
             </Button>
-            <Link to="/login">
-              <Button className="bg-orange-500 hover:bg-orange-600">
-                로그인하러 가기
+            {isLoggedIn ? (
+              <Button
+                onClick={handleJoinRequest}
+                className="bg-orange-500 hover:bg-orange-600"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? '신청 중...' : '가입 신청하기'}
               </Button>
-            </Link>
+            ) : (
+              <Link to="/login" className="flex-1 md:flex-none">
+                <Button className="w-full bg-orange-500 hover:bg-orange-600">
+                  로그인하러 가기
+                </Button>
+              </Link>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -477,9 +516,9 @@ export function GroupPreviewView() {
         open={showReportDialog}
         onOpenChange={setShowReportDialog}
         type="group"
-        targetId={group.ownerId || parseInt(group.id)}
+        targetId={groupId ? parseInt(groupId) : 0}
         targetName={group.name}
-        clubId={parseInt(group.id)}
+        clubId={groupId ? parseInt(groupId) : 0}
       />
     </div>
   );
