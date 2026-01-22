@@ -759,9 +759,6 @@ export function ScheduleDetailView() {
                 {vote.status === 'OPEN' ? '투표 진행중' : '투표 마감됨'}
               </Badge>
             </div>
-            {vote.status !== 'OPEN' && permissions.canWithdraw && (
-              <p className="text-xs text-blue-600 mb-2">총무 이상 권한으로 투표 수정이 가능합니다.</p>
-            )}
             {/* 본인 입금 상태 표시 (참석한 경우) */}
             {myResponse === 'attending' && schedule.entryFee && schedule.entryFee > 0 && currentUserId && (() => {
               const myParticipant = participants.find(p => p.userId === currentUserId);
@@ -774,7 +771,7 @@ export function ScheduleDetailView() {
                 </div>
               );
             })()}
-            <div className={`grid grid-cols-2 gap-3 ${vote.status !== 'OPEN' && !permissions.canWithdraw ? 'opacity-60' : ''}`}>
+            <div className={`grid grid-cols-2 gap-3 ${vote.status !== 'OPEN' ? 'opacity-60' : ''}`}>
               {(() => {
                 const attendingVariant: 'default' | 'outline' = myResponse === 'attending' ? 'default' : 'outline';
                 return (
@@ -786,7 +783,7 @@ export function ScheduleDetailView() {
                         : 'border-stone-200'
                     }`}
                     onClick={() => handleResponse('attending')}
-                    disabled={vote.status !== 'OPEN' && !permissions.canWithdraw}
+                    disabled={vote.status !== 'OPEN'}
                   >
                     <Check className="w-5 h-5 mr-2" />
                     참석
@@ -804,7 +801,7 @@ export function ScheduleDetailView() {
                         : 'border-stone-200'
                     }`}
                     onClick={() => handleResponse('not_attending')}
-                    disabled={vote.status !== 'OPEN' && !permissions.canWithdraw}
+                    disabled={vote.status !== 'OPEN'}
                   >
                     <X className="w-5 h-5 mr-2" />
                     불참

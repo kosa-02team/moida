@@ -151,12 +151,21 @@ export function ScheduleListView() {
             const isToday = diffDays === 0;
             const isPast = endDate < now;
             
-            // voteDeadline이 있고 아직 마감 전이면 투표중 상태
+            // 투표 진행 상태 판단: voteDeadline이 있거나 없어도 vote.status === 'OPEN'이면 voting
             let status: 'voting' | 'confirmed' | 'ongoing' | 'completed' | 'cancelled' = 'confirmed';
             if (s.status === 'CANCELLED') status = 'cancelled';
             else if (s.status === 'CLOSED') status = 'completed';
             else if (isToday && !isPast) status = 'ongoing';
-            else if (s.voteDeadline && new Date(s.voteDeadline) > now) status = 'voting';
+            else {
+              // 해당 일정의 투표 찾기 (이미 위에서 찾았지만 다시 확인)
+              const scheduleVote = votes.find(v => v.scheduleId === s.scheduleId);
+              if (scheduleVote && scheduleVote.status === 'OPEN') {
+                // voteDeadline이 있고 미래이거나, voteDeadline이 없어도 OPEN이면 voting
+                if (!s.voteDeadline || new Date(s.voteDeadline) > now) {
+                  status = 'voting';
+                }
+              }
+            }
             
             // 정산 완료 여부 (totalSpent가 존재하면 정산 완료로 간주)
             const isFinalized = s.status === 'CLOSED' && s.totalSpent !== undefined && s.totalSpent > 0;
@@ -375,11 +384,19 @@ export function ScheduleListView() {
           const isToday = diffDays === 0;
           const isPast = endDate < now;
           
+          // 투표 진행 상태 판단: voteDeadline이 있거나 없어도 vote.status === 'OPEN'이면 voting
           let status: 'voting' | 'confirmed' | 'ongoing' | 'completed' | 'cancelled' = 'confirmed';
           if (s.status === 'CANCELLED') status = 'cancelled';
           else if (s.status === 'CLOSED') status = 'completed';
           else if (isToday && !isPast) status = 'ongoing';
-          else if (s.voteDeadline && new Date(s.voteDeadline) > now) status = 'voting';
+          else {
+            if (scheduleVote && scheduleVote.status === 'OPEN') {
+              // voteDeadline이 있고 미래이거나, voteDeadline이 없어도 OPEN이면 voting
+              if (!s.voteDeadline || new Date(s.voteDeadline) > now) {
+                status = 'voting';
+              }
+            }
+          }
           
           const isFinalized = s.status === 'CLOSED' && s.totalSpent !== undefined && s.totalSpent > 0;
           

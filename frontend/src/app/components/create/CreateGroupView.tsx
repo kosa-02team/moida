@@ -33,7 +33,6 @@ export function CreateGroupView() {
   const [category, setCategory] = useState<CategoryType>('SOCIAL');
   const [clubType, setClubType] = useState<'OPERATION_FEE' | 'FAIR_SETTLEMENT'>('FAIR_SETTLEMENT');
   const [isPublic, setIsPublic] = useState(true);
-  const [postsPublic, setPostsPublic] = useState(false);
   const [image, setImage] = useState<string | null>(null);
 
   const handleNext = () => {
@@ -158,17 +157,19 @@ export function CreateGroupView() {
             <div className="space-y-3">
               <Label className="text-base font-semibold text-stone-900">카테고리</Label>
               <RadioGroup value={category} onValueChange={(v) => setCategory(v as CategoryType)} className="grid grid-cols-2 gap-3">
-                {(Object.keys(CATEGORY_LABELS) as CategoryType[]).map((cat) => (
-                  <div
-                    key={cat}
-                    className={`flex items-center space-x-2 border p-3 rounded-xl transition-all ${category === cat ? 'border-orange-500 bg-orange-50' : 'border-stone-200'}`}
-                  >
-                    <RadioGroupItem value={cat} id={cat} className="text-orange-500" />
-                    <Label htmlFor={cat} className="flex-1 cursor-pointer font-medium text-stone-900">
-                      {CATEGORY_LABELS[cat]}
-                    </Label>
-                  </div>
-                ))}
+                <>
+                  {(Object.keys(CATEGORY_LABELS) as CategoryType[]).map((cat) => (
+                    <div
+                      key={cat}
+                      className={`flex items-center space-x-2 border p-3 rounded-xl transition-all ${category === cat ? 'border-orange-500 bg-orange-50' : 'border-stone-200'}`}
+                    >
+                      <RadioGroupItem value={cat} id={cat} className="text-orange-500" />
+                      <Label htmlFor={cat} className="flex-1 cursor-pointer font-medium text-stone-900">
+                        {CATEGORY_LABELS[cat]}
+                      </Label>
+                    </div>
+                  ))}
+                </>
               </RadioGroup>
             </div>
 
@@ -256,14 +257,6 @@ export function CreateGroupView() {
                 <Switch checked={isPublic} onCheckedChange={setIsPublic} className="data-[state=checked]:bg-orange-500" />
               </div>
 
-              {/* Posts Public Switch */}
-              <div className="flex items-center justify-between p-4 border border-stone-200 rounded-xl">
-                <div className="space-y-0.5">
-                  <Label className="text-base text-stone-900">게시글 공개</Label>
-                  <div className="text-sm text-stone-500">비회원도 게시글을 볼 수 있습니다</div>
-                </div>
-                <Switch checked={postsPublic} onCheckedChange={setPostsPublic} className="data-[state=checked]:bg-orange-500" />
-              </div>
             </div>
 
             {/* Info Box */}

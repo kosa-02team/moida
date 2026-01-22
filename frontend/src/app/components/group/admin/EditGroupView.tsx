@@ -92,6 +92,12 @@ export function EditGroupView() {
         return;
       }
       
+      const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error('이미지 크기는 5MB 이하만 가능합니다');
+        return;
+      }
+      
       const reader = new FileReader();
       reader.onload = (event) => {
         const result = event.target?.result as string;
