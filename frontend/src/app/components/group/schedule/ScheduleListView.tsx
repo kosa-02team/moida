@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Calendar as CalendarIcon, MapPin, CheckCircle2, ClipboardCheck, ArrowUp, ArrowDown, Check, X } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, MapPin, CheckCircle2, ClipboardCheck, ArrowUp, ArrowDown, Check, X, TrendingUp } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { Button } from '../../ui/button';
 import { Card, CardContent } from '../../ui/card';
@@ -10,9 +10,17 @@ import {
   useUserRole,
   useUserPermissions,
 } from '../../../data/userRoles';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../ui/select';
 import { getSchedules, getScheduleParticipants, type ScheduleResponse } from '../../../../api/schedule';
 import { getVotes, getVote, answerVote, type VoteDetailResponse, type VoteAnswerRequest } from '../../../../api/vote';
 import { getMyInfo } from '../../../../api/user';
+import { getRecentPosts, type PostCardResponse } from '../../../../api/post';
 
 interface Schedule {
   id: number;
@@ -31,6 +39,7 @@ interface Schedule {
   myResponse?: 'attending' | 'not_attending' | null; // 내 투표 상태
   entryFee?: number; // 참가비
   myFeeStatus?: 'PAID' | 'PENDING'; // 내 납부 상태
+  postLikes?: number; // 연결된 게시글의 좋아요 수
 }
 
 export function ScheduleListView() {
@@ -66,6 +75,14 @@ export function ScheduleListView() {
       try {
         setLoading(true);
         const scheduleData = await getSchedules(Number(groupId));
+
+        // 게시글 목록 조회 (일정과 연결된 게시글의 좋아요 수를 위해)
+        let posts: PostCardResponse[] = [];
+        try {
+          posts = await getRecentPosts(Number(groupId), 0, 100);
+        } catch (error) {
+          console.error('게시글 목록 조회 실패:', error);
+        }
 
         // 투표 목록 조회
         let votes: VoteDetailResponse[] = [];
@@ -144,6 +161,10 @@ export function ScheduleListView() {
             // 정산 완료 여부 (totalSpent가 존재하면 정산 완료로 간주)
             const isFinalized = s.status === 'CLOSED' && s.totalSpent !== undefined && s.totalSpent > 0;
             
+            // 일정과 연결된 게시글 찾기 (좋아요 수를 위해)
+            const linkedPost = posts.find(p => p.scheduleId === s.scheduleId);
+            const postLikes = linkedPost?.postLikes || 0;
+            
             return {
               id: s.scheduleId,
               title: s.scheduleName,
@@ -161,6 +182,7 @@ export function ScheduleListView() {
               myResponse,
               entryFee: s.entryFee,
               myFeeStatus,
+              postLikes,
             };
           })
         );
@@ -224,11 +246,20 @@ export function ScheduleListView() {
 
   // 정렬 적용
   const sortedSchedules = [...schedules].sort((a, b) => {
-    return sortOrder === 'newest' ? b.id - a.id : a.id - b.id;
+    if (sortOrder === 'newest') {
+      return b.id - a.id;
+    } else if (sortOrder === 'oldest') {
+      return a.id - b.id;
+    } else if (sortOrder === 'popular') {
+      // 좋아요 수 기준 내림차순 (좋아요가 같으면 최신순)
+      const likesDiff = (b.postLikes || 0) - (a.postLikes || 0);
+      return likesDiff !== 0 ? likesDiff : b.id - a.id;
+    }
+    return b.id - a.id;
   });
 
-  const toggleSortOrder = () => {
-    setSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest');
+  const handleSortChange = (order: 'newest' | 'oldest' | 'popular') => {
+    setSortOrder(order);
   };
 
   // 목록 페이지에서 투표 처리
@@ -325,6 +356,10 @@ export function ScheduleListView() {
           
           const isFinalized = s.status === 'CLOSED' && s.totalSpent !== undefined && s.totalSpent > 0;
           
+          // 일정과 연결된 게시글 찾기 (좋아요 수를 위해)
+          const linkedPost = posts.find(p => p.scheduleId === s.scheduleId);
+          const postLikes = linkedPost?.postLikes || 0;
+          
           return {
             id: s.scheduleId,
             title: s.scheduleName,
@@ -342,6 +377,7 @@ export function ScheduleListView() {
             myResponse,
             entryFee: s.entryFee,
             myFeeStatus,
+            postLikes,
           };
         })
       );
@@ -360,24 +396,50 @@ export function ScheduleListView() {
     <div className="space-y-4 pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       {/* 정렬 옵션 */}
       <div className="flex justify-start items-center">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={toggleSortOrder}
-          className="flex items-center gap-1 text-stone-600"
-        >
-          {sortOrder === 'newest' ? (
-            <>
-              <ArrowDown className="w-4 h-4" />
-              최신순
-            </>
-          ) : (
-            <>
-              <ArrowUp className="w-4 h-4" />
-              오래된순
-            </>
-          )}
-        </Button>
+        <Select value={sortOrder} onValueChange={(value) => handleSortChange(value as 'newest' | 'oldest' | 'popular')}>
+          <SelectTrigger className="w-[130px] h-9 text-stone-600 px-3">
+            <SelectValue>
+              {sortOrder === 'newest' && (
+                <span className="flex items-center gap-2">
+                  <ArrowDown className="w-4 h-4" />
+                  최신순
+                </span>
+              )}
+              {sortOrder === 'oldest' && (
+                <span className="flex items-center gap-2">
+                  <ArrowUp className="w-4 h-4" />
+                  오래된순
+                </span>
+              )}
+              {sortOrder === 'popular' && (
+                <span className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4" />
+                  인기순
+                </span>
+              )}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">
+              <span className="flex items-center gap-2">
+                <ArrowDown className="w-4 h-4" />
+                최신순
+              </span>
+            </SelectItem>
+            <SelectItem value="oldest">
+              <span className="flex items-center gap-2">
+                <ArrowUp className="w-4 h-4" />
+                오래된순
+              </span>
+            </SelectItem>
+            <SelectItem value="popular">
+              <span className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                인기순
+              </span>
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {sortedSchedules.length > 0 ? (

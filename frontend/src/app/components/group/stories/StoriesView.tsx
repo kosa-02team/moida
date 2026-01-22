@@ -6,7 +6,14 @@ import { Card, CardContent } from '../../ui/card';
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
-import { Heart, MessageCircle, Calendar, Clock, Users, ChevronRight, Plus } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../ui/select';
+import { Heart, MessageCircle, Calendar, Clock, Users, ChevronRight, Plus, ArrowDown, ArrowUp, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { ClubDetailResponse } from '@/api/club-full';
 
@@ -212,6 +219,24 @@ export function StoriesView() {
     }
   };
 
+  // 정렬 적용
+  const sortedPosts = [...allPosts].sort((a, b) => {
+    if (sortOrder === 'newest') {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    } else if (sortOrder === 'oldest') {
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    } else if (sortOrder === 'popular') {
+      // 좋아요 수 기준 내림차순 (좋아요가 같으면 최신순)
+      const likesDiff = b.postLikes - a.postLikes;
+      return likesDiff !== 0 ? likesDiff : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
+  const handleSortChange = (order: 'newest' | 'oldest' | 'popular') => {
+    setSortOrder(order);
+  };
+
   if (loading && page === 0) {
     return (
       <div className="space-y-4 pb-20">
@@ -229,8 +254,56 @@ export function StoriesView() {
 
   return (
     <div className="space-y-4 pb-20">
+      {/* 정렬 옵션 */}
+      <div className="flex justify-start items-center">
+        <Select value={sortOrder} onValueChange={(value) => handleSortChange(value as 'newest' | 'oldest' | 'popular')}>
+          <SelectTrigger className="w-[130px] h-9 text-stone-600 px-3">
+            <SelectValue>
+              {sortOrder === 'newest' && (
+                <span className="flex items-center gap-2">
+                  <ArrowDown className="w-4 h-4" />
+                  최신순
+                </span>
+              )}
+              {sortOrder === 'oldest' && (
+                <span className="flex items-center gap-2">
+                  <ArrowUp className="w-4 h-4" />
+                  오래된순
+                </span>
+              )}
+              {sortOrder === 'popular' && (
+                <span className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4" />
+                  인기순
+                </span>
+              )}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">
+              <span className="flex items-center gap-2">
+                <ArrowDown className="w-4 h-4" />
+                최신순
+              </span>
+            </SelectItem>
+            <SelectItem value="oldest">
+              <span className="flex items-center gap-2">
+                <ArrowUp className="w-4 h-4" />
+                오래된순
+              </span>
+            </SelectItem>
+            <SelectItem value="popular">
+              <span className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                인기순
+              </span>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* 게시글 목록 */}
-      {allPosts.map((post) => (
+      {sortedPosts.map((post) => (
         <Card key={post.postId} className="overflow-hidden">
           <CardContent className="p-0">
             {/* 게시글 헤더 */}
@@ -403,7 +476,7 @@ export function StoriesView() {
       )}
 
       {/* 게시글이 없을 때 */}
-      {!loading && allPosts.length === 0 && (
+      {!loading && sortedPosts.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-stone-500">
           <Calendar className="h-12 w-12 mb-4 text-stone-300" />
           <p className="text-lg font-medium mb-1">아직 게시글이 없습니다</p>
