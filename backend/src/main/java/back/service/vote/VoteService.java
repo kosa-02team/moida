@@ -16,10 +16,12 @@ import back.repository.club.ClubMemberRepository;
 import back.repository.club.ClubRepository;
 import back.repository.post.PostRepository;
 import back.repository.schedule.ScheduleRepository;
+import back.repository.schedule.ScheduleParticipantRepository;
 import back.repository.vote.VoteOptionRepository;
 import back.repository.vote.VoteRecordRepository;
 import back.repository.vote.VoteRepository;
 import back.repository.UserRepository;
+import back.domain.schedule.ScheduleParticipants;
 import back.service.club.ClubAuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,7 @@ public class VoteService {
 
     private final PostRepository postRepository;
     private final ScheduleRepository scheduleRepository;
+    private final ScheduleParticipantRepository scheduleParticipantRepository;
     private final VoteRepository voteRepository;
     private final VoteOptionRepository voteOptionRepository;
     private final VoteRecordRepository voteRecordRepository;
@@ -408,6 +411,35 @@ public class VoteService {
                 .collect(Collectors.toList());
 
         voteRecordRepository.saveAll(newRecords);
+
+        // 8. ATTENDANCE 타입 투표인 경우 ScheduleParticipants 자동 생성/업데이트
+        if ("ATTENDANCE".equals(vote.getVoteType()) && vote.getScheduleId() != null) {
+            Long scheduleId = vote.getScheduleId();
+            
+            // 선택된 옵션 확인 (참석 또는 불참)
+            VoteOptions selectedOption = validOptions.get(0); // ATTENDANCE는 항상 1개만 선택
+            String optionText = selectedOption.getOptionText();
+            
+            // ScheduleParticipants 조회 또는 생성
+            ScheduleParticipants participant = scheduleParticipantRepository
+                    .findByScheduleIdAndUserId(scheduleId, userId)
+                    .orElseGet(() -> {
+                        ScheduleParticipants newParticipant = new ScheduleParticipants(scheduleId, userId);
+                        scheduleParticipantRepository.save(newParticipant);
+                        return newParticipant;
+                    });
+            
+            // 참석 상태 업데이트
+            if ("참석".equals(optionText) || optionText.contains("참석")) {
+                participant.attend();
+            } else if ("불참".equals(optionText) || optionText.contains("불참")) {
+                participant.notAttend();
+            } else {
+                participant.undecided();
+            }
+            
+            scheduleParticipantRepository.save(participant);
+        }
     }
 
     /**

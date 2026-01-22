@@ -293,13 +293,17 @@ export function ScheduleListView() {
         opt.optionText === '불참' || opt.optionText.includes('불참')
       );
       
-      // 토글 기능: 같은 버튼을 다시 누르면 다른 옵션으로 변경
+      // 토글 기능: 같은 버튼을 다시 누르면 취소 (null)
       const currentSchedule = schedules.find(s => s.id === scheduleId);
       let selectedOptionId: number | undefined;
+      let isCancelling = false;
       
       if ((response === 'attending' && currentSchedule?.myResponse === 'attending') || 
           (response === 'not_attending' && currentSchedule?.myResponse === 'not_attending')) {
-        // 이미 선택된 옵션을 다시 클릭하면 다른 옵션으로 변경
+        // 이미 선택된 옵션을 다시 클릭하면 취소
+        isCancelling = true;
+        // 빈 배열을 보내면 투표 취소 (백엔드가 지원하는 경우)
+        // 지원하지 않으면 다른 옵션으로 변경
         selectedOptionId = response === 'attending' 
           ? notAttendingOption?.optionId 
           : attendingOption?.optionId;
@@ -316,11 +320,11 @@ export function ScheduleListView() {
       }
       
       const request: VoteAnswerRequest = {
-        optionIds: [selectedOptionId]
+        optionIds: isCancelling ? [] : [selectedOptionId]
       };
       await answerVote(Number(groupId), voteId, request);
       
-      // 즉시 새로고침
+      // 즉시 서버 데이터로 동기화
       const scheduleData = await getSchedules(Number(groupId));
       const participantsData = await Promise.all(
         scheduleData.map(s => getScheduleParticipants(Number(groupId), s.scheduleId).catch(() => []))
@@ -406,7 +410,12 @@ export function ScheduleListView() {
       );
       
       setSchedules(updatedSchedules as Schedule[]);
-      toast.success(response === 'attending' ? '참석으로 응답했습니다' : '불참으로 응답했습니다');
+      
+      if (isCancelling) {
+        toast.success('투표가 취소되었습니다');
+      } else {
+        toast.success(response === 'attending' ? '참석으로 응답했습니다' : '불참으로 응답했습니다');
+      }
     } catch (error) {
       console.error('투표 실패:', error);
       toast.error('투표에 실패했습니다.');

@@ -255,11 +255,12 @@ export function ScheduleDetailView() {
         opt.optionText === '불참' || opt.optionText.includes('불참')
       );
       
-      // 토글 기능: 같은 버튼을 다시 누르면 다른 옵션으로 변경 (취소 효과)
+      // 토글 기능: 같은 버튼을 다시 누르면 다른 옵션으로 변경
       let selectedOptionId: number | undefined;
+      const isToggling = (response === 'attending' && myResponse === 'attending') || 
+                         (response === 'not_attending' && myResponse === 'not_attending');
       
-      if ((response === 'attending' && myResponse === 'attending') || 
-          (response === 'not_attending' && myResponse === 'not_attending')) {
+      if (isToggling) {
         // 이미 선택된 옵션을 다시 클릭하면 다른 옵션으로 변경
         selectedOptionId = response === 'attending' 
           ? notAttendingOption?.optionId 
@@ -287,11 +288,9 @@ export function ScheduleDetailView() {
       
       await answerVote(Number(groupId), vote.voteId, request);
       
-      // 토글인 경우와 새로 선택한 경우 메시지 구분 (API 호출 전의 상태로 판단)
-      const wasToggled = (response === 'attending' && myResponse === 'attending') || 
-                         (response === 'not_attending' && myResponse === 'not_attending');
+      // 약간의 딜레이 후 서버 데이터로 동기화 (백엔드에서 ScheduleParticipants 생성/업데이트 시간 확보)
+      await new Promise(resolve => setTimeout(resolve, 300));
       
-      // 참석자 목록 및 투표 정보 즉시 새로고침
       const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
       const updatedVote = await getVote(Number(groupId), vote.voteId);
       
@@ -321,12 +320,18 @@ export function ScheduleDetailView() {
               setMyResponse('attending');
             } else if (selectedOption.optionText === '불참' || selectedOption.optionText.includes('불참')) {
               setMyResponse('not_attending');
+            } else {
+              setMyResponse(null);
             }
+          } else {
+            setMyResponse(null);
           }
+        } else {
+          setMyResponse(null);
         }
       }
       
-      if (wasToggled) {
+      if (isToggling) {
         toast.success(response === 'attending' ? '불참으로 변경되었습니다' : '참석으로 변경되었습니다');
       } else {
         toast.success(response === 'attending' ? '참석으로 응답했습니다' : '불참으로 응답했습니다');
