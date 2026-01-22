@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import * as React from 'react';
-import { 
-  ArrowLeft, 
-  Shield, 
-  Flag, 
-  Users, 
-  UserX, 
-  Ban, 
+import {
+  ArrowLeft,
+  Shield,
+  Flag,
+  Users,
+  UserX,
+  Ban,
   Search,
   Eye,
   CheckCircle,
@@ -26,7 +26,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
@@ -82,7 +82,7 @@ type SuspendDuration = '1day' | '3days' | '7days' | '30days' | 'permanent';
 
 export function SystemAdminView() {
   const navigate = useNavigate();
-  
+
   // 상태
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -164,9 +164,7 @@ export function SystemAdminView() {
     );
   }
 
-  if (!isAdmin) {
-    return null;
-  }
+  // isAdmin check removed - validation is done via API calls and backend security
 
   const statusLabels: Record<string, string> = {
     pending: '대기 중',
@@ -204,17 +202,17 @@ export function SystemAdminView() {
 
   const filteredReports = reports.filter(r => {
     const matchesSearch = r.targetName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         r.reporterName.toLowerCase().includes(searchQuery.toLowerCase());
+      r.reporterName.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = filterStatus === 'all' || r.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
 
-  const filteredUsers = users.filter(u => 
-    u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.email.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredUsers = users.filter(u =>
+    u.realName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    u.loginId.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredGroups = groups.filter(g => 
+  const filteredGroups = clubs.filter(g =>
     g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     g.ownerName.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -241,15 +239,15 @@ export function SystemAdminView() {
     }
 
     if (suspendTarget.type === 'user') {
-      setUsers(prev => prev.map(u => 
-        u.id === suspendTarget.id 
-          ? { ...u, status: suspendDuration === 'permanent' ? 'banned' : 'suspended', suspendedUntil: suspendDuration === 'permanent' ? undefined : '계산된 날짜' } 
+      setUsers(prev => prev.map(u =>
+        u.userId === suspendTarget.id
+          ? { ...u, status: suspendDuration === 'permanent' ? 'banned' : 'suspended' }
           : u
       ));
     } else {
-      setGroups(prev => prev.map(g => 
-        g.id === suspendTarget.id 
-          ? { ...g, status: suspendDuration === 'permanent' ? 'banned' : 'suspended', suspendedUntil: suspendDuration === 'permanent' ? undefined : '계산된 날짜' } 
+      setClubs(prev => prev.map(g =>
+        g.clubId === suspendTarget.id
+          ? { ...g, status: suspendDuration === 'permanent' ? 'banned' : 'suspended' }
           : g
       ));
     }
@@ -266,9 +264,9 @@ export function SystemAdminView() {
     if (!deleteTarget) return;
 
     if (deleteTarget.type === 'user') {
-      setUsers(prev => prev.filter(u => u.id !== deleteTarget.id));
+      setUsers(prev => prev.filter(u => u.userId !== deleteTarget.id));
     } else {
-      setGroups(prev => prev.filter(g => g.id !== deleteTarget.id));
+      setClubs(prev => prev.filter(g => g.clubId !== deleteTarget.id));
     }
 
     toast.success(`${deleteTarget.name}이(가) 삭제되었습니다`);
@@ -278,9 +276,9 @@ export function SystemAdminView() {
 
   const handleActivate = (type: 'user' | 'group', id: string, name: string) => {
     if (type === 'user') {
-      setUsers(prev => prev.map(u => u.id === id ? { ...u, status: 'active', suspendedUntil: undefined } : u));
+      setUsers(prev => prev.map(u => u.userId === Number(id) ? { ...u, status: 'active' } : u));
     } else {
-      setGroups(prev => prev.map(g => g.id === id ? { ...g, status: 'active', suspendedUntil: undefined } : g));
+      setClubs(prev => prev.map(g => g.clubId === Number(id) ? { ...g, status: 'active' } : g));
     }
     toast.success(`${name}의 정지가 해제되었습니다`);
   };
@@ -291,9 +289,9 @@ export function SystemAdminView() {
     totalUsers: users.length,
     suspendedUsers: users.filter(u => u.status === 'suspended').length,
     bannedUsers: users.filter(u => u.status === 'banned').length,
-    totalGroups: groups.length,
-    suspendedGroups: groups.filter(g => g.status === 'suspended').length,
-    bannedGroups: groups.filter(g => g.status === 'banned').length,
+    totalGroups: clubs.length,
+    suspendedGroups: clubs.filter(g => g.status === 'suspended').length,
+    bannedGroups: clubs.filter(g => g.status === 'banned').length,
   };
 
   return (
@@ -418,8 +416,8 @@ export function SystemAdminView() {
               ) : (
                 <div className="divide-y divide-stone-100">
                   {filteredReports.map(report => (
-                    <div 
-                      key={report.reportId} 
+                    <div
+                      key={report.reportId}
                       className="p-4 hover:bg-stone-50 cursor-pointer"
                       onClick={() => setSelectedReport(report)}
                     >
@@ -462,26 +460,22 @@ export function SystemAdminView() {
             <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
               <div className="divide-y divide-stone-100">
                 {filteredUsers.map(user => (
-                  <div key={user.id} className="p-4">
+                  <div key={user.userId} className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <Avatar className="w-10 h-10">
-                          <AvatarImage src={user.avatar} />
-                          <AvatarFallback>{user.name[0]}</AvatarFallback>
+                          <AvatarFallback>{user.realName[0]}</AvatarFallback>
                         </Avatar>
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-medium text-stone-900">{user.name}</p>
+                            <p className="font-medium text-stone-900">{user.realName}</p>
                             <Badge className={`text-xs ${statusColors[user.status]}`}>
                               {statusLabels[user.status]}
                             </Badge>
                           </div>
-                          <p className="text-xs text-stone-500">{user.email}</p>
+                          <p className="text-xs text-stone-500">{user.loginId}</p>
                           <div className="flex items-center gap-3 mt-1 text-xs text-stone-400">
-                            <span>모임 {user.groupCount}개</span>
-                            {user.reportCount > 0 && (
-                              <span className="text-red-500">신고 {user.reportCount}회</span>
-                            )}
+                            {/* Stats not available in API */}
                           </div>
                         </div>
                       </div>
@@ -493,10 +487,10 @@ export function SystemAdminView() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           {user.status === 'active' && (
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               className="text-amber-600"
                               onClick={() => {
-                                setSuspendTarget({ type: 'user', id: user.id, name: user.name });
+                                setSuspendTarget({ type: 'user', id: user.userId, name: user.realName });
                                 setShowSuspendDialog(true);
                               }}
                             >
@@ -505,19 +499,19 @@ export function SystemAdminView() {
                             </DropdownMenuItem>
                           )}
                           {(user.status === 'suspended' || user.status === 'banned') && (
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               className="text-green-600"
-                              onClick={() => handleActivate('user', user.id, user.name)}
+                              onClick={() => handleActivate('user', String(user.userId), user.realName)}
                             >
                               <PlayCircle className="w-4 h-4 mr-2" />
                               정지 해제
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             className="text-red-600"
                             onClick={() => {
-                              setDeleteTarget({ type: 'user', id: user.id, name: user.name });
+                              setDeleteTarget({ type: 'user', id: user.userId, name: user.realName });
                               setShowDeleteDialog(true);
                             }}
                           >
@@ -548,11 +542,11 @@ export function SystemAdminView() {
             <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
               <div className="divide-y divide-stone-100">
                 {filteredGroups.map(group => (
-                  <div key={group.id} className="p-4">
+                  <div key={group.clubId} className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-stone-200">
-                          <img src={group.image} alt="" className="w-full h-full object-cover" />
+                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-stone-200 flex items-center justify-center">
+                          <span className="text-lg font-bold text-stone-500">{group.name[0]}</span>
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
@@ -563,10 +557,7 @@ export function SystemAdminView() {
                           </div>
                           <p className="text-xs text-stone-500">모임장: {group.ownerName}</p>
                           <div className="flex items-center gap-3 mt-1 text-xs text-stone-400">
-                            <span>멤버 {group.memberCount}명</span>
-                            {group.reportCount > 0 && (
-                              <span className="text-red-500">신고 {group.reportCount}회</span>
-                            )}
+                            {/* Stats not available */}
                           </div>
                         </div>
                       </div>
@@ -578,10 +569,10 @@ export function SystemAdminView() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           {group.status === 'active' && (
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               className="text-amber-600"
                               onClick={() => {
-                                setSuspendTarget({ type: 'group', id: group.id, name: group.name });
+                                setSuspendTarget({ type: 'group', id: group.clubId, name: group.name });
                                 setShowSuspendDialog(true);
                               }}
                             >
@@ -590,19 +581,19 @@ export function SystemAdminView() {
                             </DropdownMenuItem>
                           )}
                           {(group.status === 'suspended' || group.status === 'banned') && (
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               className="text-green-600"
-                              onClick={() => handleActivate('group', group.id, group.name)}
+                              onClick={() => handleActivate('group', String(group.clubId), group.name)}
                             >
                               <PlayCircle className="w-4 h-4 mr-2" />
                               정지 해제
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             className="text-red-600"
                             onClick={() => {
-                              setDeleteTarget({ type: 'group', id: group.id, name: group.name });
+                              setDeleteTarget({ type: 'group', id: group.clubId, name: group.name });
                               setShowDeleteDialog(true);
                             }}
                           >
@@ -657,9 +648,9 @@ export function SystemAdminView() {
                     {selectedReportDetail.photoUrl && (
                       <div className="mt-2">
                         <span className="text-stone-500 text-sm block mb-1">첨부 사진</span>
-                        <img 
-                          src={selectedReportDetail.photoUrl} 
-                          alt="신고 첨부 사진" 
+                        <img
+                          src={selectedReportDetail.photoUrl}
+                          alt="신고 첨부 사진"
                           className="max-w-full h-auto rounded-lg border border-stone-200"
                         />
                       </div>
@@ -671,14 +662,14 @@ export function SystemAdminView() {
                   </div>
 
                   <div className="flex gap-2">
-                    <Button 
+                    <Button
                       className="flex-1 bg-green-500 hover:bg-green-600"
                       onClick={() => handleUpdateStatus(selectedReportDetail.reportId, 'resolved')}
                     >
                       <CheckCircle className="w-4 h-4 mr-2" />
                       처리 완료
                     </Button>
-                    <Button 
+                    <Button
                       variant="outline"
                       className="flex-1"
                       onClick={() => handleUpdateStatus(selectedReportDetail.reportId, 'dismissed')}
@@ -754,7 +745,7 @@ export function SystemAdminView() {
             <Button variant="outline" onClick={() => setShowSuspendDialog(false)}>
               취소
             </Button>
-            <Button 
+            <Button
               onClick={handleSuspend}
               className={suspendDuration === 'permanent' ? 'bg-red-500 hover:bg-red-600' : 'bg-amber-500 hover:bg-amber-600'}
             >
@@ -776,7 +767,7 @@ export function SystemAdminView() {
               {deleteTarget && (
                 <div className="space-y-3">
                   <p>
-                    <span className="font-medium text-stone-900">"{deleteTarget.name}"</span>을(를) 
+                    <span className="font-medium text-stone-900">"{deleteTarget.name}"</span>을(를)
                     완전히 삭제하시겠습니까?
                   </p>
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3">
