@@ -100,8 +100,8 @@ export function VoteCreateView() {
       if (!groupId) return;
 
       // 참가비 권한 체크: 총무 이상만 설정 가능
-      const feeAmount = entryFee.trim() ? parseFloat(entryFee) : 0;
-      if (feeAmount > 0 && !permissions.canWithdraw) {
+      const feeAmount = entryFee.trim() ? parseFloat(entryFee) : undefined;
+      if (feeAmount !== undefined && feeAmount > 0 && !permissions.canWithdraw) {
         toast.error('참가비 설정은 총무 이상만 가능합니다');
         return;
       }
@@ -288,7 +288,7 @@ export function VoteCreateView() {
               <Input
                 id="entryFee"
                 type="number"
-                placeholder="0"
+                placeholder="참가비를 입력하세요"
                 className="h-12 bg-stone-50 border-stone-200 rounded-xl pr-12 select-text"
                 value={entryFee}
                 onChange={(e) => setEntryFee(e.target.value)}

@@ -273,85 +273,100 @@ export function ScheduleDetailView() {
         opt.optionText === '불참' || opt.optionText.includes('불참')
       );
       
-      // 토글 기능: 같은 버튼을 다시 누르면 다른 옵션으로 변경
-      let selectedOptionId: number | undefined;
+      // 토글 기능: 같은 버튼을 다시 누르면 취소(미정으로)
       const isToggling = (response === 'attending' && myResponse === 'attending') || 
                          (response === 'not_attending' && myResponse === 'not_attending');
       
       if (isToggling) {
-        // 이미 선택된 옵션을 다시 클릭하면 다른 옵션으로 변경
-        selectedOptionId = response === 'attending' 
-          ? notAttendingOption?.optionId 
-          : attendingOption?.optionId;
-        
-        if (!selectedOptionId) {
-          toast.info('투표를 취소할 수 없습니다');
+        // 이미 선택된 옵션을 다시 클릭하면 취소 (미정으로 변경)
+        if (!currentUserId) {
+          toast.error('사용자 정보를 찾을 수 없습니다');
           return;
         }
+        
+        // 현재 사용자의 participant 찾기
+        const myParticipant = participants.find(p => p.userId === currentUserId);
+        if (!myParticipant) {
+          toast.error('참가자 정보를 찾을 수 없습니다');
+          return;
+        }
+        
+        // 직접 참가자 상태를 UNDECIDED로 변경
+        await updateParticipantAttendance(Number(groupId), Number(scheduleId), myParticipant.participantId, { 
+          attendanceStatus: 'UNDECIDED' 
+        });
+        
+        // 약간의 딜레이 후 서버 데이터로 동기화
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
+        const updatedVote = await getVote(Number(groupId), vote.voteId);
+        
+        setParticipants(participantsData);
+        setVote(updatedVote);
+        setMyResponse(null);
+        
+        toast.success('투표가 취소되었습니다');
       } else {
         // 새로운 선택
-        selectedOptionId = response === 'attending' 
+        const selectedOptionId = response === 'attending' 
           ? attendingOption?.optionId 
           : notAttendingOption?.optionId;
-      }
-      
-      if (!selectedOptionId) {
-        toast.error('투표 옵션을 찾을 수 없습니다');
-        return;
-      }
-      
-      const request: VoteAnswerRequest = {
-        optionIds: [selectedOptionId]
-      };
-      
-      await answerVote(Number(groupId), vote.voteId, request);
-      
-      // 약간의 딜레이 후 서버 데이터로 동기화 (백엔드에서 ScheduleParticipants 생성/업데이트 시간 확보)
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
-      const updatedVote = await getVote(Number(groupId), vote.voteId);
-      
-      // 상태 업데이트
-      setParticipants(participantsData);
-      setVote(updatedVote);
-      
-      // 서버 응답을 기반으로 myResponse 상태 업데이트
-      if (currentUserId) {
-        // 먼저 participants에서 확인
-        const myParticipant = participantsData.find(p => p.userId === currentUserId);
-        if (myParticipant) {
-          if (myParticipant.attendanceStatus === 'ATTENDING') {
-            setMyResponse('attending');
-          } else if (myParticipant.attendanceStatus === 'NOT_ATTENDING') {
-            setMyResponse('not_attending');
-          } else {
-            setMyResponse(null);
-          }
-        } else if (updatedVote.mySelectedOptionIds && updatedVote.mySelectedOptionIds.length > 0) {
-          // participants에 없으면 투표 데이터로 확인
-          const selectedOption = updatedVote.options.find(opt => 
-            updatedVote.mySelectedOptionIds?.includes(opt.optionId)
-          );
-          if (selectedOption) {
-            if (selectedOption.optionText === '참석' || selectedOption.optionText.includes('참석')) {
+        
+        if (!selectedOptionId) {
+          toast.error('투표 옵션을 찾을 수 없습니다');
+          return;
+        }
+        
+        const request: VoteAnswerRequest = {
+          optionIds: [selectedOptionId]
+        };
+        
+        await answerVote(Number(groupId), vote.voteId, request);
+        
+        // 약간의 딜레이 후 서버 데이터로 동기화 (백엔드에서 ScheduleParticipants 생성/업데이트 시간 확보)
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
+        const updatedVote = await getVote(Number(groupId), vote.voteId);
+        
+        // 상태 업데이트
+        setParticipants(participantsData);
+        setVote(updatedVote);
+        
+        // 서버 응답을 기반으로 myResponse 상태 업데이트
+        if (currentUserId) {
+          // 먼저 participants에서 확인
+          const myParticipant = participantsData.find(p => p.userId === currentUserId);
+          if (myParticipant) {
+            if (myParticipant.attendanceStatus === 'ATTENDING') {
               setMyResponse('attending');
-            } else if (selectedOption.optionText === '불참' || selectedOption.optionText.includes('불참')) {
+            } else if (myParticipant.attendanceStatus === 'NOT_ATTENDING') {
               setMyResponse('not_attending');
+            } else {
+              setMyResponse(null);
+            }
+          } else if (updatedVote.mySelectedOptionIds && updatedVote.mySelectedOptionIds.length > 0) {
+            // participants에 없으면 투표 데이터로 확인
+            const selectedOption = updatedVote.options.find(opt => 
+              updatedVote.mySelectedOptionIds?.includes(opt.optionId)
+            );
+            if (selectedOption) {
+              if (selectedOption.optionText === '참석' || selectedOption.optionText.includes('참석')) {
+                setMyResponse('attending');
+              } else if (selectedOption.optionText === '불참' || selectedOption.optionText.includes('불참')) {
+                setMyResponse('not_attending');
+              } else {
+                setMyResponse(null);
+              }
             } else {
               setMyResponse(null);
             }
           } else {
             setMyResponse(null);
           }
-        } else {
-          setMyResponse(null);
         }
-      }
-      
-      if (isToggling) {
-        toast.success(response === 'attending' ? '불참으로 변경되었습니다' : '참석으로 변경되었습니다');
-      } else {
+        
         toast.success(response === 'attending' ? '참석으로 응답했습니다' : '불참으로 응답했습니다');
       }
     } catch (error) {
@@ -541,10 +556,10 @@ export function ScheduleDetailView() {
 
     // 참가비 변경 여부 확인 및 권한 체크
     const currentEntryFee = schedule.entryFee || 0;
-    const newEntryFee = editEntryFee.trim() ? parseFloat(editEntryFee) : 0;
-    const isEntryFeeChanged = currentEntryFee !== newEntryFee;
+    const newEntryFee = editEntryFee.trim() ? parseFloat(editEntryFee) : undefined;
+    const isEntryFeeChanged = currentEntryFee !== (newEntryFee ?? 0);
 
-    if (isEntryFeeChanged && newEntryFee > 0 && !permissions.canWithdraw) {
+    if (isEntryFeeChanged && newEntryFee !== undefined && newEntryFee !== null && newEntryFee > 0 && !permissions.canWithdraw) {
       toast.error('참가비 변경은 총무 이상만 가능합니다');
       return;
     }
@@ -699,7 +714,7 @@ export function ScheduleDetailView() {
         )}
 
         {/* 참가비 정보 및 집계 */}
-        {schedule.entryFee && schedule.entryFee > 0 && (
+        {(schedule.entryFee ?? 0) > 0 && (
           <div className="bg-white rounded-2xl p-4 border border-stone-100 space-y-3">
             <h3 className="font-bold text-stone-900">참가비</h3>
             <div className="space-y-2">
@@ -807,7 +822,7 @@ export function ScheduleDetailView() {
               </Badge>
             </div>
             {/* 본인 입금 상태 표시 (참석한 경우) */}
-            {myResponse === 'attending' && schedule.entryFee && schedule.entryFee > 0 && currentUserId && (() => {
+            {myResponse === 'attending' && (schedule.entryFee ?? 0) > 0 && currentUserId && (() => {
               const myParticipant = participants.find(p => p.userId === currentUserId);
               const isPaid = myParticipant?.feeStatus === 'PAID';
               return (
@@ -872,7 +887,7 @@ export function ScheduleDetailView() {
               <span className="text-green-600">참석 {attendingCount}</span>
               <span className="text-red-500">불참 {notAttendingCount}</span>
               <span className="text-stone-400">미정 {pendingCount}</span>
-              {schedule.entryFee && schedule.entryFee > 0 && (
+              {(schedule.entryFee ?? 0) > 0 && (
                 <>
                   <span className="text-stone-300">|</span>
                   <span className="text-blue-600">납부 {paidCount}/{attendingCount}</span>
@@ -961,54 +976,40 @@ export function ScheduleDetailView() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {/* 참석 상태 뱃지 */}
-                      <Badge
-                        variant="secondary"
-                        className={`text-xs ${
-                          participant.attendanceStatus === 'ATTENDING' 
-                            ? 'bg-green-100 text-green-700' 
-                            : participant.attendanceStatus === 'NOT_ATTENDING'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-stone-100 text-stone-500'
-                        }`}
-                      >
-                        {participant.attendanceStatus === 'ATTENDING' ? '참석' : participant.attendanceStatus === 'NOT_ATTENDING' ? '불참' : '미정'}
-                      </Badge>
-                      
                       {/* 총무 이상인 경우 상태 변경 버튼 표시 */}
                       {permissions.canWithdraw && schedule.status !== 'CANCELLED' && (
                         <div className="flex gap-1 flex-wrap">
-                          {/* 참석 상태 변경 버튼 (총무 이상) */}
-                          {participant.attendanceStatus !== 'ATTENDING' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-1.5 text-xs text-green-600 hover:text-green-700"
-                              onClick={() => handleUpdateAttendanceStatus(participant.participantId, 'ATTENDING')}
-                            >
-                              참석
-                            </Button>
-                          )}
-                          {participant.attendanceStatus !== 'NOT_ATTENDING' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-1.5 text-xs text-red-600 hover:text-red-700"
-                              onClick={() => handleUpdateAttendanceStatus(participant.participantId, 'NOT_ATTENDING')}
-                            >
-                              불참
-                            </Button>
-                          )}
-                          {participant.attendanceStatus !== 'UNDECIDED' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-1.5 text-xs text-stone-500 hover:text-stone-600"
-                              onClick={() => handleUpdateAttendanceStatus(participant.participantId, 'UNDECIDED')}
-                            >
-                              미정
-                            </Button>
-                          )}
+                          {/* 참석 상태 변경 버튼 (총무 이상) - 순서 고정: 참석, 불참 */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-6 px-1.5 text-xs ${
+                              participant.attendanceStatus === 'ATTENDING'
+                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                : 'text-green-600 hover:text-green-700 hover:bg-green-50'
+                            }`}
+                            onClick={() => {
+                              const newStatus = participant.attendanceStatus === 'ATTENDING' ? 'UNDECIDED' : 'ATTENDING';
+                              handleUpdateAttendanceStatus(participant.participantId, newStatus);
+                            }}
+                          >
+                            참석
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-6 px-1.5 text-xs ${
+                              participant.attendanceStatus === 'NOT_ATTENDING'
+                                ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                : 'text-red-600 hover:text-red-700 hover:bg-red-50'
+                            }`}
+                            onClick={() => {
+                              const newStatus = participant.attendanceStatus === 'NOT_ATTENDING' ? 'UNDECIDED' : 'NOT_ATTENDING';
+                              handleUpdateAttendanceStatus(participant.participantId, newStatus);
+                            }}
+                          >
+                            불참
+                          </Button>
                           {/* 납부 상태 토글 (참가비가 있고 일정이 열려있을 때만) */}
                           {hasEntryFee && schedule.status === 'OPEN' && (
                             <Button
@@ -1067,7 +1068,7 @@ export function ScheduleDetailView() {
                 일정 취소
               </Button>
             </div>
-            {schedule.entryFee && schedule.entryFee > 0 && (
+            {(schedule.entryFee ?? 0) > 0 && (
               <p className="text-xs text-stone-500 mt-2">
                 * 참가비가 설정된 일정의 마감/취소는 총무 이상만 가능합니다.
               </p>
@@ -1298,7 +1299,7 @@ export function ScheduleDetailView() {
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-500">원</span>
                 </div>
-                {schedule && schedule.entryFee && schedule.entryFee > 0 && (
+                {schedule && (schedule.entryFee ?? 0) > 0 && (
                   <div className="bg-orange-50 p-3 rounded-xl border border-orange-100 flex gap-2">
                     <AlertCircle className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
                     <p className="text-xs text-orange-800">
