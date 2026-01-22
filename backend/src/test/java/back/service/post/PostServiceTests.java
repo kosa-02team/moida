@@ -427,7 +427,6 @@ public class PostServiceTests {
                                 Long viewerId = 100L;
 
                                 Pageable pageable = PageRequest.of(0, 20);
-
                                 willDoNothing().given(clubAuthorizationService)
                                                 .validateAndGetClubForReadPosts(clubId, viewerId);
 
