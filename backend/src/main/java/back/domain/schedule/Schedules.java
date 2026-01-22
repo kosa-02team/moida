@@ -71,13 +71,14 @@ public class Schedules extends BaseEntity {
     }
 
     // 도메인 메서드
-    public void updateSchedule(String scheduleName, LocalDateTime eventDate, LocalDateTime endDate, String location, String description, BigDecimal entryFee) {
+    public void updateSchedule(String scheduleName, LocalDateTime eventDate, LocalDateTime endDate, String location, String description, BigDecimal entryFee, LocalDateTime voteDeadline) {
         this.scheduleName = scheduleName;
         this.eventDate = eventDate;
         this.endDate = endDate;
         this.location = location;
         this.description = description;
         this.entryFee = entryFee;
+        this.voteDeadline = voteDeadline;
     }
 
     public void updateSettlement(BigDecimal totalSpent, BigDecimal refundPerPerson) {

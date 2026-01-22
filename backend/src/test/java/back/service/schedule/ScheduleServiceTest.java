@@ -341,7 +341,8 @@ class ScheduleServiceTest {
                     endDate,
                     "신촌역",
                     "수정된 설명",
-                    BigDecimal.valueOf(10000) // 참가비 동일
+                    BigDecimal.valueOf(10000), // 참가비 동일
+                    null // voteDeadline
             );
 
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
@@ -380,7 +381,8 @@ class ScheduleServiceTest {
                     endDate,
                     "신촌역",
                     "수정된 설명",
-                    BigDecimal.valueOf(15000) // 참가비 변경
+                    BigDecimal.valueOf(15000), // 참가비 변경
+                    null // voteDeadline
             );
 
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
@@ -418,7 +420,8 @@ class ScheduleServiceTest {
                     endDate,
                     "신촌역",
                     "수정된 설명",
-                    BigDecimal.ZERO
+                    BigDecimal.ZERO,
+                    null // voteDeadline
             );
 
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
@@ -448,7 +451,8 @@ class ScheduleServiceTest {
                     endDate,
                     "신촌역",
                     "수정된 설명",
-                    BigDecimal.ZERO
+                    BigDecimal.ZERO,
+                    null // voteDeadline
             );
 
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));

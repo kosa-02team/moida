@@ -10,6 +10,8 @@ import back.repository.ledger.PaymentRequestRepository;
 import back.repository.ledger.TransactionLogRepository;
 import back.repository.schedule.ScheduleParticipantRepository;
 import back.repository.schedule.ScheduleRepository;
+import back.repository.notifications.NotificationsRepository;
+import back.service.notifications.NotificationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -29,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willDoNothing;
 import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,6 +42,8 @@ class EventFundServiceTest {
     @Mock private PaymentRequestRepository paymentRequestRepository;
     @Mock private TransactionLogRepository transactionLogRepository;
     @Mock private UserRepository userRepository;
+    @Mock private NotificationService notificationService;
+    @Mock private NotificationsRepository notificationsRepository;
 
     @InjectMocks
     private EventFundService eventFundService;
@@ -58,7 +63,9 @@ class EventFundServiceTest {
     private ScheduleParticipants createParticipant(Long scheduleId, Long memberId, Long userId) {
         ScheduleParticipants p = newEntity(ScheduleParticipants.class);
         ReflectionTestUtils.setField(p, "scheduleId", scheduleId);
+        ReflectionTestUtils.setField(p, "participantId", memberId);
         ReflectionTestUtils.setField(p, "userId", userId);
+        ReflectionTestUtils.setField(p, "attendanceStatus", "ATTENDING");
         return p;
     }
 
@@ -98,6 +105,10 @@ class EventFundServiceTest {
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
             given(participantRepository.findByScheduleId(scheduleId)).willReturn(List.of(p1, p2));
             given(userRepository.findAllById(any())).willReturn(List.of(user1, user2));
+            given(paymentRequestRepository.existsByScheduleIdAndMemberId(scheduleId, 1L)).willReturn(false);
+            given(paymentRequestRepository.existsByScheduleIdAndMemberId(scheduleId, 2L)).willReturn(false);
+            given(notificationsRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+            willDoNothing().given(notificationService).send(any(), any());
 
             // when
             eventFundService.collectEntryFees(clubId, scheduleId);
@@ -132,7 +143,7 @@ class EventFundServiceTest {
             PaymentRequest req2 = new PaymentRequest(clubId, 2L, "김철수", PaymentRequest.RequestType.DEPOSIT, BigDecimal.valueOf(10000), null, null, null, scheduleId, null);
 
             // TransactionLog 생성 (테스트용)
-            TransactionLog log1 = new TransactionLog(clubId, scheduleId, 1L, "EXPENSE", BigDecimal.valueOf(5000), BigDecimal.ZERO, "간식", null);
+            TransactionLog log1 = new TransactionLog(clubId, scheduleId, 1L, "WITHDRAW", BigDecimal.valueOf(5000), BigDecimal.ZERO, "간식", null);
 
             // ✨ [누락된 부분 추가] "DB에서 일정을 찾아달라고 하면, 방금 만든 schedule 객체를 줘라"
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));

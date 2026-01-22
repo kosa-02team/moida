@@ -3,6 +3,7 @@ package back.controller.ledger;
 import back.config.security.UserPrincipal;
 import back.domain.ledger.PaymentRequest;
 import back.dto.ledger.request.PaymentRequestCreateRequest;
+import back.dto.schedule.ScheduleFinalizeRequest;
 import back.service.ledger.EventFundService;
 import back.service.ledger.PaymentRequestService;
 import lombok.RequiredArgsConstructor;
@@ -84,7 +85,7 @@ public class PaymentRequestController {
     }
 
     /**
-     * [일정] 정산 및 잔액 환급 실행
+     * [일정] 정산 및 잔액 환급 실행 (자동 계산)
      * POST /clubs/{id}/schedules/{scheduleId}/settle
      */
     @PostMapping("/schedules/{scheduleId}/settle")
@@ -92,6 +93,20 @@ public class PaymentRequestController {
             @PathVariable Long clubId,
             @PathVariable Long scheduleId) {
         eventFundService.settleAndRefund(clubId, scheduleId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * [일정] 일정 마무리 (총 지출 입력 → 정산 → 환급 → 마감)
+     * POST /clubs/{id}/schedules/{scheduleId}/finalize
+     */
+    @PostMapping("/schedules/{scheduleId}/finalize")
+    public ResponseEntity<Void> finalizeSchedule(
+            @PathVariable Long clubId,
+            @PathVariable Long scheduleId,
+            @RequestBody(required = false) ScheduleFinalizeRequest request) {
+        java.math.BigDecimal totalSpent = (request != null) ? request.totalSpent() : null;
+        eventFundService.settleAndRefund(clubId, scheduleId, totalSpent);
         return ResponseEntity.ok().build();
     }
 }

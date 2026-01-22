@@ -17,6 +17,7 @@ import back.repository.club.ClubMemberRepository;
 import back.repository.schedule.ScheduleRepository;
 import back.repository.club.ClubRepository;
 import back.repository.post.PostImageRepository;
+import back.repository.post.PostLikeRepository;
 import back.repository.post.PostMemberTagRepository;
 import back.repository.post.PostRepository;
 import back.repository.post.projection.RecentAlbumRow;
@@ -32,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -48,8 +50,9 @@ public class PostService {
     private final PostRepository postRepository;
     private final PostImageRepository postImageRepository;
     private final PostMemberTagRepository postMemberTagRepository;
+    private final PostLikeRepository postLikeRepository;
 
-    private final PostVectorService postVectorService;
+    private final Optional<PostVectorService> postVectorService;
     // 알림 전송을 위해 추가
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
@@ -62,7 +65,7 @@ public class PostService {
 
         applyOptionalUpdatesOnCreate(saved, request);
 
-        postVectorService.savePost(saved);
+        postVectorService.ifPresent(service -> service.savePost(saved));
         // 알림 이벤트 발행
         eventPublisher.publishEvent(new back.event.PostCreatedEvent(
                 clubId,
@@ -83,7 +86,11 @@ public class PostService {
                 .map(PostImages::getImageUrl)
                 .toList();
 
-        return PostDetailResponse.from(post, imagesUrl);
+        // 좋아요 수 및 좋아요 여부 조회
+        Long postLikes = postLikeRepository.countByPostId(postId);
+        Boolean isLiked = postLikeRepository.existsByPostIdAndUserId(postId, viewerId);
+
+        return PostDetailResponse.from(post, imagesUrl, postLikes, isLiked);
     }
 
     // 스토리 페이지에 게시글 박스

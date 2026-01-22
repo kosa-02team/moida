@@ -14,17 +14,22 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class PostVectorService {
 
     private final WebClient chromaWebClient;
-    private final GeminiEmbeddingClient geminiEmbeddingClient;
+    private final Optional<GeminiEmbeddingClient> geminiEmbeddingClient;
     private final ChromaCollectionHolder chromaCollectionHolder;
     private final PostMemberTagRepository postMemberTagRepository;
     private final ClubMemberRepository clubMemberRepository;
     public void savePost(Posts post) {
+        if (geminiEmbeddingClient.isEmpty()) {
+            return; // API 키가 없으면 벡터 저장 스킵
+        }
+
         List<String> memberNames =
                 postMemberTagRepository.findByPostId(post.getPostId())
                         .stream()
@@ -34,11 +39,7 @@ public class PostVectorService {
 
 
         String embeddingText = EmbeddingTextBuilder.build(post,memberNames);
-
-        if (embeddingText.isBlank()) {
-            return; // 임베딩 생략
-        }
-        float[] embedding = geminiEmbeddingClient.embed(embeddingText);
+        float[] embedding = geminiEmbeddingClient.get().embed(embeddingText);
 
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("postId", post.getPostId());
@@ -80,7 +81,6 @@ public class PostVectorService {
                 .bodyToMono(Void.class)
                 .block();
     }
-
 
 
 

@@ -4,8 +4,11 @@ import { ReportDialog } from '../../report/ReportDialog';
 import { getPostComments, createComment, updateComment, deleteComment, likeComment, unlikeComment, type PostCommentItem } from '../../../../api/comment';
 import { getMyInfo } from '../../../../api/user';
 import { getMembers, type MemberListResponse } from '../../../../api/member';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Heart, MessageCircle, Send, MoreVertical, Trash2, Flag, AlertTriangle, Edit2, EyeOff, Image, X, MapPin, Users } from 'lucide-react';
+import { getVotes, getVote, answerVote, closeVote, type VoteDetailResponse, type VoteListResponse } from '../../../../api/vote';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Heart, MessageCircle, Send, MoreVertical, Trash2, Flag, AlertTriangle, Edit2, EyeOff, Image, X, MapPin, Users, Clock, Vote, XCircle, Check } from 'lucide-react';
+import { Badge } from '../../ui/badge';
+import { Progress } from '../../ui/progress';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { toast } from 'sonner';
@@ -70,6 +73,12 @@ export function StoryDetailView() {
   const [members, setMembers] = useState<MemberListResponse[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
   const [hasTaggedMembersChanged, setHasTaggedMembersChanged] = useState(false);
+  
+  // 투표 관련 상태
+  const [linkedVote, setLinkedVote] = useState<VoteDetailResponse | null>(null);
+  const [selectedVoteOptions, setSelectedVoteOptions] = useState<number[]>([]);
+  const [isVoting, setIsVoting] = useState(false);
+  const [isClosingVote, setIsClosingVote] = useState(false);
 
   // 현재 사용자 정보 조회
   useEffect(() => {
@@ -125,10 +134,9 @@ export function StoryDetailView() {
       if (!groupId || !storyId) return;
       try {
         setLoading(true);
-        const [postData, userInfo] = await Promise.all([
-          getPost(Number(groupId), Number(storyId)),
-          getMyInfo().catch(() => null) // 실패해도 계속 진행
-        ]);
+        const postData = await getPost(Number(groupId), Number(storyId));
+        const userInfo = await getMyInfo().catch(() => null); // 실패해도 계속 진행
+        const votesData = await getVotes(Number(groupId)).catch(() => [] as VoteListResponse[]);
         
         // 멤버 목록에서 작성자 정보 찾기
         const writerMember = members.find(m => m.userId === postData.writerId);
@@ -160,6 +168,21 @@ export function StoryDetailView() {
         // currentUserId 설정 (아직 설정되지 않은 경우)
         if (userInfo && !currentUserId) {
           setCurrentUserId(userInfo.userId);
+        }
+        
+        // 이 게시글과 연결된 투표 찾기
+        const linkedVoteItem = votesData.find((v: VoteListResponse) => v.postId === Number(storyId));
+        if (linkedVoteItem) {
+          try {
+            const voteDetail = await getVote(Number(groupId), linkedVoteItem.voteId);
+            setLinkedVote(voteDetail);
+            // 이미 투표한 옵션 설정
+            if (voteDetail.mySelectedOptionIds) {
+              setSelectedVoteOptions(voteDetail.mySelectedOptionIds);
+            }
+          } catch (error) {
+            console.error('투표 상세 조회 실패:', error);
+          }
         }
         
         // 댓글 목록 조회
@@ -303,6 +326,69 @@ export function StoryDetailView() {
     }
   };
 
+  // 투표 옵션 토글
+  const toggleVoteOption = (optionId: number) => {
+    if (!linkedVote || linkedVote.status === 'CLOSED') return;
+    
+    if (linkedVote.allowMultiple) {
+      setSelectedVoteOptions(prev =>
+        prev.includes(optionId)
+          ? prev.filter(id => id !== optionId)
+          : [...prev, optionId]
+      );
+    } else {
+      setSelectedVoteOptions([optionId]);
+    }
+  };
+
+  // 투표 제출
+  const handleVoteSubmit = async () => {
+    if (!groupId || !linkedVote || selectedVoteOptions.length === 0) {
+      toast.error('최소 하나의 항목을 선택해주세요');
+      return;
+    }
+    
+    try {
+      setIsVoting(true);
+      await answerVote(Number(groupId), linkedVote.voteId, { optionIds: selectedVoteOptions });
+      
+      // 투표 데이터 새로고침
+      const updatedVote = await getVote(Number(groupId), linkedVote.voteId);
+      setLinkedVote(updatedVote);
+      if (updatedVote.mySelectedOptionIds) {
+        setSelectedVoteOptions(updatedVote.mySelectedOptionIds);
+      }
+      
+      toast.success('투표가 완료되었습니다!');
+    } catch (error: any) {
+      console.error('투표 실패:', error);
+      toast.error(error.message || '투표에 실패했습니다.');
+    } finally {
+      setIsVoting(false);
+    }
+  };
+
+  // 투표 종료
+  const handleCloseVote = async () => {
+    if (!groupId || !linkedVote) return;
+    
+    try {
+      setIsClosingVote(true);
+      await closeVote(Number(groupId), linkedVote.voteId);
+      
+      // 투표 데이터 새로고침
+      const updatedVote = await getVote(Number(groupId), linkedVote.voteId);
+      setLinkedVote(updatedVote);
+      
+      toast.success('투표가 종료되었습니다');
+    } catch (error) {
+      console.error('투표 종료 실패:', error);
+      toast.error('투표 종료에 실패했습니다.');
+    } finally {
+      setIsClosingVote(false);
+    }
+  };
+
   const handleStartEdit = () => {
     if (!post) return;
     setEditContent(post.content || '');
@@ -399,7 +485,7 @@ export function StoryDetailView() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <div className="sticky top-0 bg-white/80 backdrop-blur-lg z-10 border-b border-stone-100">
+      <div className="sticky top-0 bg-white z-[70] shadow-sm">
         <div className="flex items-center justify-between p-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-5 h-5" />
@@ -412,55 +498,57 @@ export function StoryDetailView() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {canEditPost && (
-                <>
-                  <DropdownMenuItem 
-                    className="text-stone-600"
-                    onClick={handleStartEdit}
-                  >
-                    <Edit2 className="w-4 h-4 mr-2" />
-                    게시글 수정
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              {canBlindPost && (
-                <>
-                  <DropdownMenuItem 
-                    className="text-stone-600"
-                    onClick={handleBlindPost}
-                  >
-                    <EyeOff className="w-4 h-4 mr-2" />
-                    게시글 숨기기
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              {canDeletePost && (
-                <>
-                  <DropdownMenuItem 
-                    className="text-red-600"
-                    onClick={() => {
-                      setDeleteTarget('post');
-                      setShowDeleteDialog(true);
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    게시글 삭제
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              <DropdownMenuItem 
-                className="text-orange-600"
-                onClick={() => {
-                  setReportTarget('post');
-                  setShowReportDialog(true);
-                }}
-              >
-                <Flag className="w-4 h-4 mr-2" />
-                신고하기
-              </DropdownMenuItem>
+              <>
+                {canEditPost ? (
+                  <>
+                    <DropdownMenuItem 
+                      className="text-stone-600"
+                      onClick={handleStartEdit}
+                    >
+                      <Edit2 className="w-4 h-4 mr-2" />
+                      게시글 수정
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                ) : null}
+                {canBlindPost ? (
+                  <>
+                    <DropdownMenuItem 
+                      className="text-stone-600"
+                      onClick={handleBlindPost}
+                    >
+                      <EyeOff className="w-4 h-4 mr-2" />
+                      게시글 숨기기
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                ) : null}
+                {canDeletePost ? (
+                  <>
+                    <DropdownMenuItem 
+                      className="text-red-600"
+                      onClick={() => {
+                        setDeleteTarget('post');
+                        setShowDeleteDialog(true);
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      게시글 삭제
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                ) : null}
+                <DropdownMenuItem 
+                  className="text-orange-600"
+                  onClick={() => {
+                    setReportTarget('post');
+                    setShowReportDialog(true);
+                  }}
+                >
+                  <Flag className="w-4 h-4 mr-2" />
+                  신고하기
+                </DropdownMenuItem>
+              </>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -513,9 +601,121 @@ export function StoryDetailView() {
         </div>
 
         {/* Content */}
-        <div className="px-4 pb-4">
-          <p className="text-stone-800 leading-relaxed">{post?.content || ''}</p>
-        </div>
+        {post?.content && (
+          <div className="px-4 pb-4">
+            <p className="text-stone-800 leading-relaxed">{post.content}</p>
+          </div>
+        )}
+
+        {/* Vote Section */}
+        {linkedVote && (
+          <div className="px-4 pb-4">
+            <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200">
+              {/* Vote Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-orange-600 border-orange-300">
+                    <Vote className="w-3 h-3 mr-1" />
+                    투표
+                  </Badge>
+                  {linkedVote.allowMultiple && (
+                    <Badge variant="secondary" className="text-xs">복수 선택</Badge>
+                  )}
+                  {linkedVote.status === 'CLOSED' && (
+                    <Badge variant="secondary" className="bg-stone-200 text-stone-600">종료됨</Badge>
+                  )}
+                </div>
+                {permissions.canManageGroup && linkedVote.status === 'OPEN' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCloseVote}
+                    disabled={isClosingVote}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 px-2"
+                  >
+                    <XCircle className="w-4 h-4 mr-1" />
+                    {isClosingVote ? '종료 중...' : '투표 종료'}
+                  </Button>
+                )}
+              </div>
+
+              {/* Vote Title */}
+              <h3 className="font-bold text-stone-900 mb-2">{linkedVote.title}</h3>
+              {linkedVote.description && (
+                <p className="text-sm text-stone-600 mb-4">{linkedVote.description}</p>
+              )}
+
+              {/* Vote Deadline */}
+              {linkedVote.deadline && (
+                <div className="flex items-center gap-1 text-sm text-stone-500 mb-4">
+                  <Clock className="w-4 h-4" />
+                  <span>마감: {new Date(linkedVote.deadline).toLocaleString('ko-KR')}</span>
+                </div>
+              )}
+
+              {/* Vote Options */}
+              <div className="space-y-2">
+                {(linkedVote.options || []).map(option => {
+                  const isSelected = selectedVoteOptions.includes(option.optionId);
+                  const voteCount = option.voteCount || 0;
+                  const totalVotes = (linkedVote.options || []).reduce((sum, opt) => sum + (opt.voteCount || 0), 0);
+                  const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+
+                  return (
+                    <button
+                      key={option.optionId}
+                      onClick={() => toggleVoteOption(option.optionId)}
+                      disabled={linkedVote.status === 'CLOSED'}
+                      className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
+                        isSelected
+                          ? 'border-orange-500 bg-orange-50'
+                          : 'border-stone-200 hover:border-stone-300 bg-white'
+                      } ${linkedVote.status === 'CLOSED' ? 'cursor-default opacity-70' : 'cursor-pointer'}`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            isSelected
+                              ? 'bg-orange-500 border-orange-500'
+                              : 'border-stone-300'
+                          }`}>
+                            {isSelected && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                          <span className={`font-medium ${isSelected ? 'text-orange-700' : 'text-stone-900'}`}>
+                            {option.optionText || '옵션'}
+                          </span>
+                        </div>
+                        <span className={`text-sm ${isSelected ? 'text-orange-600' : 'text-stone-500'}`}>
+                          {voteCount}표 ({percentage}%)
+                        </span>
+                      </div>
+                      <Progress 
+                        value={percentage} 
+                        className="h-1.5 bg-stone-200"
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Vote Statistics */}
+              <div className="mt-4 pt-3 border-t border-stone-200 flex items-center justify-between">
+                <span className="text-sm text-stone-500">
+                  총 {(linkedVote.options || []).reduce((sum, opt) => sum + (opt.voteCount || 0), 0)}명 참여
+                </span>
+                {linkedVote.status === 'OPEN' && (
+                  <Button
+                    onClick={handleVoteSubmit}
+                    disabled={selectedVoteOptions.length === 0 || isVoting}
+                    className="bg-orange-500 hover:bg-orange-600 text-white h-9"
+                  >
+                    {isVoting ? '투표 중...' : (linkedVote.mySelectedOptionIds?.length ? '투표 수정' : '투표하기')}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Divider */}
         <div className="h-2 bg-stone-100"></div>
@@ -563,45 +763,46 @@ export function StoryDetailView() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {canEditComment(comment) && (
-                              <>
-                                <DropdownMenuItem 
-                                  onClick={() => handleStartEditComment(comment)}
-                                >
-                                  <Edit2 className="w-4 h-4 mr-2" />
-                                  수정
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            )}
-                            {canDeleteComment(comment) && (
-                              <>
-                                <DropdownMenuItem 
-                                  className="text-red-600"
-                                  onClick={() => {
-                                    setSelectedComment(comment);
-                                    setDeleteTarget('comment');
-                                    setShowDeleteDialog(true);
-                                  }}
-                                >
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  삭제
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            )}
-                            <DropdownMenuItem 
-                              className="text-orange-600"
-                              onClick={() => {
-                                setSelectedComment(comment);
-                                setReportTarget('comment');
-                              setSelectedComment(comment);
-                              setShowReportDialog(true);
-                              }}
-                            >
-                              <Flag className="w-4 h-4 mr-2" />
-                              신고
-                            </DropdownMenuItem>
+                            <>
+                              {canEditComment(comment) ? (
+                                <>
+                                  <DropdownMenuItem 
+                                    onClick={() => handleStartEditComment(comment)}
+                                  >
+                                    <Edit2 className="w-4 h-4 mr-2" />
+                                    수정
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              ) : null}
+                              {canDeleteComment(comment) ? (
+                                <>
+                                  <DropdownMenuItem 
+                                    className="text-red-600"
+                                    onClick={() => {
+                                      setSelectedComment(comment);
+                                      setDeleteTarget('comment');
+                                      setShowDeleteDialog(true);
+                                    }}
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    삭제
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              ) : null}
+                              <DropdownMenuItem 
+                                className="text-orange-600"
+                                onClick={() => {
+                                  setSelectedComment(comment);
+                                  setReportTarget('comment');
+                                  setShowReportDialog(true);
+                                }}
+                              >
+                                <Flag className="w-4 h-4 mr-2" />
+                                신고
+                              </DropdownMenuItem>
+                            </>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -724,7 +925,7 @@ export function StoryDetailView() {
           onOpenChange={setShowReportDialog}
           type={selectedComment ? 'comment' : 'post'}
           targetId={selectedComment ? selectedComment.writerId : post.writerId}
-          targetName={selectedComment ? (selectedComment.writerName || '작성자') : (post.writerName || '작성자')}
+          targetName={selectedComment ? '댓글 작성자' : (post.writerName || '작성자')}
         />
       )}
 

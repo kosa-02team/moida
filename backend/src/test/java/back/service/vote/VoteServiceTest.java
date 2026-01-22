@@ -13,10 +13,12 @@ import back.repository.club.ClubMemberRepository;
 import back.repository.club.ClubRepository;
 import back.repository.post.PostRepository;
 import back.repository.schedule.ScheduleRepository;
+import back.repository.schedule.ScheduleParticipantRepository;
 import back.repository.vote.VoteOptionRepository;
 import back.repository.vote.VoteRecordRepository;
 import back.repository.vote.VoteRepository;
 import back.service.club.ClubAuthService;
+import back.domain.schedule.ScheduleParticipants;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -44,6 +46,9 @@ class VoteServiceTest {
 
     @Mock
     private ScheduleRepository scheduleRepository;
+
+    @Mock
+    private ScheduleParticipantRepository scheduleParticipantRepository;
 
     @Mock
     private VoteRepository voteRepository;
@@ -278,6 +283,7 @@ class VoteServiceTest {
             Clubs club = club(clubId, 1L);
             Posts post = Posts.vote(club, user(creatorId), null, "제목", "설명");
             ReflectionTestUtils.setField(post, "postId", 1L);
+            ReflectionTestUtils.setField(post, "club", club);
 
             Votes vote = newEntity(Votes.class);
             ReflectionTestUtils.setField(vote, "voteId", voteId);
@@ -287,7 +293,7 @@ class VoteServiceTest {
             ReflectionTestUtils.setField(vote, "status", "OPEN");
 
             given(voteRepository.findById(voteId)).willReturn(Optional.of(vote));
-            given(postRepository.findById(1L)).willReturn(Optional.of(post));
+            given(postRepository.findByIdWithClub(1L)).willReturn(Optional.of(post));
 
             // when
             voteService.closeVote(clubId, voteId, creatorId);
@@ -318,7 +324,7 @@ class VoteServiceTest {
             ReflectionTestUtils.setField(vote, "status", "OPEN");
 
             given(voteRepository.findById(voteId)).willReturn(Optional.of(vote));
-            given(postRepository.findById(1L)).willReturn(Optional.of(post));
+            given(postRepository.findByIdWithClub(1L)).willReturn(Optional.of(post));
 
             // when & then
             assertThatThrownBy(() -> voteService.closeVote(clubId, voteId, otherUserId))
@@ -347,7 +353,7 @@ class VoteServiceTest {
             ReflectionTestUtils.setField(post, "postId", 1L);
 
             given(voteRepository.findById(voteId)).willReturn(Optional.of(vote));
-            given(postRepository.findById(1L)).willReturn(Optional.of(post));
+            given(postRepository.findByIdWithClub(1L)).willReturn(Optional.of(post));
 
             // when & then
             assertThatThrownBy(() -> voteService.closeVote(clubId, voteId, creatorId))
@@ -389,7 +395,7 @@ class VoteServiceTest {
                     clubId, userId, ClubMembers.Status.ACTIVE))
                     .willReturn(true);
             given(voteRepository.findById(voteId)).willReturn(Optional.of(vote));
-            given(postRepository.findById(1L)).willReturn(Optional.of(post));
+            given(postRepository.findByIdWithClub(1L)).willReturn(Optional.of(post));
             given(voteOptionRepository.findAllById(List.of(optionId))).willReturn(List.of(option));
             given(voteRecordRepository.findByVoteIdAndUserId(voteId, userId)).willReturn(List.of());
 
@@ -423,6 +429,7 @@ class VoteServiceTest {
             VoteOptions option = newEntity(VoteOptions.class);
             ReflectionTestUtils.setField(option, "optionId", optionId);
             ReflectionTestUtils.setField(option, "voteId", voteId);
+            ReflectionTestUtils.setField(option, "optionText", "참석");
 
             VoteRecords existingRecord = newEntity(VoteRecords.class);
             ReflectionTestUtils.setField(existingRecord, "recordId", 1L);
@@ -438,6 +445,10 @@ class VoteServiceTest {
             given(voteOptionRepository.findAllById(List.of(optionId))).willReturn(List.of(option));
             given(voteRecordRepository.findByVoteIdAndUserId(voteId, userId))
                     .willReturn(List.of(existingRecord));
+            given(scheduleParticipantRepository.findByScheduleIdAndUserId(scheduleId, userId))
+                    .willReturn(Optional.empty());
+            given(scheduleParticipantRepository.save(any(ScheduleParticipants.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
 
             // when
             voteService.answerVote(clubId, voteId, userId, request);
@@ -445,6 +456,8 @@ class VoteServiceTest {
             // then
             then(voteRecordRepository).should(times(1)).deleteAll(List.of(existingRecord));
             then(voteRecordRepository).should(times(1)).saveAll(anyList());
+            // ATTENDANCE 타입: 새 participant 생성 시 orElseGet 내부에서 1번, 상태 업데이트 시 1번 = 총 2번
+            then(scheduleParticipantRepository).should(times(2)).save(any(ScheduleParticipants.class));
         }
 
         @Test
@@ -492,7 +505,7 @@ class VoteServiceTest {
             Clubs club = club(clubId, 1L);
             Posts post = Posts.vote(club, user(userId), null, "제목", "설명");
             ReflectionTestUtils.setField(post, "postId", 1L);
-            given(postRepository.findById(1L)).willReturn(Optional.of(post));
+            given(postRepository.findByIdWithClub(1L)).willReturn(Optional.of(post));
 
             // when & then
             assertThatThrownBy(() -> voteService.answerVote(clubId, voteId, userId, request))
@@ -515,6 +528,7 @@ class VoteServiceTest {
             Clubs club = club(clubId, 1L);
             Posts post = Posts.vote(club, user(userId), null, "투표 제목", "설명");
             ReflectionTestUtils.setField(post, "postId", 1L);
+            ReflectionTestUtils.setField(post, "club", club);
 
             Votes vote = newEntity(Votes.class);
             ReflectionTestUtils.setField(vote, "voteId", voteId);
@@ -537,7 +551,7 @@ class VoteServiceTest {
             ReflectionTestUtils.setField(option2, "optionOrder", 2);
 
             given(voteRepository.findById(voteId)).willReturn(Optional.of(vote));
-            given(postRepository.findById(1L)).willReturn(Optional.of(post));
+            given(postRepository.findByIdWithClub(1L)).willReturn(Optional.of(post));
             given(voteOptionRepository.findByVoteIdOrderByOptionOrderAsc(voteId))
                     .willReturn(List.of(option1, option2));
             given(voteRecordRepository.countByOptionId(100L)).willReturn(5L);
@@ -612,6 +626,7 @@ class VoteServiceTest {
             Long voteId = 999L;
             Long userId = 10L;
 
+            willDoNothing().given(clubsAuthorizationService).assertActiveMember(clubId, userId);
             given(voteRepository.findById(voteId)).willReturn(Optional.empty());
 
             // when & then
@@ -637,8 +652,9 @@ class VoteServiceTest {
             ReflectionTestUtils.setField(vote, "voteType", "GENERAL");
             ReflectionTestUtils.setField(vote, "postId", 1L);
 
+            willDoNothing().given(clubsAuthorizationService).assertActiveMember(clubId, userId);
             given(voteRepository.findById(voteId)).willReturn(Optional.of(vote));
-            given(postRepository.findById(1L)).willReturn(Optional.of(post));
+            given(postRepository.findByIdWithClub(1L)).willReturn(Optional.of(post));
 
             // when & then
             assertThatThrownBy(() -> voteService.getVoteById(clubId, voteId, userId))

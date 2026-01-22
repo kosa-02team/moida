@@ -18,16 +18,14 @@ import back.dto.post.story.request.StoryUpdateRequest;
 import back.dto.post.story.response.PostDetailResponse;
 import back.exception.ClubException;
 import back.exception.PostsException;
+import back.repository.post.*;
 import back.repository.schedule.ScheduleRepository;
 import back.repository.club.ClubRepository;
-import back.repository.post.PostCommentRepository;
-import back.repository.post.PostImageRepository;
-import back.repository.post.PostMemberTagRepository;
-import back.repository.post.PostRepository;
 import back.repository.club.ClubMemberRepository;
 import back.service.club.ClubAuthService;
 import back.service.post.ai.PostVectorService;
 import org.springframework.context.ApplicationEventPublisher;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -75,6 +73,9 @@ public class PostServiceTests {
         @Mock
         private PostCommentRepository postCommentRepository;
 
+        @Mock
+        private PostLikeRepository postLikeRepository;
+
         @InjectMocks
         private PostService postService;
 
@@ -82,6 +83,12 @@ public class PostServiceTests {
         private PostCommentService postCommentService;
 
         @Mock private PostVectorService postVectorService;
+
+        // PostService의 postVectorService는 Optional이므로 ReflectionTestUtils로 설정
+        @BeforeEach
+        void setupPostVectorService() {
+            ReflectionTestUtils.setField(postService, "postVectorService", Optional.empty());
+        }
 
     private static <T> T newEntity(Class<T> type) {
                 try {
@@ -234,6 +241,10 @@ public class PostServiceTests {
 
                         given(postRepository.findByPostIdAndClub_ClubId(postId, clubId))
                                         .willReturn(Optional.of(post));
+                        given(postImageRepository.findByPostIdIn(List.of(postId)))
+                                        .willReturn(List.of());
+                        given(postLikeRepository.countByPostId(postId)).willReturn(0L);
+                        given(postLikeRepository.existsByPostIdAndUserId(postId, viewerId)).willReturn(false);
 
                         // when
                         PostDetailResponse res = postService.getPost(clubId, postId, viewerId);
@@ -311,6 +322,10 @@ public class PostServiceTests {
 
                         given(postRepository.findByPostIdAndClub_ClubId(postId, clubId))
                                         .willReturn(Optional.of(post));
+                        given(postImageRepository.findByPostIdIn(List.of(postId)))
+                                        .willReturn(List.of());
+                        given(postLikeRepository.countByPostId(postId)).willReturn(0L);
+                        given(postLikeRepository.existsByPostIdAndUserId(postId, viewerId)).willReturn(false);
 
                         // when
                         PostDetailResponse res = postService.getPost(clubId, postId, viewerId);
@@ -420,7 +435,6 @@ public class PostServiceTests {
                                 Long viewerId = 100L;
 
                                 Pageable pageable = PageRequest.of(0, 20);
-
                                 willDoNothing().given(clubAuthorizationService)
                                                 .validateAndGetClubForReadPosts(clubId, viewerId);
 
@@ -497,6 +511,8 @@ public class PostServiceTests {
                         Clubs clubRef = club(clubId);
                         ClubMembers writerRef = user(writerId);
 
+                        willDoNothing().given(clubAuthorizationService)
+                                        .assertActiveMember(clubId, writerId);
                         given(clubsRepository.getReferenceById(clubId)).willReturn(clubRef);
                         given(clubMemberRepository.getReferenceById(writerId)).willReturn(writerRef);
 
@@ -517,6 +533,7 @@ public class PostServiceTests {
                 @Test
                 @DisplayName("[MEMBER] 모임 게시글 생성 성공 - 이미지/태그 저장 포함")
                 void create_post_member_success_with_images_tags() {
+                        setupPostVectorService();
                         Long clubId = 1L;
                         Long writerId = 1L;
 
@@ -531,6 +548,8 @@ public class PostServiceTests {
                         ClubMembers writerRef = user(writerId);
                         Schedules scheduleRef = schedule(1L);
 
+                        willDoNothing().given(clubAuthorizationService)
+                                        .assertActiveMember(clubId, writerId);
                         given(clubsRepository.getReferenceById(clubId)).willReturn(clubRef);
                         given(clubMemberRepository.getReferenceById(writerId)).willReturn(writerRef);
                         given(scheduleRepository.getReferenceById(1L)).willReturn(scheduleRef);

@@ -1,12 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useOutletContext } from 'react-router-dom';
-import { getRecentPosts, type PostCardResponse } from '@/api/post';
+import { getRecentPosts, likePost, unlikePost, type PostCardResponse } from '@/api/post';
 import { getVotes, getVote, answerVote, type VoteListResponse, type VoteDetailResponse } from '@/api/vote';
 import { Card, CardContent } from '../../ui/card';
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
-import { Heart, MessageCircle, Calendar, Clock, Users, ChevronRight } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../ui/select';
+import { Heart, MessageCircle, Calendar, Clock, Users, ChevronRight, Plus, ArrowDown, ArrowUp, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { ClubDetailResponse } from '@/api/club-full';
 
@@ -20,6 +27,7 @@ interface PostWithVote extends PostCardResponse {
   voteDetail?: VoteDetailResponse;
   mySelectedOptionIds?: number[];
   totalVoteCount?: number;
+  isLiked?: boolean;
 }
 
 export function StoriesView() {
@@ -29,6 +37,7 @@ export function StoriesView() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'popular'>('newest');
 
   // 게시글과 투표 데이터 가져오기
   useEffect(() => {
@@ -37,18 +46,13 @@ export function StoriesView() {
 
       try {
         setLoading(true);
-        // Promise.all에 as const를 적용하여 타입 추론 문제 해결
-        const [posts, votes] = await Promise.all([
-          getRecentPosts(Number(groupId), page, 20),
-          getVotes(Number(groupId))
-        ] as const);
-        // 타입 단언으로 명시적 타입 지정
-        const typedPosts = posts as PostCardResponse[];
-        const typedVotes = votes as VoteListResponse[];
+        // 개별 await 호출로 타입 추론 문제 해결
+        const posts = await getRecentPosts(Number(groupId), page, 20);
+        const votes = await getVotes(Number(groupId));
 
         // 투표를 postId로 매핑
         const voteMap = new Map<number, VoteListResponse>();
-        for (const vote of typedVotes) {
+        for (const vote of votes) {
           const postId = vote.postId;
           if (postId !== null && postId !== undefined && typeof postId === 'number') {
             voteMap.set(postId, vote);
@@ -57,7 +61,7 @@ export function StoriesView() {
 
         // 게시글에 투표 정보 추가
         const postsWithVotes: PostWithVote[] = await Promise.all(
-          typedPosts.map(async (post): Promise<PostWithVote> => {
+          posts.map(async (post): Promise<PostWithVote> => {
             const vote = voteMap.get(post.postId);
             if (vote) {
               try {
@@ -84,7 +88,7 @@ export function StoriesView() {
           setAllPosts(prev => [...prev, ...postsWithVotes]);
         }
 
-        setHasMore(typedPosts.length === 20);
+        setHasMore(posts.length === 20);
       } catch (error) {
         console.error('게시글 불러오기 실패:', error);
         toast.error('게시글을 불러오는데 실패했습니다.');
@@ -131,13 +135,19 @@ export function StoriesView() {
         // 복수 선택: 토글 방식
         if (isSelected) {
           newSelected = currentSelected.filter(id => id !== optionId);
+          // 빈 배열 방지: 최소 1개 이상 선택해야 함
+          if (newSelected.length === 0) {
+            toast.info('최소 하나의 옵션을 선택해야 합니다.');
+            return;
+          }
         } else {
           newSelected = [...currentSelected, optionId];
         }
       } else {
-        // 단일 선택: 현재 선택된 옵션을 다시 클릭하면 에러
+        // 단일 선택: 같은 옵션 클릭 시 다른 옵션으로 변경만 가능
         if (isSelected) {
-          toast.error('단일 선택 투표에서는 최소 하나의 옵션을 선택해야 합니다.');
+          // 이미 선택된 옵션을 다시 클릭하면 무시 (다른 옵션을 선택해야 변경됨)
+          toast.info('다른 옵션을 선택하면 투표가 변경됩니다.');
           return;
         }
         newSelected = [optionId];
@@ -162,11 +172,39 @@ export function StoriesView() {
         return p;
       }));
 
-      const hasVoted = newSelected.length > 0;
-      toast.success(hasVoted ? '투표가 수정되었습니다!' : '투표가 완료되었습니다!');
+      toast.success('투표가 수정되었습니다!');
     } catch (error: any) {
       console.error('투표 실패:', error);
       toast.error(error.message || '투표에 실패했습니다.');
+    }
+  };
+
+  // 좋아요 토글 핸들러
+  const handlePostLike = async (e: React.MouseEvent, post: PostWithVote) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!groupId) return;
+    
+    try {
+      if (post.isLiked) {
+        await unlikePost(Number(groupId), post.postId);
+        setAllPosts(posts => posts.map(p => 
+          p.postId === post.postId 
+            ? { ...p, isLiked: false, postLikes: Math.max(0, p.postLikes - 1) }
+            : p
+        ));
+      } else {
+        await likePost(Number(groupId), post.postId);
+        setAllPosts(posts => posts.map(p => 
+          p.postId === post.postId 
+            ? { ...p, isLiked: true, postLikes: p.postLikes + 1 }
+            : p
+        ));
+      }
+    } catch (error) {
+      console.error('좋아요 처리 실패:', error);
+      toast.error('좋아요 처리에 실패했습니다.');
     }
   };
 
@@ -175,6 +213,24 @@ export function StoriesView() {
     if (hasMore && !loading) {
       setPage(prev => prev + 1);
     }
+  };
+
+  // 정렬 적용
+  const sortedPosts = [...allPosts].sort((a, b) => {
+    if (sortOrder === 'newest') {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    } else if (sortOrder === 'oldest') {
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    } else if (sortOrder === 'popular') {
+      // 좋아요 수 기준 내림차순 (좋아요가 같으면 최신순)
+      const likesDiff = (b.postLikes || 0) - (a.postLikes || 0);
+      return likesDiff !== 0 ? likesDiff : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
+  const handleSortChange = (order: 'newest' | 'oldest' | 'popular') => {
+    setSortOrder(order);
   };
 
   if (loading && page === 0) {
@@ -194,8 +250,37 @@ export function StoriesView() {
 
   return (
     <div className="space-y-4 pb-20">
+      {/* 정렬 옵션 */}
+      <div className="flex justify-start items-center">
+        <Select value={sortOrder} onValueChange={(value) => handleSortChange(value as 'newest' | 'oldest' | 'popular')}>
+          <SelectTrigger className="w-[130px] h-9 text-stone-600 px-3">
+            <SelectValue placeholder="정렬" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">
+              <span className="flex items-center gap-2">
+                <ArrowDown className="w-4 h-4" />
+                최신순
+              </span>
+            </SelectItem>
+            <SelectItem value="oldest">
+              <span className="flex items-center gap-2">
+                <ArrowUp className="w-4 h-4" />
+                오래된순
+              </span>
+            </SelectItem>
+            <SelectItem value="popular">
+              <span className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                인기순
+              </span>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* 게시글 목록 */}
-      {allPosts.map((post) => (
+      {sortedPosts.map((post) => (
         <Card key={post.postId} className="overflow-hidden">
           <CardContent className="p-0">
             {/* 게시글 헤더 */}
@@ -241,8 +326,9 @@ export function StoriesView() {
             </Link>
 
             {/* 투표 섹션 */}
-            {(post.voteDetail && post.voteId !== undefined) ? (
-              <div className="px-4 pb-4 border-t border-stone-100">
+            <>
+              {(post.voteDetail && post.voteId !== undefined) ? (
+                <div className="px-4 pb-4 border-t border-stone-100">
                 <Link
                   to={`/group/${groupId}/votes/${post.voteId}`}
                   className="block mb-3 pt-3"
@@ -335,17 +421,21 @@ export function StoriesView() {
                 ) : null}
               </div>
             ) : null}
+            </>
 
             {/* 게시글 하단 (좋아요, 댓글) */}
             <div className="px-4 py-3 border-t border-stone-100 flex items-center gap-4 text-stone-500">
-              <div className="flex items-center gap-1">
-                <Heart className="h-4 w-4" />
+              <button 
+                onClick={(e) => handlePostLike(e, post)}
+                className="flex items-center gap-1 hover:text-red-500 transition-colors"
+              >
+                <Heart className={`h-4 w-4 ${post.isLiked ? 'fill-red-500 text-red-500' : ''}`} />
                 <span className="text-sm">{post.postLikes}</span>
-              </div>
-              <div className="flex items-center gap-1">
+              </button>
+              <Link to={`/group/${groupId}/posts/${post.postId}`} className="flex items-center gap-1 hover:text-stone-700">
                 <MessageCircle className="h-4 w-4" />
                 <span className="text-sm">{post.commentCount}</span>
-              </div>
+              </Link>
             </div>
           </CardContent>
         </Card>
@@ -365,13 +455,23 @@ export function StoriesView() {
       )}
 
       {/* 게시글이 없을 때 */}
-      {!loading && allPosts.length === 0 && (
+      {!loading && sortedPosts.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-stone-500">
           <Calendar className="h-12 w-12 mb-4 text-stone-300" />
           <p className="text-lg font-medium mb-1">아직 게시글이 없습니다</p>
           <p className="text-sm">첫 게시글을 작성해보세요!</p>
         </div>
       )}
+
+      {/* FAB - 게시글 작성 */}
+      <div className="fixed bottom-24 right-8 z-40">
+        <Link to="create">
+          <Button className="rounded-full h-12 px-6 shadow-lg bg-stone-900 hover:bg-stone-800 text-white flex items-center gap-2">
+            <Plus className="w-5 h-5" />
+            <span>글쓰기</span>
+          </Button>
+        </Link>
+      </div>
     </div>
   );
 }

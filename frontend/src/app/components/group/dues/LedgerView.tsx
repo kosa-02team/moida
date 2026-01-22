@@ -165,7 +165,7 @@ export function LedgerView() {
   return (
     <div className="min-h-screen bg-stone-50 pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white border-b border-stone-100">
+      <header className="sticky top-[97px] z-[70] bg-white shadow-sm">
         <div className="flex items-center px-4 py-3">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="-ml-2">
             <ArrowLeft className="w-6 h-6 text-stone-800" />

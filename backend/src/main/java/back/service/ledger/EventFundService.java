@@ -1,15 +1,20 @@
 package back.service.ledger;
 
+import back.domain.Notifications;
+import back.domain.NotificationType;
 import back.domain.Users;
 import back.domain.ledger.PaymentRequest;
 import back.domain.ledger.TransactionLog;
 import back.domain.schedule.Schedules;
 import back.domain.schedule.ScheduleParticipants;
+import back.dto.NotificationResponse;
 import back.repository.UserRepository;
 import back.repository.ledger.PaymentRequestRepository;
 import back.repository.ledger.TransactionLogRepository;
+import back.repository.notifications.NotificationsRepository;
 import back.repository.schedule.ScheduleParticipantRepository;
 import back.repository.schedule.ScheduleRepository;
+import back.service.notifications.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,10 +34,12 @@ public class EventFundService {
     private final PaymentRequestRepository paymentRequestRepository;
     private final TransactionLogRepository transactionLogRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
+    private final NotificationsRepository notificationsRepository;
 
     /**
      * 1. 참가비 일괄 요청 (Collect)
-     * - 일정의 참가자 전원에게 입금 요청 생성
+     * - 참석 투표를 한 참가자에게만 입금 요청 생성 및 알림 발송
      */
     @Transactional
     public void collectEntryFees(Long clubId, Long scheduleId) {
@@ -44,44 +51,78 @@ public class EventFundService {
             throw new IllegalArgumentException("설정된 참가비가 없습니다.");
         }
 
-        List<ScheduleParticipants> participants = participantRepository.findByScheduleId(scheduleId);
+        // 참석 투표를 한 참가자만 필터링 (ATTENDING만)
+        List<ScheduleParticipants> attendingParticipants = participantRepository.findByScheduleId(scheduleId)
+                .stream()
+                .filter(p -> "ATTENDING".equals(p.getAttendanceStatus()))
+                .toList();
+
+        if (attendingParticipants.isEmpty()) {
+            // 참석자가 없으면 요청 생성하지 않음
+            return;
+        }
 
         // 참가자들의 userId만 뽑아서 리스트로 만듦
-        List<Long> userIds = participants.stream()
-                .map(ScheduleParticipants::getUserId) // 혹은 ClubMembers 조회라면 .getUserId()
+        List<Long> userIds = attendingParticipants.stream()
+                .map(ScheduleParticipants::getUserId)
                 .toList();
 
         //  UserRepository에서 Map<UserId, Users> 형태로 변환
         Map<Long, Users> userMap = userRepository.findAllById(userIds).stream()
                 .collect(Collectors.toMap(Users::getUserId, user -> user));
 
-        for (ScheduleParticipants p : participants) {
-            // 이미 요청했는지 중복 체크 로직이 있으면 좋음
-            Users user = userMap.get(p.getUserId()); // 메모리에서 꺼냄 (DB 조회 X)
+        for (ScheduleParticipants p : attendingParticipants) {
+            // 이미 요청했는지 중복 체크
+            boolean alreadyRequested = paymentRequestRepository.existsByScheduleIdAndMemberId(
+                    scheduleId, p.getParticipantId());
+            if (alreadyRequested) {
+                continue; // 이미 요청이 있으면 스킵
+            }
+
+            Users user = userMap.get(p.getUserId());
             String realName = (user != null) ? user.getRealName() : "알수없음";
 
             PaymentRequest req = new PaymentRequest(
                     clubId,
                     p.getParticipantId(),
-                    realName, // 실제 이름 조회 필요 시 MemberRepository 연동
+                    realName,
                     PaymentRequest.RequestType.DEPOSIT,
                     entryFee,
                     schedule.getEventDate().toLocalDate(),
                     7,
                     schedule.getEventDate().plusDays(1),
-                    scheduleId, // ✨ 일정 연결
+                    scheduleId,
                     null
             );
             paymentRequestRepository.save(req);
+
+            // 알림 발송: "참가비 {금액}을 입금 해주세요"
+            // 숫자 포맷팅 (예: 30000 -> "30000")
+            String formattedAmount = entryFee.stripTrailingZeros().toPlainString();
+            String message = String.format("참가비 %s을 입금 해주세요", formattedAmount);
+            Notifications notification = new Notifications(
+                    p.getUserId(),
+                    message,
+                    scheduleId,
+                    NotificationType.SCHEDULE.name()
+            );
+            Notifications savedNotification = notificationsRepository.save(notification);
+            
+            // SSE로 실시간 알림 전송
+            NotificationResponse notificationResponse = NotificationResponse.from(savedNotification, clubId);
+            notificationService.send(p.getUserId(), notificationResponse);
         }
     }
 
     /**
      * 2. 정산 및 환급 (Refund & Settle)
      * - (걷은 돈 - 쓴 돈) / 인원수 로 환급액 계산 후 처리
+     * @param clubId 모임 ID
+     * @param scheduleId 일정 ID
+     * @param inputTotalSpent 사용자가 입력한 총 지출 금액 (null이면 TransactionLog에서 자동 계산)
      */
     @Transactional
-    public void settleAndRefund(Long clubId, Long scheduleId) {
+    public void settleAndRefund(Long clubId, Long scheduleId, BigDecimal inputTotalSpent) {
         Schedules schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new IllegalArgumentException("일정을 찾을 수 없습니다."));
 
@@ -93,22 +134,25 @@ public class EventFundService {
                 .map(PaymentRequest::getExpectedAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // B. 총 지출 (해당 일정에 매핑된 지출 내역)
-        List<TransactionLog> expenses = transactionLogRepository.findByScheduleId(scheduleId);
-
-        BigDecimal totalSpent = expenses.stream()
-                .map(TransactionLog::getAmount) // 지출은 음수라 가정 시 abs() 필요할 수 있음
-                .reduce(BigDecimal.ZERO, BigDecimal::add); // 보통 지출이 음수면 더하면 됨 (잔액 = 수입 + 지출)
-
-        // *만약 TransactionLog에 지출이 양수로 기록된다면 subtract 해야 함.
-        // 여기서는 "수입 - 지출" 로직을 위해 지출을 양수(절대값) 합으로 계산한다고 가정
-        // BigDecimal balance = totalIncome.subtract(totalSpent.abs());
+        // B. 총 지출 결정: 사용자 입력값이 있으면 사용, 없으면 TransactionLog에서 계산
+        BigDecimal totalSpent;
+        if (inputTotalSpent != null && inputTotalSpent.compareTo(BigDecimal.ZERO) >= 0) {
+            totalSpent = inputTotalSpent;
+        } else {
+            // 해당 일정에 매핑된 지출 내역에서 자동 계산
+            List<TransactionLog> expenses = transactionLogRepository.findByScheduleId(scheduleId);
+            totalSpent = expenses.stream()
+                    .filter(tx -> "WITHDRAW".equalsIgnoreCase(tx.getType()))
+                    .map(tx -> tx.getAmount().abs())
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
 
         // C. 잔액 및 환급 계산
         BigDecimal balance = totalIncome.subtract(totalSpent);
+        BigDecimal refundPerPerson = BigDecimal.ZERO;
 
         if (balance.compareTo(BigDecimal.ZERO) > 0 && !paidRequests.isEmpty()) {
-            BigDecimal refundPerPerson = balance.divide(BigDecimal.valueOf(paidRequests.size()), 0, RoundingMode.FLOOR);
+            refundPerPerson = balance.divide(BigDecimal.valueOf(paidRequests.size()), 0, RoundingMode.FLOOR);
 
             // D. 환급 데이터 생성 (여기서는 PaymentRequest로 환급 대기 내역 생성 예시)
             for (PaymentRequest originalReq : paidRequests) {
@@ -127,11 +171,19 @@ public class EventFundService {
                 // 환급은 보통 상태를 다르게 가져가거나 별도 로직 필요
                 paymentRequestRepository.save(refundReq);
             }
-
-            // 일정에 정산 결과 업데이트
-            schedule.updateSettlement(totalSpent, refundPerPerson);
         }
 
+        // 일정에 정산 결과 업데이트 (잔액이 0 이하여도 기록)
+        schedule.updateSettlement(totalSpent, refundPerPerson);
+
         schedule.close(); // 일정 마감 처리
+    }
+
+    /**
+     * 2-1. 정산 및 환급 (기존 호환용 - 자동 계산)
+     */
+    @Transactional
+    public void settleAndRefund(Long clubId, Long scheduleId) {
+        settleAndRefund(clubId, scheduleId, null);
     }
 }

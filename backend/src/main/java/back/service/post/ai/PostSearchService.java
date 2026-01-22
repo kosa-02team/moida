@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.*;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -21,8 +22,8 @@ import java.util.stream.IntStream;
 public class PostSearchService {
 
     private final WebClient chromaWebClient;
-    private final GeminiEmbeddingClient geminiEmbeddingClient;
-    private final GeminiChatClient geminiChatClient;
+    private final Optional<GeminiEmbeddingClient> geminiEmbeddingClient;
+    private final Optional<GeminiChatClient> geminiChatClient;
     private final ChromaCollectionHolder chromaCollectionHolder;
     private final PostRepository postRepository;
     private final PostMemberTagRepository postMemberTagRepository;
@@ -36,10 +37,13 @@ public class PostSearchService {
     ) {}
 
     public List<SearchHit> searchHits(String query) {
+        if (geminiEmbeddingClient.isEmpty()) {
+            return List.of(); // API 키가 없으면 빈 결과 반환
+        }
 
         float[] embedding = embeddingCache.get(query);
         if (embedding == null) {
-            embedding = geminiEmbeddingClient.embed(query);
+            embedding = geminiEmbeddingClient.get().embed(query);
             embeddingCache.put(query, embedding);
         }
 
@@ -89,11 +93,14 @@ public class PostSearchService {
     }
 
     public String answerWithRag(String query) {
+        if (geminiEmbeddingClient.isEmpty() || geminiChatClient.isEmpty()) {
+            return "AI 검색 기능을 사용할 수 없습니다. API 키가 설정되지 않았습니다.";
+        }
 
         // 1. Embedding 캐시 확인
         float[] embedding = embeddingCache.get(query);
         if (embedding == null) {
-            embedding = geminiEmbeddingClient.embed(query); // Gemini 호출 1회
+            embedding = geminiEmbeddingClient.get().embed(query); // Gemini 호출 1회
             embeddingCache.put(query, embedding);
         }
 
@@ -169,7 +176,7 @@ public class PostSearchService {
                 .collect(Collectors.joining("\n"));
 
         // 7. Gemini Generate (딱 1번)
-        return geminiChatClient.generate(
+        return geminiChatClient.get().generate(
                 RagAnswerPrompt.TEMPLATE.formatted(context, query)
         );
     }

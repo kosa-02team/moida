@@ -25,10 +25,8 @@ export function GroupLayout() {
 
         // 현재 사용자의 역할 가져오기
         try {
-          const [myInfo, members] = await Promise.all([
-            getMyInfo(),
-            getMembers(Number(groupId), 'ACTIVE')
-          ]);
+          const myInfo = await getMyInfo();
+          const members = await getMembers(Number(groupId), 'ACTIVE');
           const currentMember = members.find(m => m.userId === myInfo.userId);
           if (currentMember) {
             const roles = currentMember.roles || [];
@@ -68,11 +66,16 @@ export function GroupLayout() {
     { label: '관리', path: 'admin' },
   ];
 
+  // 역할 배지가 있을 때와 없을 때 탭의 top 위치 계산
+  const headerHeight = 57; // 헤더 높이 (px)
+  const roleBadgeHeight = userRole && userRole !== '회원' ? 40 : 0; // 역할 배지 높이
+  const tabsTop = headerHeight + roleBadgeHeight;
+
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 font-sans" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       <div className="max-w-md md:max-w-2xl lg:max-w-4xl mx-auto min-h-screen bg-white shadow-xl relative flex flex-col">
         {/* Top Navigation Bar */}
-        <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-stone-100 sticky top-0 z-30 backdrop-blur-sm bg-white/95">
+        <header className="flex items-center justify-between px-4 py-3 bg-white sticky top-0 z-[100] shadow-sm">
           <Link to="/">
             <Button variant="ghost" size="icon" className="-ml-2" aria-label="뒤로가기">
               <ArrowLeft className="w-6 h-6 text-stone-800" />
@@ -88,7 +91,7 @@ export function GroupLayout() {
 
         {/* 역할 배지 */}
         {userRole && userRole !== '회원' && (
-          <div className="flex justify-end px-4 py-2 bg-white border-b border-stone-100 sticky top-[57px] z-20">
+          <div className="flex justify-end px-4 py-2 bg-white sticky top-[57px] z-[90] shadow-sm">
             <Badge className={`${roleColor} text-xs`}>
               {userRole}
             </Badge>
@@ -96,7 +99,10 @@ export function GroupLayout() {
         )}
 
         {/* Scrollable Tabs */}
-        <div className="flex overflow-x-auto scrollbar-hide border-b border-stone-100 bg-white sticky top-[97px] z-20 md:justify-center">
+        <div 
+          className="flex overflow-x-auto scrollbar-hide bg-white sticky z-[80] shadow-sm md:justify-center"
+          style={{ top: `${tabsTop}px` }}
+        >
           {tabs.map((tab) => (
             <NavLink
               key={tab.path}
@@ -115,7 +121,7 @@ export function GroupLayout() {
         </div>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto bg-stone-50 p-4 md:p-6">
+        <main className="flex-1 overflow-y-auto bg-stone-50 p-4 md:p-6" style={{ position: 'relative', zIndex: 1 }}>
           <Outlet context={{ club, loading }} />
         </main>
       </div>

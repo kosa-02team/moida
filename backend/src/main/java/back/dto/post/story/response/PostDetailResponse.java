@@ -16,8 +16,10 @@ public record PostDetailResponse(
         String place,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
-        List<String> imagesUrl){
-    public static PostDetailResponse from(Posts post, List<String> imagesUrl) {
+        List<String> imagesUrl,
+        Long postLikes,
+        Boolean isLiked){
+    public static PostDetailResponse from(Posts post, List<String> imagesUrl, Long postLikes, Boolean isLiked) {
         Long scheduleId = (post.getSchedule() == null) ? null : post.getSchedule().getScheduleId();
 
         return new PostDetailResponse(
@@ -31,6 +33,8 @@ public record PostDetailResponse(
                 post.getPlace(),
                 post.getCreatedAt(),
                 post.getUpdatedAt(),
-                imagesUrl);
+                imagesUrl,
+                postLikes,
+                isLiked);
     }
 }

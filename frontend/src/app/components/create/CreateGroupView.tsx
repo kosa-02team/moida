@@ -31,8 +31,8 @@ export function CreateGroupView() {
   // Form State
   const [name, setName] = useState('');
   const [category, setCategory] = useState<CategoryType>('SOCIAL');
+  const [clubType, setClubType] = useState<'OPERATION_FEE' | 'FAIR_SETTLEMENT'>('FAIR_SETTLEMENT');
   const [isPublic, setIsPublic] = useState(true);
-  const [postsPublic, setPostsPublic] = useState(false);
   const [image, setImage] = useState<string | null>(null);
 
   const handleNext = () => {
@@ -90,7 +90,7 @@ export function CreateGroupView() {
       const request: ClubCreateRequest = {
         clubName: name.trim(),
         visibility: isPublic ? 'PUBLIC' : 'PRIVATE', // 모임 공개/비공개
-        type: 'FAIR_SETTLEMENT', // 공정정산형으로 통합
+        type: clubType, // 사용자가 선택한 유형
         maxMembers: 100, // 자동으로 100명
         category: category,
       };
@@ -157,17 +157,42 @@ export function CreateGroupView() {
             <div className="space-y-3">
               <Label className="text-base font-semibold text-stone-900">카테고리</Label>
               <RadioGroup value={category} onValueChange={(v) => setCategory(v as CategoryType)} className="grid grid-cols-2 gap-3">
-                {(Object.keys(CATEGORY_LABELS) as CategoryType[]).map((cat) => (
-                  <div
-                    key={cat}
-                    className={`flex items-center space-x-2 border p-3 rounded-xl transition-all ${category === cat ? 'border-orange-500 bg-orange-50' : 'border-stone-200'}`}
-                  >
-                    <RadioGroupItem value={cat} id={cat} className="text-orange-500" />
-                    <Label htmlFor={cat} className="flex-1 cursor-pointer font-medium text-stone-900">
-                      {CATEGORY_LABELS[cat]}
-                    </Label>
-                  </div>
-                ))}
+                <>
+                  {(Object.keys(CATEGORY_LABELS) as CategoryType[]).map((cat) => (
+                    <div
+                      key={cat}
+                      className={`flex items-center space-x-2 border p-3 rounded-xl transition-all ${category === cat ? 'border-orange-500 bg-orange-50' : 'border-stone-200'}`}
+                    >
+                      <RadioGroupItem value={cat} id={cat} className="text-orange-500" />
+                      <Label htmlFor={cat} className="flex-1 cursor-pointer font-medium text-stone-900">
+                        {CATEGORY_LABELS[cat]}
+                      </Label>
+                    </div>
+                  ))}
+                </>
+              </RadioGroup>
+            </div>
+
+            {/* Club Type */}
+            <div className="space-y-3">
+              <Label className="text-base font-semibold text-stone-900">모임 유형</Label>
+              <RadioGroup value={clubType} onValueChange={(v) => setClubType(v as 'OPERATION_FEE' | 'FAIR_SETTLEMENT')} className="grid grid-cols-2 gap-3">
+                <div
+                  className={`flex items-center space-x-2 border p-3 rounded-xl transition-all ${clubType === 'OPERATION_FEE' ? 'border-orange-500 bg-orange-50' : 'border-stone-200'}`}
+                >
+                  <RadioGroupItem value="OPERATION_FEE" id="OPERATION_FEE" className="text-orange-500" />
+                  <Label htmlFor="OPERATION_FEE" className="flex-1 cursor-pointer font-medium text-stone-900">
+                    운영비형
+                  </Label>
+                </div>
+                <div
+                  className={`flex items-center space-x-2 border p-3 rounded-xl transition-all ${clubType === 'FAIR_SETTLEMENT' ? 'border-orange-500 bg-orange-50' : 'border-stone-200'}`}
+                >
+                  <RadioGroupItem value="FAIR_SETTLEMENT" id="FAIR_SETTLEMENT" className="text-orange-500" />
+                  <Label htmlFor="FAIR_SETTLEMENT" className="flex-1 cursor-pointer font-medium text-stone-900">
+                    공정정산형
+                  </Label>
+                </div>
               </RadioGroup>
             </div>
 
@@ -232,14 +257,6 @@ export function CreateGroupView() {
                 <Switch checked={isPublic} onCheckedChange={setIsPublic} className="data-[state=checked]:bg-orange-500" />
               </div>
 
-              {/* Posts Public Switch */}
-              <div className="flex items-center justify-between p-4 border border-stone-200 rounded-xl">
-                <div className="space-y-0.5">
-                  <Label className="text-base text-stone-900">게시글 공개</Label>
-                  <div className="text-sm text-stone-500">비회원도 게시글을 볼 수 있습니다</div>
-                </div>
-                <Switch checked={postsPublic} onCheckedChange={setPostsPublic} className="data-[state=checked]:bg-orange-500" />
-              </div>
             </div>
 
             {/* Info Box */}
@@ -251,7 +268,7 @@ export function CreateGroupView() {
                     <p className="font-medium mb-1">자동 설정 안내</p>
                     <ul className="text-blue-700 space-y-1">
                       <li>• 최대 인원: 100명</li>
-                      <li>• 통장 관리: 공정정산형</li>
+                      <li>• 통장 관리: {clubType === 'OPERATION_FEE' ? '운영비형' : '공정정산형'}</li>
                       <li>• 검색 허용: {isPublic ? '공개' : '비공개'}에 따라 자동 설정</li>
                     </ul>
                   </div>

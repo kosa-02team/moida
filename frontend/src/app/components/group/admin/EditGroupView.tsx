@@ -8,6 +8,8 @@ import { Label } from '../../ui/label';
 import { Textarea } from '../../ui/textarea';
 import { Badge } from '../../ui/badge';
 import { getClub, updateClub, type ClubDetailResponse, type ClubUpdateRequest } from '../../../../api/club-full';
+import { getMembers } from '../../../../api/member';
+import { getMyInfo } from '../../../../api/user';
 
 export function EditGroupView() {
   const navigate = useNavigate();
@@ -20,18 +22,13 @@ export function EditGroupView() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [image, setImage] = useState<string | null>(null);
-
-  // 권한 체크 (운영진 이상만 수정 가능)
-  const permissions = useUserPermissions(groupId || '1');
   
   useEffect(() => {
     async function checkPermission() {
       if (!groupId) return;
       try {
-        const [myInfo, members] = await Promise.all([
-          getMyInfo(),
-          getMembers(Number(groupId), 'ACTIVE')
-        ]);
+        const myInfo = await getMyInfo();
+        const members = await getMembers(Number(groupId), 'ACTIVE');
         const currentMember = members.find(m => m.userId === myInfo.userId);
         if (currentMember) {
           const roles = currentMember.roles || [];
@@ -80,6 +77,44 @@ export function EditGroupView() {
 
   const handleRemoveTag = (tagToRemove: string) => {
     setTags(tags.filter(tag => tag !== tagToRemove));
+  };
+
+  const handleImageUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      
+      if (!file.type.startsWith('image/')) {
+        toast.error('이미지 파일만 업로드 가능합니다');
+        return;
+      }
+      
+      const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error('이미지 크기는 5MB 이하만 가능합니다');
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        if (result) {
+          setImage(result);
+        }
+      };
+      reader.onerror = () => {
+        toast.error('이미지 읽기에 실패했습니다');
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
+  const removeImage = () => {
+    setImage(null);
   };
 
   const handleSubmit = async () => {
@@ -140,7 +175,7 @@ export function EditGroupView() {
   return (
     <div className="min-h-screen bg-stone-50 pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white border-b border-stone-100 backdrop-blur-sm bg-white/95">
+      <header className="sticky top-[97px] z-[70] bg-white shadow-sm">
         <div className="flex items-center justify-between px-4 py-3">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="-ml-2">
             <ArrowLeft className="w-6 h-6 text-stone-800" />
