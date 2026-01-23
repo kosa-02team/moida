@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 
 @Entity
 @Table(uniqueConstraints = {
-    @UniqueConstraint(name = "uk_schedule_user", columnNames = {"schedule_id", "user_id"})
+        @UniqueConstraint(name = "uk_schedule_user", columnNames = { "schedule_id", "user_id" })
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -76,8 +76,12 @@ public class ScheduleParticipants extends BaseEntity {
         this.feeStatus = "PAID";
     }
 
+    public void resetPayment() {
+        this.matchedTransactionId = null;
+        this.feeStatus = "PENDING";
+    }
+
     public void closeFeeRequest() {
         this.feeRequestClosedAt = java.time.LocalDateTime.now();
     }
 }
-
