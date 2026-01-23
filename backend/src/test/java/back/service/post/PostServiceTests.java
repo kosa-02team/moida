@@ -516,6 +516,7 @@ public class PostServiceTests {
                         Clubs clubRef = club(clubId);
                         ClubMembers writerRef = user(writerId);
                         ReflectionTestUtils.setField(writerRef, "memberId", writerId);
+                        ReflectionTestUtils.setField(writerRef, "clubId", clubId);
 
                         willDoNothing().given(clubAuthorizationService)
                                         .assertActiveMember(clubId, writerId);
