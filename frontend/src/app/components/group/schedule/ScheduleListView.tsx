@@ -8,7 +8,7 @@ import { Badge } from '../../ui/badge';
 import { Input } from '../../ui/input';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { 
+import {
   useUserPermissions,
 } from '../../../data/userRoles';
 import {
@@ -58,10 +58,10 @@ export function ScheduleListView() {
   const [votingScheduleId, setVotingScheduleId] = useState<number | null>(null);
   const [bankAccount, setBankAccount] = useState<BankAccounts | null>(null);
   const [copiedAccount, setCopiedAccount] = useState(false);
-  
+
   // 모임별 역할 가져오기
   const permissions = useUserPermissions(groupId || '1');
-  
+
   // 일정 마무리 버튼 표시 여부 체크 함수
   const canShowFinalizeButton = (entryFee?: number) => {
     if (entryFee && entryFee > 0) {
@@ -83,7 +83,7 @@ export function ScheduleListView() {
       'HANA': '하나은행',
       'KAKAO': '카카오뱅크',
       'TOSS': '토스뱅크',
-      'STUB': '테스트은행',
+      'STUB': '오픈은행',
     };
     return bankMap[bankCode] || bankCode;
   };
@@ -146,11 +146,11 @@ export function ScheduleListView() {
           let myResponse: 'attending' | 'not_attending' | null = null;
           let myFeeStatus: 'PAID' | 'PENDING' | undefined = undefined;
           let voteId: number | undefined = undefined;
-          
+
           try {
             const participants: ScheduleParticipantResponse[] = await getScheduleParticipants(Number(groupId), s.scheduleId);
             attendees = participants.filter(p => p.attendanceStatus === 'ATTENDING').length;
-            
+
             // 내 참석 상태 및 납부 상태 확인
             if (currentUserId) {
               const myParticipant = participants.find(p => p.userId === currentUserId);
@@ -172,7 +172,7 @@ export function ScheduleListView() {
           if (scheduleVote && currentUserId) {
             voteId = scheduleVote.voteId;
             // 내 투표 상태 확인 (투표에서)
-            const mySelectedOptions = scheduleVote.options.filter(opt => 
+            const mySelectedOptions = scheduleVote.options.filter(opt =>
               opt.voters?.some(v => v.userId === currentUserId)
             );
             if (mySelectedOptions.length > 0) {
@@ -193,7 +193,7 @@ export function ScheduleListView() {
           const isToday = diffDays === 0;
           const isPast = endDate < now;
           const isEventStarted = eventDate <= now; // 일정이 시작되었는지 확인
-          
+
           // 투표 진행 상태 판단: voteDeadline이 있거나 없어도 vote.status === 'OPEN'이면 voting
           let status: 'voting' | 'confirmed' | 'ongoing' | 'completed' | 'cancelled' = 'confirmed';
           if (s.status === 'CANCELLED') status = 'cancelled';
@@ -209,14 +209,14 @@ export function ScheduleListView() {
               }
             }
           }
-          
+
           // 정산 완료 여부 (totalSpent가 존재하면 정산 완료로 간주)
           const isFinalized = s.status === 'CLOSED' && s.totalSpent !== undefined && s.totalSpent > 0;
-          
+
           // 일정과 연결된 게시글 찾기 (좋아요 수를 위해)
           const linkedPost = posts.find(p => p.scheduleId === s.scheduleId);
           const postLikes = linkedPost?.postLikes || 0;
-          
+
           return {
             id: s.scheduleId,
             title: s.scheduleName,
@@ -240,7 +240,7 @@ export function ScheduleListView() {
           };
         })
       );
-      
+
       setSchedules(schedulesWithAttendees as Schedule[]);
     } catch (error) {
       console.error('일정 목록 불러오기 실패:', error);
@@ -263,7 +263,7 @@ export function ScheduleListView() {
         fetchData();
       }
     };
-    
+
     window.addEventListener('scheduleFeeStatusUpdated', handleFeeStatusUpdate);
     return () => window.removeEventListener('scheduleFeeStatusUpdated', handleFeeStatusUpdate);
   }, [groupId, fetchData]);
@@ -274,12 +274,12 @@ export function ScheduleListView() {
     const now = new Date();
     const diffTime = start.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (isCancelled) return `${formatDate(start)} (취소됨)`;
     if (diffDays === 0) return `오늘 ${formatTime(start)}`;
     if (diffDays === 1) return `내일 ${formatTime(start)}`;
     if (diffDays < 0) return `${formatDate(end)} 종료됨`;
-    
+
     return `${formatDate(start)} ${formatTime(start)}`;
   }
 
@@ -323,7 +323,7 @@ export function ScheduleListView() {
     .sort((a, b) => {
       const aDate = new Date(a.eventDate).getTime();
       const bDate = new Date(b.eventDate).getTime();
-      
+
       if (sortOrder === 'newest') {
         // 최신순: 일정 시작일이 늦은 순서 (내림차순)
         return bDate - aDate;
@@ -340,56 +340,56 @@ export function ScheduleListView() {
   // 목록 페이지에서 투표 처리
   const handleVoteInList = async (scheduleId: number, response: 'attending' | 'not_attending', voteId: number) => {
     if (!groupId || votingScheduleId === scheduleId) return; // 이미 처리 중이면 스킵
-    
+
     try {
       setVotingScheduleId(scheduleId);
-      
+
       // 투표 옵션 찾기
       const voteDetail = await getVote(Number(groupId), voteId);
-      const attendingOption = voteDetail.options.find(opt => 
+      const attendingOption = voteDetail.options.find(opt =>
         opt.optionText === '참석' || opt.optionText.includes('참석')
       );
-      const notAttendingOption = voteDetail.options.find(opt => 
+      const notAttendingOption = voteDetail.options.find(opt =>
         opt.optionText === '불참' || opt.optionText.includes('불참')
       );
-      
+
       // 토글 기능: 같은 버튼을 다시 누르면 취소 (null)
       const currentSchedule = schedules.find(s => s.id === scheduleId);
       let selectedOptionId: number | undefined;
       let isCancelling = false;
-      
-      if ((response === 'attending' && currentSchedule?.myResponse === 'attending') || 
-          (response === 'not_attending' && currentSchedule?.myResponse === 'not_attending')) {
+
+      if ((response === 'attending' && currentSchedule?.myResponse === 'attending') ||
+        (response === 'not_attending' && currentSchedule?.myResponse === 'not_attending')) {
         // 이미 선택된 옵션을 다시 클릭하면 취소
         isCancelling = true;
         // 빈 배열을 보내면 투표 취소 (백엔드가 지원하는 경우)
         // 지원하지 않으면 다른 옵션으로 변경
-        selectedOptionId = response === 'attending' 
-          ? notAttendingOption?.optionId 
+        selectedOptionId = response === 'attending'
+          ? notAttendingOption?.optionId
           : attendingOption?.optionId;
       } else {
         // 새로운 선택
-        selectedOptionId = response === 'attending' 
-          ? attendingOption?.optionId 
+        selectedOptionId = response === 'attending'
+          ? attendingOption?.optionId
           : notAttendingOption?.optionId;
       }
-      
+
       if (!selectedOptionId) {
         toast.error('투표 옵션을 찾을 수 없습니다');
         return;
       }
-      
+
       const request: VoteAnswerRequest = {
         optionIds: isCancelling ? [] : [selectedOptionId]
       };
       await answerVote(Number(groupId), voteId, request);
-      
+
       // 즉시 서버 데이터로 동기화
       const scheduleData = await getSchedules(Number(groupId));
       const participantsData = await Promise.all(
         scheduleData.map(s => getScheduleParticipants(Number(groupId), s.scheduleId).catch(() => []))
       );
-      
+
       // 게시글 목록 조회 (좋아요 수를 위해)
       let refreshedPosts: PostCardResponse[] = [];
       try {
@@ -397,23 +397,23 @@ export function ScheduleListView() {
       } catch (error) {
         console.error('게시글 목록 조회 실패:', error);
       }
-      
+
       // 투표 목록 다시 조회
       const voteList = await getVotes(Number(groupId));
       const attendanceVotes = voteList.filter(v => v.voteType === 'ATTENDANCE');
       const votes = await Promise.all(
         attendanceVotes.map(v => getVote(Number(groupId), v.voteId).catch(() => null))
       ).then(results => results.filter((v): v is VoteDetailResponse => v !== null));
-      
+
       // 상태 업데이트
       const updatedSchedules = await Promise.all(
         scheduleData.map(async (s, idx) => {
           const participants: ScheduleParticipantResponse[] = participantsData[idx];
           const attendees = participants.filter(p => p.attendanceStatus === 'ATTENDING').length;
-          
+
           let myResponse: 'attending' | 'not_attending' | null = null;
           let myFeeStatus: 'PAID' | 'PENDING' | undefined = undefined;
-          
+
           if (currentUserId) {
             const myParticipant = participants.find(p => p.userId === currentUserId);
             if (myParticipant) {
@@ -425,7 +425,7 @@ export function ScheduleListView() {
               myFeeStatus = myParticipant.feeStatus as 'PAID' | 'PENDING' | undefined;
             }
           }
-          
+
           const scheduleVote = votes.find(v => v.scheduleId === s.scheduleId);
           const eventDate = new Date(s.eventDate);
           const endDate = new Date(s.endDate);
@@ -435,7 +435,7 @@ export function ScheduleListView() {
           const isToday = diffDays === 0;
           const isPast = endDate < now;
           const isEventStarted = eventDate <= now; // 일정이 시작되었는지 확인
-          
+
           // 투표 진행 상태 판단: voteDeadline이 있거나 없어도 vote.status === 'OPEN'이면 voting
           let status: 'voting' | 'confirmed' | 'ongoing' | 'completed' | 'cancelled' = 'confirmed';
           if (s.status === 'CANCELLED') status = 'cancelled';
@@ -449,13 +449,13 @@ export function ScheduleListView() {
               }
             }
           }
-          
+
           const isFinalized = s.status === 'CLOSED' && s.totalSpent !== undefined && s.totalSpent > 0;
-          
+
           // 일정과 연결된 게시글 찾기 (좋아요 수를 위해)
           const linkedPost = refreshedPosts.find(p => p.scheduleId === s.scheduleId);
           const postLikes = linkedPost?.postLikes || 0;
-          
+
           return {
             id: s.scheduleId,
             title: s.scheduleName,
@@ -479,9 +479,9 @@ export function ScheduleListView() {
           };
         })
       );
-      
+
       setSchedules(updatedSchedules as Schedule[]);
-      
+
       if (isCancelling) {
         toast.success('투표가 취소되었습니다');
       } else {
@@ -547,204 +547,201 @@ export function ScheduleListView() {
 
       {filteredAndSortedSchedules.length > 0 ? (
         filteredAndSortedSchedules.map((item) => {
-        const detailVariant: 'default' | 'outline' = item.status === 'voting' ? 'default' : 'outline';
-        return (
-          <Card 
-            key={item.id}
-            className={`border-stone-100 shadow-sm bg-white ${
-              item.status === 'ongoing' ? 'border-blue-300 border-2' : ''
-            }`}
-          >
-            <CardContent className="p-4">
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex gap-2 items-center">
-                  {getStatusBadge(item)}
-                  {item.dDay !== null && item.dDay > 0 && (
-                    <span className="text-xs font-bold text-orange-500">D-{item.dDay}</span>
-                  )}
-                  {item.isToday && (
-                    <Badge className="bg-red-500 text-white text-xs">오늘</Badge>
-                  )}
-                </div>
-              </div>
-              
-              <Link to={`${item.id}`}>
-                <h3 className="text-lg font-bold text-stone-900 mb-3 hover:text-orange-600 transition-colors">
-                  {item.title}
-                </h3>
-              </Link>
-              
-              <div className="space-y-2 text-sm text-stone-600">
-                <div className="flex items-center gap-2">
-                  <CalendarIcon className="w-4 h-4 text-stone-400" />
-                  <span>{item.date}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-stone-400" />
-                  <span>{item.location}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-stone-400" />
-                  <span>{item.attendees}명 {item.status === 'voting' ? '투표' : '참석'}</span>
-                </div>
-                {/* 취소된 일정의 취소 사유 표시 */}
-                {item.status === 'cancelled' && item.cancelReason && (
-                  <div className="mt-2 p-2 bg-red-50 rounded-lg border border-red-100">
-                    <p className="text-xs text-red-700">
-                      <span className="font-medium">취소 사유:</span> {item.cancelReason}
-                    </p>
+          const detailVariant: 'default' | 'outline' = item.status === 'voting' ? 'default' : 'outline';
+          return (
+            <Card
+              key={item.id}
+              className={`border-stone-100 shadow-sm bg-white ${item.status === 'ongoing' ? 'border-blue-300 border-2' : ''
+                }`}
+            >
+              <CardContent className="p-4">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex gap-2 items-center">
+                    {getStatusBadge(item)}
+                    {item.dDay !== null && item.dDay > 0 && (
+                      <span className="text-xs font-bold text-orange-500">D-{item.dDay}</span>
+                    )}
+                    {item.isToday && (
+                      <Badge className="bg-red-500 text-white text-xs">오늘</Badge>
+                    )}
                   </div>
-                )}
-              </div>
-              
-              <div className="mt-4 pt-3 border-t border-stone-100 space-y-3">
-                {/* 투표 버튼 (투표 중인 일정만) */}
-                {item.status === 'voting' && item.voteId && (
-                  <div className="flex gap-2">
-                    {(() => {
-                      const attendingVariant: 'default' | 'outline' = item.myResponse === 'attending' ? 'default' : 'outline';
-                      return (
-                        <Button
-                          size="sm"
-                          variant={attendingVariant}
-                          className={`flex-1 h-10 ${
-                            item.myResponse === 'attending' 
-                              ? 'bg-green-500 hover:bg-green-600 text-white' 
-                              : 'border-stone-200'
-                          }`}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleVoteInList(item.id, 'attending', item.voteId!);
-                          }}
-                          disabled={votingScheduleId === item.id}
-                        >
-                          <Check className="w-4 h-4 mr-1" />
-                          참석
-                        </Button>
-                      );
-                    })()}
-                    {(() => {
-                      const notAttendingVariant: 'default' | 'outline' = item.myResponse === 'not_attending' ? 'default' : 'outline';
-                      return (
-                        <Button
-                          size="sm"
-                          variant={notAttendingVariant}
-                          className={`flex-1 h-10 ${
-                            item.myResponse === 'not_attending' 
-                              ? 'bg-red-500 hover:bg-red-600 text-white' 
-                              : 'border-stone-200'
-                          }`}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleVoteInList(item.id, 'not_attending', item.voteId!);
-                          }}
-                          disabled={votingScheduleId === item.id}
-                        >
-                          <X className="w-4 h-4 mr-1" />
-                          불참
-                        </Button>
-                      );
-                    })()}
+                </div>
+
+                <Link to={`${item.id}`}>
+                  <h3 className="text-lg font-bold text-stone-900 mb-3 hover:text-orange-600 transition-colors">
+                    {item.title}
+                  </h3>
+                </Link>
+
+                <div className="space-y-2 text-sm text-stone-600">
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon className="w-4 h-4 text-stone-400" />
+                    <span>{item.date}</span>
                   </div>
-                )}
-                
-                {/* 입금 상태 알림 (참석한 경우, 취소된 일정 제외) */}
-                {item.myResponse === 'attending' && item.entryFee && item.entryFee > 0 && item.status !== 'cancelled' && (
-                  <>
-                    {item.myFeeStatus === 'PAID' ? (
-                      <div className="p-2 bg-green-50 rounded-lg border border-green-200">
-                        <p className="text-xs font-medium text-green-700">
-                          ✓ 납부 완료
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="p-2 bg-orange-50 rounded-lg border border-orange-200">
-                        <p className="text-xs font-medium text-orange-700">
-                          입금 필요: {item.entryFee.toLocaleString()}원
-                        </p>
-                        {bankAccount ? (
-                          <div className="mt-2 space-y-1">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-orange-600">입금 계좌:</span>
-                              <span className="font-medium text-orange-700">{getBankName(bankAccount.bankCode)}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-orange-600">계좌번호:</span>
-                              <div className="flex items-center gap-1">
-                                <span className="font-mono font-medium text-orange-700">{bankAccount.accountNumber}</span>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    if ("accountNumber" in bankAccount) {
-                                      navigator.clipboard.writeText(bankAccount.accountNumber.replace(/-/g, ''));
-                                    }
-                                    setCopiedAccount(true);
-                                    toast.success('계좌번호가 복사되었습니다');
-                                    setTimeout(() => setCopiedAccount(false), 2000);
-                                  }}
-                                  className="h-4 px-1"
-                                >
-                                  {(() => {
-                                    if (copiedAccount) {
-                                      return <Check className="w-3 h-3 text-green-600" />;
-                                    }
-                                    return <Copy className="w-3 h-3 text-orange-600" />;
-                                  })()}
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-orange-600">예금주:</span>
-                              <span className="font-medium text-orange-700">{bankAccount.depositorName}</span>
-                            </div>
-                            <p className="text-xs text-orange-500 mt-1">
-                              💡 이체 시 입금자명을 꼭 본인 이름으로 남겨주세요
-                            </p>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-orange-600 mt-1">
-                            💡 상세보기에서 입금 계좌 확인
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-stone-400" />
+                    <span>{item.location}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-stone-400" />
+                    <span>{item.attendees}명 {item.status === 'voting' ? '투표' : '참석'}</span>
+                  </div>
+                  {/* 취소된 일정의 취소 사유 표시 */}
+                  {item.status === 'cancelled' && item.cancelReason && (
+                    <div className="mt-2 p-2 bg-red-50 rounded-lg border border-red-100">
+                      <p className="text-xs text-red-700">
+                        <span className="font-medium">취소 사유:</span> {item.cancelReason}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-stone-100 space-y-3">
+                  {/* 투표 버튼 (투표 중인 일정만) */}
+                  {item.status === 'voting' && item.voteId && (
+                    <div className="flex gap-2">
+                      {(() => {
+                        const attendingVariant: 'default' | 'outline' = item.myResponse === 'attending' ? 'default' : 'outline';
+                        return (
+                          <Button
+                            size="sm"
+                            variant={attendingVariant}
+                            className={`flex-1 h-10 ${item.myResponse === 'attending'
+                                ? 'bg-green-500 hover:bg-green-600 text-white'
+                                : 'border-stone-200'
+                              }`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleVoteInList(item.id, 'attending', item.voteId!);
+                            }}
+                            disabled={votingScheduleId === item.id}
+                          >
+                            <Check className="w-4 h-4 mr-1" />
+                            참석
+                          </Button>
+                        );
+                      })()}
+                      {(() => {
+                        const notAttendingVariant: 'default' | 'outline' = item.myResponse === 'not_attending' ? 'default' : 'outline';
+                        return (
+                          <Button
+                            size="sm"
+                            variant={notAttendingVariant}
+                            className={`flex-1 h-10 ${item.myResponse === 'not_attending'
+                                ? 'bg-red-500 hover:bg-red-600 text-white'
+                                : 'border-stone-200'
+                              }`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleVoteInList(item.id, 'not_attending', item.voteId!);
+                            }}
+                            disabled={votingScheduleId === item.id}
+                          >
+                            <X className="w-4 h-4 mr-1" />
+                            불참
+                          </Button>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* 입금 상태 알림 (참석한 경우, 취소된 일정 제외) */}
+                  {item.myResponse === 'attending' && item.entryFee && item.entryFee > 0 && item.status !== 'cancelled' && (
+                    <>
+                      {item.myFeeStatus === 'PAID' ? (
+                        <div className="p-2 bg-green-50 rounded-lg border border-green-200">
+                          <p className="text-xs font-medium text-green-700">
+                            ✓ 납부 완료
                           </p>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
-                
-                <div className="flex justify-between items-center">
-                  <div className="flex gap-2">
-                    {/* 일정 마무리 버튼 - 참가비가 있으면 총무 이상, 없으면 운영진 이상, 취소된 일정 제외, 일정 시작 후 */}
-                    {canShowFinalizeButton(item.entryFee) && item.isEventStarted && item.status !== 'voting' && item.status !== 'cancelled' && (
-                      <Link to={`${item.id}`} onClick={(e) => e.stopPropagation()}>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          className="border-purple-300 text-purple-600 hover:bg-purple-50"
-                        >
-                          <ClipboardCheck className="w-4 h-4 mr-1" />
-                          {item.isFinalized ? '정산 확인' : (item.isPast ? '일정 마무리' : '일정 조기 종료')}
-                        </Button>
-                      </Link>
-                    )}
+                        </div>
+                      ) : (
+                        <div className="p-2 bg-orange-50 rounded-lg border border-orange-200">
+                          <p className="text-xs font-medium text-orange-700">
+                            입금 필요: {item.entryFee.toLocaleString()}원
+                          </p>
+                          {bankAccount ? (
+                            <div className="mt-2 space-y-1">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-orange-600">입금 계좌:</span>
+                                <span className="font-medium text-orange-700">{getBankName(bankAccount.bankCode)}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-orange-600">계좌번호:</span>
+                                <div className="flex items-center gap-1">
+                                  <span className="font-mono font-medium text-orange-700">{bankAccount.accountNumber}</span>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      if ("accountNumber" in bankAccount) {
+                                        navigator.clipboard.writeText(bankAccount.accountNumber.replace(/-/g, ''));
+                                      }
+                                      setCopiedAccount(true);
+                                      toast.success('계좌번호가 복사되었습니다');
+                                      setTimeout(() => setCopiedAccount(false), 2000);
+                                    }}
+                                    className="h-4 px-1"
+                                  >
+                                    {(() => {
+                                      if (copiedAccount) {
+                                        return <Check className="w-3 h-3 text-green-600" />;
+                                      }
+                                      return <Copy className="w-3 h-3 text-orange-600" />;
+                                    })()}
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-orange-600">예금주:</span>
+                                <span className="font-medium text-orange-700">{bankAccount.depositorName}</span>
+                              </div>
+                              <p className="text-xs text-orange-500 mt-1">
+                                💡 이체 시 입금자명을 꼭 본인 이름으로 남겨주세요
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-orange-600 mt-1">
+                              💡 상세보기에서 입금 계좌 확인
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  <div className="flex justify-between items-center">
+                    <div className="flex gap-2">
+                      {/* 일정 마무리 버튼 - 참가비가 있으면 총무 이상, 없으면 운영진 이상, 취소된 일정 제외, 일정 시작 후 */}
+                      {canShowFinalizeButton(item.entryFee) && item.isEventStarted && item.status !== 'voting' && item.status !== 'cancelled' && (
+                        <Link to={`${item.id}`} onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-purple-300 text-purple-600 hover:bg-purple-50"
+                          >
+                            <ClipboardCheck className="w-4 h-4 mr-1" />
+                            {item.isFinalized ? '정산 확인' : (item.isPast ? '일정 마무리' : '일정 조기 종료')}
+                          </Button>
+                        </Link>
+                      )}
+                    </div>
+
+                    <Link to={`${item.id}`}>
+                      <Button
+                        size="sm"
+                        variant={detailVariant}
+                        className={item.status === 'voting' ? 'bg-orange-500 hover:bg-orange-600' : ''}
+                      >
+                        상세보기
+                      </Button>
+                    </Link>
                   </div>
-                  
-                  <Link to={`${item.id}`}>
-                    <Button 
-                      size="sm" 
-                      variant={detailVariant} 
-                      className={item.status === 'voting' ? 'bg-orange-500 hover:bg-orange-600' : ''}
-                    >
-                      상세보기
-                    </Button>
-                  </Link>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
+              </CardContent>
+            </Card>
+          );
         })
       ) : (
         <div className="text-center py-12 text-stone-500">
@@ -753,7 +750,7 @@ export function ScheduleListView() {
           </p>
         </div>
       )}
-      
+
       {/* FAB - 일정 만들기 */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-40 w-full max-w-md md:max-w-2xl lg:max-w-4xl px-4 pb-4 pointer-events-none">
         <div className="flex justify-between items-end pointer-events-auto">

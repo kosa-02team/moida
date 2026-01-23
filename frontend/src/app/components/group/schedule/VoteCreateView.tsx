@@ -40,7 +40,7 @@ export function VoteCreateView() {
       'HANA': '하나은행',
       'KAKAO': '카카오뱅크',
       'TOSS': '토스뱅크',
-      'STUB': '테스트은행',
+      'STUB': '오픈은행',
     };
     return bankMap[bankCode] || bankCode;
   };
@@ -125,7 +125,7 @@ export function VoteCreateView() {
     // 투표 마감일이 설정된 경우에만 검증
     if (voteDeadline) {
       const deadline = new Date(voteDeadline);
-      
+
       if (deadline >= start) {
         toast.error('투표 마감일은 일정 시작 전이어야 합니다');
         return;
@@ -173,9 +173,9 @@ export function VoteCreateView() {
   };
 
   return (
-    <div 
+    <div
       ref={containerRef}
-      className="bg-white min-h-screen pb-20 select-none" 
+      className="bg-white min-h-screen pb-20 select-none"
       onDragStart={(e) => {
         if (!(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement)) {
           e.preventDefault();
@@ -185,7 +185,7 @@ export function VoteCreateView() {
           canvas.height = 1;
           e.dataTransfer.setDragImage(canvas, 0, 0);
         }
-      }} 
+      }}
       onDragOver={(e) => {
         if (!(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement)) {
           e.preventDefault();
@@ -197,7 +197,7 @@ export function VoteCreateView() {
           e.preventDefault();
         }
       }}
-      style={{ 
+      style={{
         userSelect: 'none',
         WebkitUserSelect: 'none',
         WebkitUserDrag: 'none',
