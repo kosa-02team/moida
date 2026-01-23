@@ -589,7 +589,7 @@ export function StoriesView() {
       {/* FAB - 게시글 작성 */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-40 w-full max-w-md md:max-w-2xl lg:max-w-4xl px-4 pb-4 pointer-events-none">
         <div className="flex justify-between items-end pointer-events-auto">
-          <QAChatWidget />
+          <QAChatWidget groupId={groupId ? Number(groupId) : undefined} />
           <Link to="create">
             <Button className="rounded-full h-14 w-14 shadow-lg bg-lime-300 hover:bg-lime-400 text-white p-0">
               <Plus className="w-6 h-6" />

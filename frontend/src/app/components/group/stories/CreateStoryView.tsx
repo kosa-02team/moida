@@ -18,6 +18,7 @@ import { type VoteOptionCreateRequest } from '../../../../api/vote';
 export function CreateStoryView() {
   const navigate = useNavigate();
   const { groupId } = useParams();
+  const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [location, setLocation] = useState('');
@@ -41,7 +42,19 @@ export function CreateStoryView() {
   const [voteOptions, setVoteOptions] = useState<VoteOptionCreateRequest[]>([
     { optionText: '', order: 1 }
   ]);
+  const [isScrolled, setIsScrolled] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // 스크롤 감지
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY;
+      setIsScrolled(scrollY > 100); // 100px 이상 스크롤하면 헤더 버튼 표시
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     async function fetchData() {
@@ -227,6 +240,7 @@ export function CreateStoryView() {
     setIsSubmitting(true);
     try {
       const request: StoryCreateRequest = {
+        title: title.trim() || null,
         content: content.trim(),
         imagesUrl: images.length > 0 ? images : undefined,
         scheduleId: linkedScheduleId || null,
@@ -287,40 +301,16 @@ export function CreateStoryView() {
     >
       {/* Header */}
       <header className="sticky top-0 z-[70] bg-white shadow-sm" style={{ backgroundColor: '#ffffff' }}>
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate(-1)}
-              className="-ml-2"
-            >
-              <ArrowLeft className="w-6 h-6 text-stone-800" />
-            </Button>
-            <h1 className="ml-2 text-lg font-semibold text-stone-800">게시글 작성</h1>
-          </div>
+        <div className="flex items-center px-4 py-3">
           <Button
-            onClick={handleSubmit}
-            disabled={
-              isSubmitting || 
-              (postCategory === 'vote'
-                ? (!voteTitle.trim() || voteOptions.filter(opt => opt.optionText.trim()).length < 2)
-                : (!content.trim() && images.length === 0)
-              )
-            }
-            className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-4"
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(-1)}
+            className="-ml-2"
           >
-            <>
-              {isSubmitting ? (
-                <span>작성 중...</span>
-              ) : (
-                <>
-                  <Send className="w-4 h-4 mr-1" />
-                  게시
-                </>
-              )}
-            </>
+            <ArrowLeft className="w-6 h-6 text-stone-800" />
           </Button>
+          <h1 className="ml-2 text-lg font-semibold text-stone-800">게시글 작성</h1>
         </div>
       </header>
 
@@ -481,9 +471,46 @@ export function CreateStoryView() {
                 />
               </div>
             </div>
+
+            {/* 게시 버튼 - 오른쪽 정렬 */}
+            <div className="flex justify-end pt-4">
+              <Button
+                onClick={handleSubmit}
+                disabled={
+                  isSubmitting || 
+                  (!voteTitle.trim() || voteOptions.filter(opt => opt.optionText.trim()).length < 2)
+                }
+                className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-6"
+              >
+                {isSubmitting ? (
+                  <span>작성 중...</span>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-1" />
+                    게시
+                  </>
+                )}
+              </Button>
+            </div>
           </>
         ) : (
           <>
+            {/* 제목 입력 */}
+            <div className="space-y-2">
+              <Label htmlFor="title" className="text-base font-medium text-stone-700">
+                제목
+              </Label>
+              <Input
+                id="title"
+                placeholder="게시글 제목을 입력하세요"
+                className="h-12 bg-white border-stone-200 focus-visible:ring-orange-500 rounded-xl"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={200}
+              />
+              <p className="text-xs text-stone-400 text-right">{title.length}/200</p>
+            </div>
+
             {/* Linked Event */}
             {linkedScheduleId && (
               <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-xl">
@@ -505,7 +532,7 @@ export function CreateStoryView() {
               <div className="space-y-2">
                 <Label className="flex items-center gap-2 text-stone-700">
                   <Calendar className="w-4 h-4" />
-                  일정 연결 (선택)
+                  일정 연결
                 </Label>
                 <div className="flex flex-wrap gap-2">
                   {schedules.slice(0, 5).map(schedule => (
@@ -630,6 +657,30 @@ export function CreateStoryView() {
                 </p>
               </div>
             )}
+
+            {/* 게시 버튼 - 오른쪽 정렬 */}
+            <div className="flex justify-end pt-4">
+              <Button
+                onClick={handleSubmit}
+                disabled={
+                  isSubmitting || 
+                  (postCategory === 'vote'
+                    ? (!voteTitle.trim() || voteOptions.filter(opt => opt.optionText.trim()).length < 2)
+                    : (!content.trim() && images.length === 0 && !title.trim())
+                  )
+                }
+                className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-6"
+              >
+                {isSubmitting ? (
+                  <span>작성 중...</span>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-1" />
+                    게시
+                  </>
+                )}
+              </Button>
+            </div>
           </>
         )}
       </div>
