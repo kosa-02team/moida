@@ -570,6 +570,8 @@ public class PostServiceTests {
                                         .build();
                         ReflectionTestUtils.setField(writerRef, "memberId", writerId);
                         writerRef.approve(); // ACTIVE 상태로 변경
+                        // memberId가 제대로 설정되었는지 확인
+                        assertThat(writerRef.getMemberId()).isEqualTo(writerId);
                         Schedules scheduleRef = schedule(1L);
 
                         willDoNothing().given(clubAuthorizationService)
