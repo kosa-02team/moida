@@ -31,11 +31,11 @@ public class ClubMembers extends BaseEntity {
     private String nickname;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "role", length = 20)
+    @Column(name = "role", nullable = false, length = 20)
     private Role role = Role.MEMBER;
 
     @Enumerated(EnumType.STRING)
-    @Column(length = 20)
+    @Column(nullable = false, length = 20)
     private Status status;
 
     @Column(name = "joined_at")
