@@ -15,6 +15,8 @@ import back.repository.schedule.ScheduleRepository;
 import back.repository.vote.VoteOptionRepository;
 import back.repository.vote.VoteRepository;
 import back.service.club.ClubAuthService;
+import back.service.ledger.EventFundService;
+import back.service.post.ai.PostVectorService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -24,6 +26,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.junit.jupiter.api.BeforeEach;
+
+import java.util.Optional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -60,10 +65,19 @@ class ScheduleServiceTest {
     private TransactionLogRepository transactionLogRepository;
 
     @Mock
+    private EventFundService eventFundService;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private ScheduleService scheduleService;
+
+    @BeforeEach
+    void setUp() {
+        // postVectorService는 Optional이므로 empty로 설정
+        ReflectionTestUtils.setField(scheduleService, "postVectorService", Optional.empty());
+    }
 
     private static <T> T newEntity(Class<T> type) {
         try {
