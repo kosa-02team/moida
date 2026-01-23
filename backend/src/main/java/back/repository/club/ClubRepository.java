@@ -1,9 +1,13 @@
 package back.repository.club;
 
 import back.domain.club.Clubs;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
@@ -29,4 +33,9 @@ public interface ClubRepository extends JpaRepository<Clubs, Long> {
 
     // 초대 코드로 모임 조회
     Optional<Clubs> findByInviteCode(String inviteCode);
+
+    // 동시성 처리를 위한 Pessimistic Lock 조회
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM Clubs c WHERE c.clubId = :clubId")
+    Optional<Clubs> findByIdWithLock(@Param("clubId") Long clubId);
 }

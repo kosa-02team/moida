@@ -186,6 +186,9 @@ class ClubMemberServiceTest {
                         Long memberId = 1L;
                         Long userId = 10L;
 
+                        Clubs club = createClub(clubId, 999L);
+                        given(clubRepository.findByIdWithLock(clubId)).willReturn(Optional.of(club));
+
                         ClubMembers member = ClubMembers.builder()
                                         .clubId(clubId)
                                         .userId(userId)
@@ -196,9 +199,8 @@ class ClubMemberServiceTest {
 
                         given(clubMemberRepository.findByClubIdAndMemberId(clubId, memberId))
                                         .willReturn(Optional.of(member));
-
-                        Clubs club = createClub(clubId, 999L);
-                        given(clubRepository.findById(clubId)).willReturn(Optional.of(club));
+                        given(clubMemberRepository.countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE))
+                                        .willReturn(10L);
 
                         // when
                         ClubMemberResponse response = clubMemberService.approveClubMember(clubId, memberId);
@@ -208,7 +210,9 @@ class ClubMemberServiceTest {
                         assertThat(member.getStatus()).isEqualTo(ClubMembers.Status.ACTIVE);
                         assertThat(member.getJoinedAt()).isNotNull();
 
+                        then(clubRepository).should(times(1)).findByIdWithLock(clubId);
                         then(clubMemberRepository).should(times(1)).findByClubIdAndMemberId(clubId, memberId);
+                        then(clubMemberRepository).should(times(1)).countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE);
                 }
 
                 @Test
@@ -218,12 +222,17 @@ class ClubMemberServiceTest {
                         Long clubId = 1L;
                         Long memberId = 10L;
 
+                        Clubs club = createClub(clubId, 999L);
+                        given(clubRepository.findByIdWithLock(clubId)).willReturn(Optional.of(club));
                         given(clubMemberRepository.findByClubIdAndMemberId(clubId, memberId))
                                         .willReturn(Optional.empty());
 
                         // when & then
                         assertThatThrownBy(() -> clubMemberService.approveClubMember(clubId, memberId))
                                         .isInstanceOf(ClubException.MemberNotFound.class);
+
+                        then(clubRepository).should(times(1)).findByIdWithLock(clubId);
+                        then(clubMemberRepository).should(times(1)).findByClubIdAndMemberId(clubId, memberId);
                 }
 
                 @Test
@@ -233,6 +242,9 @@ class ClubMemberServiceTest {
                         Long clubId = 1L;
                         Long memberId = 1L;
                         Long userId = 10L;
+
+                        Clubs club = createClub(clubId, 999L);
+                        given(clubRepository.findByIdWithLock(clubId)).willReturn(Optional.of(club));
 
                         ClubMembers member = ClubMembers.builder()
                                         .clubId(clubId)
@@ -248,6 +260,9 @@ class ClubMemberServiceTest {
                         // when & then
                         assertThatThrownBy(() -> clubMemberService.approveClubMember(clubId, memberId))
                                         .isInstanceOf(ClubException.MemberNotPending.class);
+
+                        then(clubRepository).should(times(1)).findByIdWithLock(clubId);
+                        then(clubMemberRepository).should(times(1)).findByClubIdAndMemberId(clubId, memberId);
                 }
         }
 

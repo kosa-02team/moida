@@ -31,7 +31,7 @@ public class Clubs extends BaseEntity {
     @Column(name = "main_account_id", nullable = false, length = 36)
     private String mainAccountId = UUID.randomUUID().toString();
 
-    @Column(name = "invite_code", unique = true, length = 36)
+    @Column(name = "invite_code", nullable = false, unique = true, length = 36)
     private String inviteCode;
 
     @Enumerated(EnumType.STRING)
