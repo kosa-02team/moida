@@ -44,10 +44,10 @@ public class ClubMemberService {
             throw new ClubException.MemberNicknameDuplicate();
         }
 
-        return clubMemberRepository.findByClubIdAndUserId(clubId, userId)
+        ClubMembers member = clubMemberRepository.findByClubIdAndUserId(clubId, userId)
                 .map(existingMember -> {
                     existingMember.reApply();
-                    return ClubMemberResponse.from(existingMember);
+                    return existingMember;
                 })
                 .orElseGet(() -> {
                     ClubMembers newMember = ClubMembers.builder()
@@ -55,8 +55,17 @@ public class ClubMemberService {
                             .userId(userId)
                             .nickname(request.getNickname())
                             .build();
-                    return ClubMemberResponse.from(clubMemberRepository.save(newMember));
+                    return clubMemberRepository.save(newMember);
                 });
+
+        // 가입 신청 알림 이벤트 발행
+        eventPublisher.publishEvent(new back.event.ClubJoinRequestEvent(
+                clubId,
+                userId,
+                member.getNickname(),
+                club.getClubName()));
+
+        return ClubMemberResponse.from(member);
     }
 
     @Transactional
@@ -104,7 +113,7 @@ public class ClubMemberService {
      */
     public List<ClubMemberResponse> getMembers(Long clubId, ClubMembers.Status status) {
         List<ClubMembers> members = clubMemberRepository.findByClubIdAndStatus(clubId, status);
-        
+
         return members.stream()
                 .map(member -> {
                     Users user = userRepository.findById(member.getUserId()).orElse(null);

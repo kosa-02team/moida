@@ -3,17 +3,15 @@ package back.dto;
 import back.domain.Notifications;
 import lombok.Builder;
 
-import java.time.LocalDateTime;
-
 @Builder
 public record NotificationResponse(Long id,
-                                   String content,
-                                   Long refId,
-                                   String type,
-                                   Boolean isRead,
-                                   LocalDateTime createdAt,
-                                   Long clubId  // 알림과 관련된 모임 ID (선택사항)
-                                   ) {
+        String content,
+        Long refId,
+        String type,
+        Boolean isRead,
+        String createdAt,
+        Long clubId // 알림과 관련된 모임 ID (선택사항)
+) {
     // Entity -> DTO 변환 메서드 (clubId 없이)
     public static NotificationResponse from(Notifications entity) {
         return NotificationResponse.builder()
@@ -22,7 +20,7 @@ public record NotificationResponse(Long id,
                 .refId(entity.getRefId())
                 .type(entity.getRefType())
                 .isRead(entity.getIsRead())
-                .createdAt(entity.getCreatedAt())
+                .createdAt(entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null)
                 .clubId(null)
                 .build();
     }
@@ -35,7 +33,7 @@ public record NotificationResponse(Long id,
                 .refId(entity.getRefId())
                 .type(entity.getRefType())
                 .isRead(entity.getIsRead())
-                .createdAt(entity.getCreatedAt())
+                .createdAt(entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null)
                 .clubId(clubId)
                 .build();
     }

@@ -9,8 +9,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "club_members", uniqueConstraints = {
-    @UniqueConstraint(name = "uk_club_user", columnNames = {"club_id", "user_id"}),
-    @UniqueConstraint(name = "uk_club_nickname", columnNames = {"club_id", "nickname"})
+        @UniqueConstraint(name = "uk_club_user", columnNames = { "club_id", "user_id" }),
+        @UniqueConstraint(name = "uk_club_nickname", columnNames = { "club_id", "nickname" })
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -38,7 +38,7 @@ public class ClubMembers extends BaseEntity {
     @Column(length = 20)
     private Status status;
 
-    @Column(name = "joined_at", updatable = false)
+    @Column(name = "joined_at")
     private LocalDateTime joinedAt;
 
     public enum Status {
@@ -47,9 +47,9 @@ public class ClubMembers extends BaseEntity {
 
     public enum Role {
         OWNER(0),
-        ACCOUNTANT(1), 
-        STAFF(2),      
-        MEMBER(3),     
+        ACCOUNTANT(1),
+        STAFF(2),
+        MEMBER(3),
         NONE(99);
 
         private final int priority;
@@ -72,7 +72,7 @@ public class ClubMembers extends BaseEntity {
         this.status = Status.PENDING;
     }
 
-    public void approve(){
+    public void approve() {
         if (this.status != Status.PENDING) {
             throw new ClubException.MemberNotPending();
         }
@@ -90,38 +90,41 @@ public class ClubMembers extends BaseEntity {
     }
 
     public void kick() {
-        if(this.status != Status.ACTIVE){
+        if (this.status != Status.ACTIVE) {
             throw new ClubException.MemberNotActive();
-        };
+        }
+        ;
         this.status = Status.KICKED;
         this.role = Role.NONE;
     }
-    
+
     public void reject() {
         if (this.status != Status.PENDING) {
             throw new ClubException.MemberNotPending();
         }
         this.status = Status.REJECTED;
     }
-    
-    public void reApply(){
-        if(this.status == Status.KICKED){
+
+    public void reApply() {
+        if (this.status == Status.KICKED) {
             throw new ClubException.MemberKickedOut();
         }
         if (this.status == Status.REJECTED || this.status == Status.LEFT) {
             this.status = Status.PENDING;
-        }else {
+        } else {
             throw new ClubException.MemberAlreadyActive();
         }
     }
 
     public boolean isManagerLevel() {
-        if (this.status != Status.ACTIVE) return false;
+        if (this.status != Status.ACTIVE)
+            return false;
         return this.role.isAtLeast(Role.STAFF);
     }
 
     public boolean canManageFinance() {
-        if (this.status != Status.ACTIVE) return false;
+        if (this.status != Status.ACTIVE)
+            return false;
         return this.role.isAtLeast(Role.ACCOUNTANT);
     }
 
@@ -140,7 +143,6 @@ public class ClubMembers extends BaseEntity {
     public void demoteToMember() {
         this.role = Role.MEMBER;
     }
-
 
     public void changeNickname(String nickname) {
         this.nickname = nickname;

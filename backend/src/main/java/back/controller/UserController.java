@@ -62,11 +62,11 @@ public class UserController {
     public ResponseEntity<SuccessResponse<List<MyClubResponse>>> getMyClubs(
             @AuthenticationPrincipal UserPrincipal principal) {
         Long userId = principal.getUserId();
-        
+
         // ACTIVE 상태인 모임 멤버십 조회
         List<ClubMembers> memberships = clubMemberRepository.findByUserIdAndStatus(
                 userId, ClubMembers.Status.ACTIVE);
-        
+
         // ClubMembers에서 Club 정보와 함께 MyClubResponse로 변환
         List<MyClubResponse> responses = memberships.stream()
                 .map(member -> {
@@ -79,7 +79,7 @@ public class UserController {
                             .clubId(member.getClubId())
                             .name(club.getClubName())
                             .roles(List.of(member.getRole().name()))
-                            .joinedAt(member.getJoinedAt().toString())
+                            .joinedAt(member.getJoinedAt() != null ? member.getJoinedAt().toString() : null)
                             .visibility(club.getVisibility() != null ? club.getVisibility().name() : null)
                             .status(club.getStatus() != null ? club.getStatus().name() : null)
                             .category(club.getCategory() != null ? club.getCategory().name() : null)
@@ -87,7 +87,7 @@ public class UserController {
                 })
                 .filter(response -> response != null)
                 .collect(Collectors.toList());
-        
+
         return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK, responses));
     }
 
