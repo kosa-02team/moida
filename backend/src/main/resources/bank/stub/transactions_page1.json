@@ -1,145 +1,97 @@
 {
   "api_tran_id": "AA12349BHZ1324K82AL3",
-  "api_tran_dtm": "20260115104300567",
+  "api_tran_dtm": "20260124104300567",
   "rsp_code": "A0000",
   "rsp_message": "정상처리 되었습니다",
-  "bank_tran_id": "M202601151043BHZ003",
-  "bank_tran_date": "20260115",
+  "bank_tran_id": "M202601241043BHZ003",
+  "bank_tran_date": "20260124",
   "bank_code_tran": "097",
   "bank_rsp_code": "000",
   "bank_rsp_message": "",
   "bank_name": "오픈은행",
-  "savings_bank_name": "",
-  "fintech_use_num": "123456789012345678901234",
-  "balance_amt": "1290000",
-  "page_record_cnt": "14",
+  "balance_amt": "2000000",
+  "page_record_cnt": "8",
   "next_page_yn": "N",
   "res_list": [
     {
-      "tran_date": "20260115",
+      "tran_date": "20260124",
       "tran_time": "093000",
       "inout_type": "입금",
       "tran_type": "이체",
       "print_content": "김민준",
       "tran_amt": "30000",
-      "after_balance_amt": "1290000"
+      "after_balance_amt": "1320000",
+      "comment": "성공: 정상적인 ACTIVE 멤버, 금액 일치"
     },
     {
-      "tran_date": "20260115",
-      "tran_time": "090500",
+      "tran_date": "20260124",
+      "tran_time": "094000",
       "inout_type": "입금",
       "tran_type": "이체",
-      "print_content": "이서준",
-      "tran_amt": "30000",
-      "after_balance_amt": "1260000"
+      "print_content": "최서연회비2번",
+      "tran_amt": "60000",
+      "after_balance_amt": "1380000",
+      "comment": "예외: 다중 매칭 필요. (3만원 요청 2개인 상황에서 6만원 입금 시 금액 불일치로 자동 매칭 실패 -> 관리자가 수동 다중 매칭 처리해야 함)"
     },
     {
-      "tran_date": "20260114",
-      "tran_time": "201500",
+      "tran_date": "20260124",
+      "tran_time": "100500",
       "inout_type": "입금",
       "tran_type": "이체",
       "print_content": "박지훈",
       "tran_amt": "30000",
-      "after_balance_amt": "1230000"
+      "after_balance_amt": "1410000",
+      "comment": "성공: 정상 매칭"
     },
     {
-      "tran_date": "20260114",
-      "tran_time": "184000",
+      "tran_date": "20260124",
+      "tran_time": "101000",
       "inout_type": "입금",
       "tran_type": "이체",
-      "print_content": "최서연",
-      "tran_amt": "30000",
-      "after_balance_amt": "1200000"
+      "print_content": "장도윤깜빡",
+      "tran_amt": "29000",
+      "after_balance_amt": "1439000",
+      "comment": "예외: 금액 불일치. (3만원 요청인데 2.9만원 입금 -> AMOUNT_MISMATCH 사유와 함께 미매칭 기록)"
     },
     {
-      "tran_date": "20260114",
-      "tran_time": "111000",
+      "tran_date": "20260124",
+      "tran_time": "102000",
       "inout_type": "입금",
       "tran_type": "이체",
       "print_content": "정하준",
       "tran_amt": "30000",
-      "after_balance_amt": "1170000"
+      "after_balance_amt": "1469000",
+      "comment": "예외: 상태 이상 멤버. (정하준은 PENDING 상태라 입금 요청서가 안 만들어졌을 확률이 높음 -> NO_PENDING_REQUESTS 사유 기록)"
     },
     {
-      "tran_date": "20260113",
-      "tran_time": "173000",
-      "inout_type": "입금",
-      "tran_type": "이체",
-      "print_content": "한지민",
-      "tran_amt": "30000",
-      "after_balance_amt": "1140000"
-    },
-    {
-      "tran_date": "20260113",
+      "tran_date": "20260124",
       "tran_time": "110000",
       "inout_type": "입금",
       "tran_type": "이체",
-      "print_content": "오세훈",
+      "print_content": "홍길동",
       "tran_amt": "30000",
-      "after_balance_amt": "1110000"
+      "after_balance_amt": "1499000",
+      "comment": "예외: 이름 미발견. (동호회 멤버 리스트에 없는 사람 -> NAME_NOT_FOUND 기록)"
     },
     {
-      "tran_date": "20260113",
-      "tran_time": "094000",
+      "tran_date": "20260124",
+      "tran_time": "113000",
       "inout_type": "입금",
       "tran_type": "이체",
-      "print_content": "윤아린",
+      "print_content": "이서준",
       "tran_amt": "30000",
-      "after_balance_amt": "1080000"
+      "after_balance_amt": "1529000",
+      "comment": "예외: 동명이인 시뮬레이션. (만약 DB에 이서준이 2명이라면 시스템이 안전을 위해 스킵함 -> NAME_MISMATCH_OR_DUPLICATE 기록)"
     },
     {
-      "tran_date": "20260112",
-      "tran_time": "202000",
+      "tran_date": "20260110",
+      "tran_time": "120000",
       "inout_type": "입금",
       "tran_type": "이체",
-      "print_content": "장도윤",
+      "print_content": "두효정",
       "tran_amt": "30000",
-      "after_balance_amt": "1050000"
-    },
-    {
-      "tran_date": "20260112",
-      "tran_time": "171500",
-      "inout_type": "입금",
-      "tran_type": "이체",
-      "print_content": "임수현",
-      "tran_amt": "30000",
-      "after_balance_amt": "1020000"
-    },
-    {
-      "tran_date": "20260112",
-      "tran_time": "140000",
-      "inout_type": "입금",
-      "tran_type": "이체",
-      "print_content": "신유진",
-      "tran_amt": "30000",
-      "after_balance_amt": "990000"
-    },
-    {
-      "tran_date": "20260111",
-      "tran_time": "190000",
-      "inout_type": "입금",
-      "tran_type": "이체",
-      "print_content": "조현우",
-      "tran_amt": "30000",
-      "after_balance_amt": "960000"
-    },
-    {
-      "tran_date": "20260111",
-      "tran_time": "171000",
-      "inout_type": "입금",
-      "tran_type": "이체",
-      "print_content": "강태현",
-      "tran_amt": "30000",
-      "after_balance_amt": "930000"
-    },
-    {
-      "tran_date": "20260111",
-      "tran_time": "163000",
-      "inout_type": "입금",
-      "tran_type": "이체",
-      "print_content": "서지안",
-      "tran_amt": "30000",
-      "after_balance_amt": "900000"
+      "after_balance_amt": "1559000",
+      "comment": "예외: 날짜 범위 초과. (오늘 기준 14일 전 입금 -> ±10일 범위를 벗어남 -> DATE_OUT_OF_RANGE 기록)"
     }
   ]
 }
