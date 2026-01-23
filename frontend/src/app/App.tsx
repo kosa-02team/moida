@@ -1,3 +1,4 @@
+import * as React from "react";
 import {
   BrowserRouter,
   Routes,
@@ -52,7 +53,6 @@ import { ScheduleListView } from "./components/group/schedule/ScheduleListView";
 import { ScheduleDetailView } from "./components/group/schedule/ScheduleDetailView";
 import { VoteCreateView } from "./components/group/schedule/VoteCreateView";
 import { VoteDetailView } from "./components/group/schedule/VoteDetailView";
-import { VoteCreateView as IndependentVoteCreateView } from "./components/group/vote/VoteCreateView";
 import { VoteListView } from "./components/group/vote/VoteListView";
 import { ScheduleFinalizeView } from "./components/group/schedule/ScheduleFinalizeView";
 import { DuesView } from "./components/group/dues/DuesView";
@@ -174,7 +174,6 @@ export default function App() {
             
             {/* Vote */}
             <Route path="vote" element={<VoteListView />} />
-            <Route path="vote/create" element={<IndependentVoteCreateView />} />
             <Route path="vote/:voteId" element={<VoteDetailView />} />
 
             {/* Dues */}

@@ -162,6 +162,8 @@ public class VoteService {
 
         // 1. Posts 엔티티 생성 (GENERAL 타입일 때만)
         // ATTENDANCE 타입은 게시글과 무관하므로 postId는 null
+        // 참고: PostService.createStory()에서 투표 게시글을 생성할 때는 게시글이 이미 생성되어 있으므로
+        // VoteService.createVote()를 직접 호출하지 않고 PostService 내부에서 투표를 생성함
         Posts post = null;
         if ("GENERAL".equals(request.voteType())) {
             post = Posts.vote(

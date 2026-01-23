@@ -115,7 +115,7 @@ export function VoteListView() {
             <Button
               variant="default"
               size="sm"
-              onClick={() => navigate(`/group/${groupId}/vote/create`)}
+              onClick={() => navigate(`/group/${groupId}/stories/create`)}
               className="bg-orange-500 hover:bg-orange-600"
             >
               <Plus className="w-4 h-4 mr-1" />
@@ -161,7 +161,7 @@ export function VoteListView() {
               <Button
                 variant="outline"
                 className="mt-4"
-                onClick={() => navigate(`/group/${groupId}/vote/create`)}
+                onClick={() => navigate(`/group/${groupId}/stories/create`)}
               >
                 <Plus className="w-4 h-4 mr-1" />
                 첫 투표 만들기

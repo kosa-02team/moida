@@ -106,14 +106,15 @@ export function StoriesView() {
                   voteId: vote.voteId,
                   voteDetail,
                   mySelectedOptionIds: voteDetail.mySelectedOptionIds || [],
-                  totalVoteCount: voteDetail.options.reduce((sum, opt) => sum + (opt.voteCount || 0), 0)
+                  totalVoteCount: voteDetail.options.reduce((sum, opt) => sum + (opt.voteCount || 0), 0),
+                  isLiked: post.isLiked ?? false // 백엔드에서 반환한 isLiked 사용
                 };
               } catch (error) {
                 console.error(`투표 ${vote.voteId} 조회 실패:`, error);
-                return { ...post, voteId: vote.voteId };
+                return { ...post, voteId: vote.voteId, isLiked: post.isLiked ?? false };
               }
             }
-            return post as PostWithVote;
+            return { ...post, isLiked: post.isLiked ?? false } as PostWithVote;
           })
         );
 
@@ -221,24 +222,37 @@ export function StoriesView() {
     
     if (!groupId) return;
     
+    // 현재 상태 저장 (에러 시 롤백용)
+    const previousIsLiked = post.isLiked ?? false;
+    const previousPostLikes = post.postLikes ?? 0;
+    
+    // 낙관적 업데이트 (즉시 UI 업데이트)
+    setAllPosts(posts => posts.map(p => 
+      p.postId === post.postId 
+        ? { 
+            ...p, 
+            isLiked: !previousIsLiked, 
+            postLikes: previousIsLiked 
+              ? Math.max(0, previousPostLikes - 1) 
+              : previousPostLikes + 1
+          }
+        : p
+    ));
+    
     try {
-      if (post.isLiked) {
+      if (previousIsLiked) {
         await unlikePost(Number(groupId), post.postId);
-        setAllPosts(posts => posts.map(p => 
-          p.postId === post.postId 
-            ? { ...p, isLiked: false, postLikes: Math.max(0, p.postLikes - 1) }
-            : p
-        ));
       } else {
         await likePost(Number(groupId), post.postId);
-        setAllPosts(posts => posts.map(p => 
-          p.postId === post.postId 
-            ? { ...p, isLiked: true, postLikes: p.postLikes + 1 }
-            : p
-        ));
       }
     } catch (error) {
       console.error('좋아요 처리 실패:', error);
+      // 에러 발생 시 이전 상태로 롤백
+      setAllPosts(posts => posts.map(p => 
+        p.postId === post.postId 
+          ? { ...p, isLiked: previousIsLiked, postLikes: previousPostLikes }
+          : p
+      ));
       toast.error('좋아요 처리에 실패했습니다.');
     }
   };

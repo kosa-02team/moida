@@ -169,8 +169,26 @@ export const apiClient = async <T>(
       throw error;
     }
 
-    // 응답 데이터 파싱
-    const data = await response.json();
+    // 응답 본문이 있는지 확인
+    const contentLength = response.headers.get('content-length');
+    const contentType = response.headers.get('content-type');
+    
+    // 본문이 없거나 빈 응답인 경우 (DELETE 성공 등)
+    if (contentLength === '0' || !contentType?.includes('application/json')) {
+      // void 타입이거나 빈 응답인 경우
+      return undefined as T;
+    }
+
+    // 응답 본문 읽기 시도
+    const text = await response.text();
+    
+    // 빈 문자열인 경우
+    if (!text || text.trim() === '') {
+      return undefined as T;
+    }
+
+    // JSON 파싱
+    const data = JSON.parse(text);
 
     // SuccessResponse 형식인 경우 data 필드 추출
     if (data.data !== undefined) {
