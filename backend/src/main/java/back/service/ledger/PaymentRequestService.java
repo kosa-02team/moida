@@ -70,6 +70,15 @@ public class PaymentRequestService {
 
         // 매칭 이력 ID 등은 null로 처리하거나 별도 생성 필요
         request.confirmMatch(null, adminId);
+        paymentRequestRepository.save(request);
+    }
+
+    /**
+     * 입금 확인 취소
+     */
+    @Transactional
+    public void cancelPayment(Long requestId, Long adminId) {
+        transactionMatchingService.cancelMatch(requestId, adminId);
     }
 
     @Transactional
