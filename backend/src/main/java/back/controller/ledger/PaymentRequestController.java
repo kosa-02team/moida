@@ -74,6 +74,22 @@ public class PaymentRequestController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * 다중 입금 요청 수동 매칭
+     */
+    @PatchMapping("/payment-requests/multi-match")
+    public ResponseEntity<Void> confirmMultiMatch(
+            @PathVariable Long clubId,
+            @RequestBody MultiMatchRequest multiMatchRequest,
+            @AuthenticationPrincipal UserPrincipal user) {
+        Long userId = user.getUserId();
+        paymentRequestService.confirmMultiMatch(multiMatchRequest.requestIds(), multiMatchRequest.historyId(), userId);
+        return ResponseEntity.ok().build();
+    }
+
+    public record MultiMatchRequest(List<Long> requestIds, Long historyId) {
+    }
+
     // --- 2. 일정 자금 관리 (EventFundService) ---
 
     /**
@@ -111,7 +127,7 @@ public class PaymentRequestController {
             @AuthenticationPrincipal UserPrincipal user,
             @RequestBody(required = false) ScheduleFinalizeRequest request) {
         Long userId = user.getUserId();
-        
+
         // 권한 체크: 참가비가 있으면 총무 이상, 없으면 운영진 이상
         var scheduleOpt = scheduleRepository.findById(scheduleId);
         if (scheduleOpt.isPresent()) {
@@ -124,9 +140,9 @@ public class PaymentRequestController {
                 clubAuthService.assertAtLeastManager(clubId, userId);
             }
         }
-        
-        java.math.BigDecimal totalSpent = (request != null && request.totalSpent() != null) 
-                ? request.totalSpent() 
+
+        java.math.BigDecimal totalSpent = (request != null && request.totalSpent() != null)
+                ? request.totalSpent()
                 : null;
         eventFundService.settleAndRefund(clubId, scheduleId, totalSpent);
         return ResponseEntity.ok().build();

@@ -9,6 +9,7 @@ import back.repository.club.ClubMemberRepository;
 import back.repository.club.ClubRepository;
 import back.repository.ledger.PaymentRequestRepository;
 import back.repository.ledger.TransactionLogRepository;
+import back.repository.ledger.AuditLogsRepository;
 import back.repository.schedule.ScheduleParticipantRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,19 +33,22 @@ public class TransactionMatchingService {
     private final ClubRepository clubRepository;
     private final TransactionLogRepository transactionLogRepository;
     private final ScheduleParticipantRepository scheduleParticipantRepository;
+    private final AuditLogsRepository auditLogsRepository;
 
     public TransactionMatchingService(PaymentRequestRepository paymentRequestRepository,
             BankTransactionHistoryRepository transactionHistoryRepository,
             ClubMemberRepository clubMemberRepository,
             ClubRepository clubRepository,
             TransactionLogRepository transactionLogRepository,
-            ScheduleParticipantRepository scheduleParticipantRepository) {
+            ScheduleParticipantRepository scheduleParticipantRepository,
+            AuditLogsRepository auditLogsRepository) {
         this.paymentRequestRepository = paymentRequestRepository;
         this.transactionHistoryRepository = transactionHistoryRepository;
         this.clubMemberRepository = clubMemberRepository;
         this.clubRepository = clubRepository;
         this.transactionLogRepository = transactionLogRepository;
         this.scheduleParticipantRepository = scheduleParticipantRepository;
+        this.auditLogsRepository = auditLogsRepository;
     }
 
     /**
@@ -279,6 +283,13 @@ public class TransactionMatchingService {
 
         // 일정 참가자 상태 업데이트
         updateScheduleParticipantStatus(request, historyId);
+
+        // 감사 로그 기록
+        auditLogsRepository.save(new back.domain.ledger.AuditLogs(
+                historyId != null ? historyId : -1L,
+                matchedBy,
+                "PENDING",
+                "MATCHED (Manual)"));
     }
 
     /**
@@ -299,6 +310,13 @@ public class TransactionMatchingService {
 
         // 일정 참가자 상태 업데이트 (historyId는 null)
         updateScheduleParticipantStatus(request, null);
+
+        // 감사 로그 기록
+        auditLogsRepository.save(new back.domain.ledger.AuditLogs(
+                -1L,
+                matchedBy,
+                "PENDING",
+                "MATCHED (Manual Cash)"));
     }
 
     /**
@@ -337,6 +355,59 @@ public class TransactionMatchingService {
                         });
             });
         }
+
+        // 감사 로그 기록
+        auditLogsRepository.save(new back.domain.ledger.AuditLogs(
+                historyId != null ? historyId : -1L,
+                adminId,
+                "MATCHED",
+                "CANCELLED (Unmatched)"));
+    }
+
+    /**
+     * 다중 매칭 처리 (하나의 거래내역에 여러 요청 매칭)
+     */
+    @Transactional
+    public void manualMatchMultipleRequests(List<Long> requestIds, Long historyId, Long adminId) {
+        BankTransactionHistory transaction = transactionHistoryRepository.findById(historyId)
+                .orElseThrow(() -> new IllegalArgumentException("거래내역을 찾을 수 없습니다."));
+
+        List<PaymentRequest> requests = paymentRequestRepository.findAllById(requestIds);
+        if (requests.size() != requestIds.size()) {
+            throw new IllegalArgumentException("일부 입금요청을 찾을 수 없습니다.");
+        }
+
+        // 금액 검증
+        BigDecimal totalExpected = requests.stream()
+                .map(PaymentRequest::getExpectedAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        if (transaction.getAmount().abs().compareTo(totalExpected.abs()) != 0) {
+            throw new IllegalStateException(
+                    "선택한 요청들의 합계 금액(" + totalExpected + ")이 거래 금액(" + transaction.getAmount().abs() + ")과 일치하지 않습니다.");
+        }
+
+        for (PaymentRequest request : requests) {
+            if (!request.isMatchable()) {
+                throw new IllegalStateException("이미 매칭되었거나 만료된 요청이 포함되어 있습니다. ID: " + request.getRequestId());
+            }
+
+            request.confirmMatch(historyId, adminId);
+            paymentRequestRepository.save(request);
+            updateScheduleParticipantStatus(request, historyId);
+        }
+
+        // 거래내역 상태 업데이트
+        transaction.markAsMatched();
+        transaction.updateUnmatchReason(null);
+        transactionHistoryRepository.save(transaction);
+
+        // 감사 로그 기록
+        auditLogsRepository.save(new back.domain.ledger.AuditLogs(
+                historyId,
+                adminId,
+                "PENDING",
+                "MULTI_MATCHED (" + requests.size() + " requests)"));
     }
 
     /**

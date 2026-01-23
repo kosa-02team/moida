@@ -4,7 +4,6 @@ import back.domain.ledger.PaymentRequest;
 import back.dto.ledger.request.PaymentRequestCreateRequest;
 import back.repository.ledger.PaymentRequestRepository;
 import back.exception.ResourceException;
-import back.exception.response.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -84,6 +83,14 @@ public class PaymentRequestService {
     @Transactional
     public void confirmManualPayment(Long requestId, Long matchedBy) {
         transactionMatchingService.confirmPaymentWithoutHistory(requestId, matchedBy);
+    }
+
+    /**
+     * 다중 입금 확인 (하나의 거래내역에 여러 요청 매칭)
+     */
+    @Transactional
+    public void confirmMultiMatch(List<Long> requestIds, Long historyId, Long adminId) {
+        transactionMatchingService.manualMatchMultipleRequests(requestIds, historyId, adminId);
     }
 
     /**
