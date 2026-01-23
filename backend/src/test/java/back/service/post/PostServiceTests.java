@@ -515,10 +515,13 @@ public class PostServiceTests {
 
                         Clubs clubRef = club(clubId);
                         ClubMembers writerRef = user(writerId);
+                        ReflectionTestUtils.setField(writerRef, "memberId", writerId);
 
                         willDoNothing().given(clubAuthorizationService)
                                         .assertActiveMember(clubId, writerId);
                         given(clubsRepository.getReferenceById(clubId)).willReturn(clubRef);
+                        given(clubMemberRepository.findByClubIdAndUserId(clubId, writerId))
+                                        .willReturn(Optional.of(writerRef));
                         given(clubMemberRepository.getReferenceById(writerId)).willReturn(writerRef);
 
                         Posts savedPost = Posts.story(clubRef, writerRef, null, request.content());
@@ -556,11 +559,14 @@ public class PostServiceTests {
 
                         Clubs clubRef = club(clubId);
                         ClubMembers writerRef = user(writerId);
+                        ReflectionTestUtils.setField(writerRef, "memberId", writerId);
                         Schedules scheduleRef = schedule(1L);
 
                         willDoNothing().given(clubAuthorizationService)
                                         .assertActiveMember(clubId, writerId);
                         given(clubsRepository.getReferenceById(clubId)).willReturn(clubRef);
+                        given(clubMemberRepository.findByClubIdAndUserId(clubId, writerId))
+                                        .willReturn(Optional.of(writerRef));
                         given(clubMemberRepository.getReferenceById(writerId)).willReturn(writerRef);
                         given(scheduleRepository.getReferenceById(1L)).willReturn(scheduleRef);
 
