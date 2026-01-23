@@ -117,6 +117,17 @@ public class PaymentRequest {
     }
 
     /**
+     * 매칭 취소 처리
+     */
+    public void unmatch() {
+        this.status = RequestStatus.PENDING;
+        this.matchType = null;
+        this.matchedHistoryId = null;
+        this.matchedAt = null;
+        this.matchedBy = null;
+    }
+
+    /**
      * 수동 확인 처리 (현금 납부 등 거래내역 없음)
      */
     public void confirmManualCashPayment(Long matchedBy) {
@@ -139,11 +150,13 @@ public class PaymentRequest {
      * - 수동 매칭은 EXPIRED도 가능하도록 서비스에서 처리
      */
     public boolean isMatchable() {
-        return this.status == RequestStatus.PENDING || this.status == RequestStatus.EXPIRED;    }
+        return this.status == RequestStatus.PENDING || this.status == RequestStatus.EXPIRED;
+    }
 
     /**
-     + * 수동 매칭 가능 여부 (만료된 요청도 포함)
-     + */
+     * + * 수동 매칭 가능 여부 (만료된 요청도 포함)
+     * +
+     */
     public boolean isManualMatchable() {
         return this.status == RequestStatus.PENDING || this.status == RequestStatus.EXPIRED;
     }
