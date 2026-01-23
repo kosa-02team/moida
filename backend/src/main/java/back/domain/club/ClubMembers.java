@@ -78,7 +78,10 @@ public class ClubMembers extends BaseEntity {
         }
 
         this.status = Status.ACTIVE;
-        this.role = Role.MEMBER;
+        // role이 이미 설정되어 있으면 변경하지 않음 (OWNER 등)
+        if (this.role == null || this.role == Role.MEMBER) {
+            this.role = Role.MEMBER;
+        }
         this.joinedAt = LocalDateTime.now();
     }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
+import * as React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, MapPin, Clock, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Clock, AlertCircle, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
@@ -9,6 +10,7 @@ import { Textarea } from '../../ui/textarea';
 import { createSchedule, ScheduleCreateRequest } from '../../../../api/schedule';
 import { useUserPermissions } from '../../../data/userRoles';
 import { NoPermissionView } from '../../common/NoPermissionView';
+import { getBankAccount, type BankAccounts } from '../../../../api/bank';
 
 export function VoteCreateView() {
   const navigate = useNavigate();
@@ -24,7 +26,47 @@ export function VoteCreateView() {
   const [voteDeadline, setVoteDeadline] = useState('');
   const [entryFee, setEntryFee] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [bankAccount, setBankAccount] = useState<BankAccounts | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // 은행 코드를 은행 이름으로 변환
+  const getBankName = (bankCode: string): string => {
+    const bankMap: Record<string, string> = {
+      'KB': 'KB국민은행',
+      'NH': 'NH농협은행',
+      'SHINHAN': '신한은행',
+      'WOORI': '우리은행',
+      'HANA': '하나은행',
+      'KAKAO': '카카오뱅크',
+      'TOSS': '토스뱅크',
+      'STUB': '테스트은행',
+    };
+    return bankMap[bankCode] || bankCode;
+  };
+
+  // 계좌 정보 조회
+  useEffect(() => {
+    async function fetchBankAccount() {
+      if (!groupId) return;
+      try {
+        const account = await getBankAccount(Number(groupId));
+        setBankAccount(account);
+      } catch (error) {
+        // 계좌가 없을 수 있으므로 에러는 무시 (조용히 처리)
+      }
+    }
+    fetchBankAccount();
+  }, [groupId]);
+
+  // 계좌번호 복사
+  const handleCopyAccount = () => {
+    if (!bankAccount) return;
+    navigator.clipboard.writeText(bankAccount.accountNumber.replace(/-/g, ''));
+    setCopied(true);
+    toast.success('계좌번호가 복사되었습니다');
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   // 권한 체크: 일정 생성은 운영진 이상만 가능
   useEffect(() => {
@@ -300,6 +342,44 @@ export function VoteCreateView() {
             <p className="text-xs text-stone-500 pl-1">
               참가비를 설정하면 일정 참석 시 자동으로 입금 요청이 생성됩니다.
             </p>
+            {/* 참가비가 입력되었을 때 계좌 정보 표시 */}
+            {entryFee && parseFloat(entryFee) > 0 && bankAccount && (
+              <div className="bg-orange-50 rounded-xl p-4 border border-orange-100 space-y-2 mt-3">
+                <h4 className="text-sm font-semibold text-stone-700">입금 계좌</h4>
+                <div className="bg-white rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-stone-500">은행</span>
+                    <span className="font-medium text-stone-900">{getBankName(bankAccount.bankCode)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-stone-500">계좌번호</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-stone-900 font-mono">{bankAccount.accountNumber}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleCopyAccount}
+                        className="h-6 px-2"
+                      >
+                        {(() => {
+                          if (copied) {
+                            return <Check className="w-3 h-3 text-green-600" /> as React.ReactNode;
+                          }
+                          return <Copy className="w-3 h-3" /> as React.ReactNode;
+                        })()}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-stone-500">예금주</span>
+                    <span className="font-medium text-stone-900">{bankAccount.depositorName}</span>
+                  </div>
+                </div>
+                <p className="text-xs text-stone-500">
+                  💡 이체 시 입금자명을 꼭 본인 이름으로 남겨주세요.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import * as React from 'react';
 import { Plus, Calendar as CalendarIcon, MapPin, CheckCircle2, ClipboardCheck, ArrowUp, ArrowDown, Check, X, Search } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { Button } from '../../ui/button';
@@ -21,6 +22,8 @@ import { getSchedules, getScheduleParticipants, type ScheduleParticipantResponse
 import { getVotes, getVote, answerVote, type VoteDetailResponse, type VoteAnswerRequest } from '../../../../api/vote';
 import { getMyInfo } from '../../../../api/user';
 import { getRecentPosts, type PostCardResponse } from '../../../../api/post';
+import { getBankAccount, type BankAccounts } from '../../../../api/bank';
+import { Copy } from 'lucide-react';
 
 interface Schedule {
   id: number;
@@ -52,6 +55,8 @@ export function ScheduleListView() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [votingScheduleId, setVotingScheduleId] = useState<number | null>(null);
+  const [bankAccount, setBankAccount] = useState<BankAccounts | null>(null);
+  const [copiedAccount, setCopiedAccount] = useState(false);
   
   // 모임별 역할 가져오기
   const permissions = useUserPermissions(groupId || '1');
@@ -67,7 +72,22 @@ export function ScheduleListView() {
     }
   };
 
-  // 현재 사용자 정보 조회
+  // 은행 코드를 은행 이름으로 변환
+  const getBankName = (bankCode: string): string => {
+    const bankMap: Record<string, string> = {
+      'KB': 'KB국민은행',
+      'NH': 'NH농협은행',
+      'SHINHAN': '신한은행',
+      'WOORI': '우리은행',
+      'HANA': '하나은행',
+      'KAKAO': '카카오뱅크',
+      'TOSS': '토스뱅크',
+      'STUB': '테스트은행',
+    };
+    return bankMap[bankCode] || bankCode;
+  };
+
+  // 현재 사용자 정보 및 계좌 정보 조회
   useEffect(() => {
     async function fetchMyInfo() {
       try {
@@ -77,8 +97,18 @@ export function ScheduleListView() {
         console.error('사용자 정보 조회 실패:', error);
       }
     }
+    async function fetchBankAccount() {
+      if (!groupId) return;
+      try {
+        const account = await getBankAccount(Number(groupId));
+        setBankAccount(account);
+      } catch (error) {
+        console.error('계좌 정보 조회 실패:', error);
+      }
+    }
     fetchMyInfo();
-  }, []);
+    fetchBankAccount();
+  }, [groupId]);
 
   // fetchData 함수를 useCallback으로 정의하여 이벤트 리스너에서도 사용 가능하도록
   const fetchData = useCallback(async () => {
@@ -619,8 +649,8 @@ export function ScheduleListView() {
                   </div>
                 )}
                 
-                {/* 입금 상태 알림 (참석한 경우) */}
-                {item.myResponse === 'attending' && item.entryFee && item.entryFee > 0 && (
+                {/* 입금 상태 알림 (참석한 경우, 취소된 일정 제외) */}
+                {item.myResponse === 'attending' && item.entryFee && item.entryFee > 0 && item.status !== 'cancelled' && (
                   <>
                     {item.myFeeStatus === 'PAID' ? (
                       <div className="p-2 bg-green-50 rounded-lg border border-green-200">
@@ -633,9 +663,51 @@ export function ScheduleListView() {
                         <p className="text-xs font-medium text-orange-700">
                           입금 필요: {item.entryFee.toLocaleString()}원
                         </p>
-                        <p className="text-xs text-orange-600 mt-1">
-                          💡 상세보기에서 입금 계좌 확인
-                        </p>
+                        {bankAccount ? (
+                          <div className="mt-2 space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-orange-600">입금 계좌:</span>
+                              <span className="font-medium text-orange-700">{getBankName(bankAccount.bankCode)}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-orange-600">계좌번호:</span>
+                              <div className="flex items-center gap-1">
+                                <span className="font-mono font-medium text-orange-700">{bankAccount.accountNumber}</span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    if ("accountNumber" in bankAccount) {
+                                      navigator.clipboard.writeText(bankAccount.accountNumber.replace(/-/g, ''));
+                                    }
+                                    setCopiedAccount(true);
+                                    toast.success('계좌번호가 복사되었습니다');
+                                    setTimeout(() => setCopiedAccount(false), 2000);
+                                  }}
+                                  className="h-4 px-1"
+                                >
+                                  {(() => {
+                                    if (copiedAccount) {
+                                      return <Check className="w-3 h-3 text-green-600" />;
+                                    }
+                                    return <Copy className="w-3 h-3 text-orange-600" />;
+                                  })()}
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-orange-600">예금주:</span>
+                              <span className="font-medium text-orange-700">{bankAccount.depositorName}</span>
+                            </div>
+                            <p className="text-xs text-orange-500 mt-1">
+                              💡 이체 시 입금자명을 꼭 본인 이름으로 남겨주세요
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-orange-600 mt-1">
+                            💡 상세보기에서 입금 계좌 확인
+                          </p>
+                        )}
                       </div>
                     )}
                   </>

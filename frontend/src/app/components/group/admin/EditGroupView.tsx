@@ -173,10 +173,10 @@ export function EditGroupView() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
+    <div className="space-y-6 pb-4" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
       {/* Header */}
-      <header className="sticky top-[97px] z-[70] bg-white shadow-sm">
-        <div className="flex items-center justify-between px-4 py-3">
+      <header className="sticky top-0 z-[70] bg-white shadow-sm -mx-4 md:-mx-6 px-4 md:px-6 mb-4">
+        <div className="flex items-center justify-between py-3">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="-ml-2">
             <ArrowLeft className="w-6 h-6 text-stone-800" />
           </Button>
@@ -185,7 +185,7 @@ export function EditGroupView() {
         </div>
       </header>
 
-      <div className="p-5 space-y-6">
+      <div className="space-y-6">
         {/* Image Upload */}
         <div className="flex justify-center py-4">
           <div className="relative">

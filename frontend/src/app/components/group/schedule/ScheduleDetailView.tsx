@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import * as React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, Clock, MapPin, MessageCircle, Share2, Edit3, Check, X, AlertCircle, AlertTriangle, Copy } from 'lucide-react';
 import { toast } from 'sonner';
@@ -20,7 +21,7 @@ import {
 } from '../../ui/alert-dialog';
 import { getSchedule, getScheduleParticipants, updateSchedule, closeSchedule, cancelSchedule, finalizeSchedule, updateParticipantFeeStatus, updateParticipantRefundStatus, updateParticipantAttendance, type ScheduleResponse, type ScheduleParticipantResponse, type ScheduleUpdateRequest, type ScheduleCancelRequest } from '../../../../api/schedule';
 import { getMyInfo } from '../../../../api/user';
-import { getVotes, getVote, answerVote, type VoteDetailResponse, type VoteAnswerRequest } from '../../../../api/vote';
+import { getVotes, getVote, answerVote, type VoteDetailResponse, type VoteAnswerRequest, type VoteListResponse } from '../../../../api/vote';
 import { getRecentPosts } from '../../../../api/post';
 import { getPostComments, createComment, deleteComment, type PostCommentItem } from '../../../../api/comment';
 import { getMembers, type MemberListResponse } from '../../../../api/member';
@@ -69,6 +70,7 @@ export function ScheduleDetailView() {
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [bankAccount, setBankAccount] = useState<BankAccounts | null>(null);
   const [copied, setCopied] = useState(false);
+  const [loadingBankAccount, setLoadingBankAccount] = useState(false);
 
   // 은행 코드를 은행 이름으로 변환
   const getBankName = (bankCode: string): string => {
@@ -132,18 +134,65 @@ export function ScheduleDetailView() {
         setLoading(true);
         
         // 핵심 데이터를 병렬로 가져오기 (투표 정보 포함)
-        const [scheduleData, participantsData, votes, membersData, accountData] = await Promise.all([
-          getSchedule(Number(groupId), Number(scheduleId)),
-          getScheduleParticipants(Number(groupId), Number(scheduleId)),
-          getVotes(Number(groupId)).catch(() => [] as Awaited<ReturnType<typeof getVotes>>),
-          getMembers(Number(groupId), 'ACTIVE').catch(() => [] as MemberListResponse[]),
-          getBankAccount(Number(groupId)).catch(() => null as BankAccounts | null)
-        ]);
+        const schedulePromise = getSchedule(Number(groupId), Number(scheduleId));
+        const participantsPromise = getScheduleParticipants(Number(groupId), Number(scheduleId));
+        const votesPromise = getVotes(Number(groupId)).catch(() => [] as VoteListResponse[]);
+        const membersPromise = getMembers(Number(groupId), 'ACTIVE').catch(() => [] as MemberListResponse[]);
+        const accountPromise = getBankAccount(Number(groupId)).catch((error: any) => {
+          // 에러 발생 시 null 반환 (나중에 별도로 재시도)
+          const errorMessage = error?.message || String(error) || '';
+          const status = error?.status || error?.response?.status;
+          const isNotFound = status === 404 || 
+                            status === 400 ||
+                            errorMessage.toLowerCase().includes('404') || 
+                            errorMessage.toLowerCase().includes('400') ||
+                            errorMessage.toLowerCase().includes('not found') ||
+                            errorMessage.toLowerCase().includes('존재하지') ||
+                            errorMessage.includes('찾을 수 없습니다') ||
+                            errorMessage.includes('계좌를 찾을 수 없습니다');
+          if (!isNotFound) {
+            console.warn('계좌 정보 조회 실패 (재시도 예정):', { status, message: errorMessage, error });
+          }
+          return null as BankAccounts | null;
+        });
+        
+        const [scheduleData, participantsData, votesData, membersData, accountData] = await Promise.all([
+          schedulePromise,
+          participantsPromise,
+          votesPromise,
+          membersPromise,
+          accountPromise
+        ] as any) as [
+          ScheduleResponse,
+          ScheduleParticipantResponse[],
+          VoteListResponse[],
+          MemberListResponse[],
+          BankAccounts | null
+        ];
         
         setSchedule(scheduleData);
         setParticipants(participantsData);
         setMembers(membersData);
         setBankAccount(accountData);
+        
+        // votes를 명시적으로 VoteListResponse[] 타입으로 지정
+        const votes: VoteListResponse[] = Array.isArray(votesData) ? votesData : [];
+        
+        // 계좌 정보가 없으면 재시도 (계좌가 방금 생성되었을 수 있음)
+        if (!accountData && scheduleData.entryFee && scheduleData.entryFee > 0) {
+          // 즉시 재시도
+          (async () => {
+            try {
+              setLoadingBankAccount(true);
+              const retryAccount = await getBankAccount(Number(groupId));
+              setBankAccount(retryAccount);
+            } catch (retryError: any) {
+              // 재시도 실패 시 조용히 처리 (에러 로그만)
+            } finally {
+              setLoadingBankAccount(false);
+            }
+          })();
+        }
         
         // 일정의 ATTENDANCE 투표 조회 (scheduleId로 바로 필터링 가능)
         const attendanceVote = votes.find(v => 
@@ -737,44 +786,62 @@ export function ScheduleDetailView() {
                 </span>
               </div>
             </div>
-            {/* 모임 통장 계좌 정보 */}
-            {bankAccount && (
-              <div className="pt-3 border-t border-stone-100 space-y-2">
-                <h4 className="text-sm font-semibold text-stone-700">입금 계좌</h4>
-                <div className="bg-stone-50 rounded-lg p-3 space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-stone-500">은행</span>
-                    <span className="font-medium text-stone-900">{getBankName(bankAccount.bankCode)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-stone-500">계좌번호</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-stone-900 font-mono">{bankAccount.accountNumber}</span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          navigator.clipboard.writeText(bankAccount.accountNumber.replace(/-/g, ''));
-                          setCopied(true);
-                          toast.success('계좌번호가 복사되었습니다');
-                          setTimeout(() => setCopied(false), 2000);
-                        }}
-                        className="h-6 px-2"
-                      >
-                        {copied ? <Check className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3" />}
-                      </Button>
+            {/* 모임 통장 계좌 정보 - 참가비가 있을 때 항상 표시 */}
+            <div className="pt-3 border-t border-stone-100 space-y-2">
+              <h4 className="text-sm font-semibold text-stone-700">입금 계좌</h4>
+              {bankAccount ? (
+                <>
+                  <div className="bg-stone-50 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-stone-500">은행</span>
+                      <span className="font-medium text-stone-900">{getBankName(bankAccount.bankCode)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-stone-500">계좌번호</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-stone-900 font-mono">{bankAccount.accountNumber || '계좌번호 없음'}</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            const accountNumber = bankAccount?.accountNumber;
+                            if (!accountNumber) return;
+                            navigator.clipboard.writeText(accountNumber.replace(/-/g, ''));
+                            setCopied(true);
+                            toast.success('계좌번호가 복사되었습니다');
+                            setTimeout(() => setCopied(false), 2000);
+                          }}
+                          className="h-6 px-2"
+                        >
+                          {(() => {
+                            if (copied) {
+                              return <Check className="w-3 h-3 text-green-600" /> as React.ReactNode;
+                            }
+                            return <Copy className="w-3 h-3" /> as React.ReactNode;
+                          })()}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-stone-500">예금주</span>
+                      <span className="font-medium text-stone-900">{bankAccount.depositorName}</span>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-stone-500">예금주</span>
-                    <span className="font-medium text-stone-900">{bankAccount.depositorName}</span>
-                  </div>
+                  <p className="text-xs text-stone-500">
+                    💡 이체 시 입금자명을 꼭 본인 이름으로 남겨주세요.
+                  </p>
+                </>
+              ) : (
+                <div className="bg-stone-50 rounded-lg p-3">
+                  <p className="text-sm text-stone-500 text-center">
+                    모임 계좌 정보를 불러올 수 없습니다.
+                  </p>
+                  <p className="text-xs text-stone-400 text-center mt-1">
+                    관리 페이지에서 계좌를 생성해주세요.
+                  </p>
                 </div>
-                <p className="text-xs text-stone-500">
-                  💡 이체 시 입금자명을 꼭 본인 이름으로 남겨주세요.
-                </p>
-              </div>
-            )}
+              )}
+            </div>
             {/* 정산 정보 (마감된 경우) */}
             {schedule.status === 'CLOSED' && schedule.totalSpent !== undefined && schedule.totalSpent > 0 && (
               <div className="pt-2 border-t border-stone-100">
@@ -951,7 +1018,7 @@ export function ScheduleDetailView() {
                         {/* 참가비가 있는 경우 납부/환급 상태 표시 */}
                         {hasEntryFee && (
                           <div className="flex items-center gap-2 mt-0.5">
-                            {isAttending && !isPaid && (
+                            {isAttending && !isPaid && schedule.status !== 'CANCELLED' && (
                               <span className="text-xs font-medium text-orange-600">
                                 입금 필요: {(schedule.entryFee || 0).toLocaleString()}원
                               </span>

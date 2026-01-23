@@ -9,6 +9,7 @@ import back.service.post.ai.gemini.embedding.EmbeddingCache;
 import back.service.post.ai.gemini.embedding.GeminiEmbeddingClient;
 import back.service.post.ai.gemini.prompt.RagAnswerPrompt;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -64,7 +65,7 @@ public class PostSearchService {
                         )
                         .bodyValue(body)
                         .retrieve()
-                        .bodyToMono(Map.class)
+                        .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                         .block();
 
         List<Map<String, Object>> metadatas =

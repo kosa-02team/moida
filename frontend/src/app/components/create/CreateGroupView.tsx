@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Camera, Check, Info, Globe, Lock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -81,6 +81,16 @@ export function CreateGroupView() {
     setImage(null);
   };
 
+  // 컴포넌트 마운트 시 폼 상태 초기화
+  useEffect(() => {
+    setName('');
+    setCategory('SOCIAL');
+    setClubType('FAIR_SETTLEMENT');
+    setIsPublic(true);
+    setImage(null);
+    setStep(1);
+  }, []);
+
   const handleSubmit = async () => {
     if (isSubmitting) return;
 
@@ -99,16 +109,29 @@ export function CreateGroupView() {
 
       const response = await createClub(request);
       
-      // 모임 이미지를 로컬 스토리지에 저장
+      // 모임 이미지를 로컬 스토리지에 저장 (이미지가 있을 때만)
       if (image) {
         localStorage.setItem(`club_image_${response.clubId}`, image);
+      } else {
+        // 이미지가 없으면 이전에 저장된 이미지가 있을 수 있으므로 명시적으로 삭제하지 않음
+        // (다른 모임의 이미지와 혼동 방지)
       }
+      
+      // 폼 상태 초기화
+      setName('');
+      setCategory('SOCIAL');
+      setClubType('FAIR_SETTLEMENT');
+      setIsPublic(true);
+      setImage(null);
+      setStep(1);
       
       toast.success('모임이 생성되었습니다!');
       console.log('Created club:', response);
 
-      // 생성된 모임으로 이동
-      navigate(`/group/${response.clubId}`);
+      // 생성된 모임으로 이동 (권한 정보가 로드될 시간을 주기 위해 약간의 지연)
+      setTimeout(() => {
+        navigate(`/group/${response.clubId}`, { replace: true });
+      }, 100);
     } catch (error: any) {
       console.error('모임 생성 실패:', error);
       toast.error(error.message || '모임 생성에 실패했습니다.');
