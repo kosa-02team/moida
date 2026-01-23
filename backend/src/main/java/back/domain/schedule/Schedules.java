@@ -59,8 +59,12 @@ public class Schedules extends BaseEntity {
     @Column(name = "vote_deadline")
     private LocalDateTime voteDeadline;
 
+    @Column(name = "is_vote_closed", nullable = false)
+    private Boolean isVoteClosed = false;
+
     // 생성자
-    public Schedules(Long clubId, String scheduleName, LocalDateTime eventDate, LocalDateTime endDate, String location, String description, BigDecimal entryFee) {
+    public Schedules(Long clubId, String scheduleName, LocalDateTime eventDate, LocalDateTime endDate, String location,
+            String description, BigDecimal entryFee, LocalDateTime voteDeadline) {
         this.clubId = clubId;
         this.scheduleName = scheduleName;
         this.eventDate = eventDate;
@@ -68,10 +72,12 @@ public class Schedules extends BaseEntity {
         this.location = location;
         this.description = description;
         this.entryFee = entryFee != null ? entryFee : BigDecimal.ZERO;
+        this.voteDeadline = voteDeadline;
     }
 
     // 도메인 메서드
-    public void updateSchedule(String scheduleName, LocalDateTime eventDate, LocalDateTime endDate, String location, String description, BigDecimal entryFee, LocalDateTime voteDeadline) {
+    public void update(String scheduleName, LocalDateTime eventDate, LocalDateTime endDate, String location,
+            String description, BigDecimal entryFee, LocalDateTime voteDeadline) {
         this.scheduleName = scheduleName;
         this.eventDate = eventDate;
         this.endDate = endDate;
@@ -109,6 +115,14 @@ public class Schedules extends BaseEntity {
     public void reopen() {
         this.status = "OPEN";
         this.closedAt = null;
+        this.isVoteClosed = false;
+    }
+
+    public void closeVote() {
+        this.isVoteClosed = true;
+    }
+
+    public void openVote() {
+        this.isVoteClosed = false;
     }
 }
-

@@ -40,6 +40,12 @@ public class ScheduleParticipants extends BaseEntity {
     @Column(name = "fee_request_closed_at")
     private java.time.LocalDateTime feeRequestClosedAt;
 
+    @Column(name = "approval_status", length = 20)
+    private String approvalStatus = "APPROVED"; // 기본은 자동승인 (NORMAL)
+
+    @Column(name = "participation_type", length = 20)
+    private String participationType = "NORMAL";
+
     // 생성자
     public ScheduleParticipants(Long scheduleId, Long userId) {
         this.scheduleId = scheduleId;
@@ -83,5 +89,21 @@ public class ScheduleParticipants extends BaseEntity {
 
     public void closeFeeRequest() {
         this.feeRequestClosedAt = java.time.LocalDateTime.now();
+    }
+
+    public void requestLateJoin() {
+        this.attendanceStatus = "PENDING";
+        this.approvalStatus = "PENDING";
+        this.participationType = "LATE_JOIN";
+    }
+
+    public void approve() {
+        this.approvalStatus = "APPROVED";
+        this.attendanceStatus = "ATTENDING";
+    }
+
+    public void reject() {
+        this.approvalStatus = "REJECTED";
+        this.attendanceStatus = "NOT_ATTENDING";
     }
 }
