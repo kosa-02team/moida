@@ -72,6 +72,10 @@ public class ClubMemberService {
 
     @Transactional
     public ClubMemberResponse approveClubMember(Long clubId, Long memberId) {
+        // Pessimistic Lock을 사용하여 동시 승인 시 정원 초과 방지
+        Clubs club = clubRepository.findByIdWithLock(clubId)
+                .orElseThrow(ClubException.NotFound::new);
+
         ClubMembers targetMember = clubMemberRepository.findByClubIdAndMemberId(clubId, memberId)
                 .orElseThrow(ClubException.MemberNotFound::new);
 
@@ -79,10 +83,15 @@ public class ClubMemberService {
             throw new ClubException.MemberNotPending();
         }
 
+        // 승인 시점에 최대 인원 체크 (가입 요청 후 상황이 변했을 수 있음)
+        long currentMembers = clubMemberRepository.countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE);
+        if (currentMembers >= club.getMaxMembers()) {
+            throw new ClubException.ClubFull();
+        }
+
         targetMember.approve();
 
-        // 클럽 정보 조회가 필요함 (이벤트를 위해)
-        Clubs club = clubRepository.findById(clubId).orElseThrow(ClubException.NotFound::new);
+        // 클럽 정보는 이미 Lock으로 조회했으므로 재조회 불필요
 
         // 가입 환영 이벤트 발행
         eventPublisher.publishEvent(new back.event.ClubJoinEvent(
