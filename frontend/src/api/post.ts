@@ -18,6 +18,7 @@ export interface PostCardResponse {
   commentCount: number;
   createdAt: string;
   scheduleId?: number | null;
+  isLiked?: boolean;
 }
 
 export interface PostDetailResponse {
@@ -44,10 +45,21 @@ export interface PostDetailResponse {
 
 export interface StoryCreateRequest {
   scheduleId?: number | null;
-  content: string;
+  content?: string | null;
+  title?: string | null;
   imagesUrl?: string[];
   place?: string | null;
   taggedMemberIds?: number[];
+  // 투표 관련 필드
+  voteOptions?: Array<{
+    optionText: string;
+    order: number;
+    eventDate?: string | null;
+    location?: string | null;
+  }>;
+  voteDeadline?: string | null;
+  isAnonymous?: boolean;
+  allowMultiple?: boolean;
 }
 
 export interface StoryUpdateRequest {

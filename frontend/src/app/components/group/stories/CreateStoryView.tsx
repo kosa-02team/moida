@@ -13,7 +13,7 @@ import { Switch } from '../../ui/switch';
 import { getMembers, type MemberListResponse } from '../../../../api/member';
 import { getSchedules } from '../../../../api/schedule';
 import { getMyInfo } from '../../../../api/user';
-import { createVote, type VoteCreateRequest, type VoteOptionCreateRequest } from '../../../../api/vote';
+import { type VoteOptionCreateRequest } from '../../../../api/vote';
 
 export function CreateStoryView() {
   const navigate = useNavigate();
@@ -29,8 +29,10 @@ export function CreateStoryView() {
   const [userInfo, setUserInfo] = useState<{ realName: string; loginId: string } | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // 일반 투표 관련 상태
-  const [createGeneralVote, setCreateGeneralVote] = useState(false);
+  // 카테고리 선택 (일반 게시글 / 투표)
+  const [postCategory, setPostCategory] = useState<'story' | 'vote'>('story');
+  
+  // 투표 관련 상태
   const [voteTitle, setVoteTitle] = useState('');
   const [voteDescription, setVoteDescription] = useState('');
   const [voteDeadline, setVoteDeadline] = useState('');
@@ -39,7 +41,7 @@ export function CreateStoryView() {
   const [voteOptions, setVoteOptions] = useState<VoteOptionCreateRequest[]>([
     { optionText: '', order: 1 }
   ]);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -161,15 +163,15 @@ export function CreateStoryView() {
       return;
     }
 
-    // 일반 투표 생성 시
-    if (createGeneralVote) {
+    // 투표 게시글 생성 시
+    if (postCategory === 'vote') {
       // 투표 유효성 검사
       if (!voteTitle.trim()) {
         toast.error('투표 제목을 입력해주세요');
         return;
       }
-      if (voteOptions.some(opt => !opt.optionText.trim())) {
-        toast.error('모든 투표 옵션을 입력해주세요');
+      if (voteOptions.filter(opt => opt.optionText.trim()).length < 2) {
+        toast.error('투표 옵션은 최소 2개 이상 필요합니다');
         return;
       }
       if (voteDeadline && new Date(voteDeadline) <= new Date()) {
@@ -177,27 +179,39 @@ export function CreateStoryView() {
         return;
       }
 
-      // 일반 투표만 생성 (백엔드가 자동으로 게시글 생성)
       setIsSubmitting(true);
       try {
-        const voteRequest: VoteCreateRequest = {
-          voteType: 'GENERAL',
+        // voteDeadline을 ISO 형식으로 변환 (datetime-local은 "YYYY-MM-DDTHH:mm" 형식)
+        let formattedDeadline: string | null = null;
+        if (voteDeadline && voteDeadline.trim()) {
+          // datetime-local 형식을 ISO 형식으로 변환 (초 추가)
+          const date = new Date(voteDeadline.trim());
+          if (!isNaN(date.getTime())) {
+            formattedDeadline = date.toISOString();
+          }
+        }
+
+        const request: StoryCreateRequest = {
           title: voteTitle.trim(),
-          description: voteDescription.trim() || undefined,
-          isAnonymous,
-          allowMultiple,
-          deadline: voteDeadline || undefined,
-          options: voteOptions.map(opt => ({
-            optionText: opt.optionText.trim(),
-            order: opt.order
-          }))
+          content: voteDescription.trim() || null,
+          voteOptions: voteOptions
+            .filter(opt => opt.optionText.trim())
+            .map((opt, idx) => ({
+              optionText: opt.optionText.trim(),
+              order: idx + 1,
+              eventDate: opt.eventDate || null,
+              location: opt.location || null
+            })),
+          voteDeadline: formattedDeadline,
+          isAnonymous: isAnonymous || false,
+          allowMultiple: allowMultiple || false,
         };
-        await createVote(Number(groupId), voteRequest);
-        toast.success('일반 투표가 작성되었습니다');
+        await createStory(Number(groupId), request);
+        toast.success('투표 게시글이 작성되었습니다');
         navigate(-1);
       } catch (error) {
-        console.error('투표 작성 실패:', error);
-        toast.error('투표 작성에 실패했습니다');
+        console.error('투표 게시글 작성 실패:', error);
+        toast.error('투표 게시글 작성에 실패했습니다');
       } finally {
         setIsSubmitting(false);
       }
@@ -289,8 +303,8 @@ export function CreateStoryView() {
             onClick={handleSubmit}
             disabled={
               isSubmitting || 
-              (createGeneralVote 
-                ? (!voteTitle.trim() || voteOptions.some(opt => !opt.optionText.trim()))
+              (postCategory === 'vote'
+                ? (!voteTitle.trim() || voteOptions.filter(opt => opt.optionText.trim()).length < 2)
                 : (!content.trim() && images.length === 0)
               )
             }
@@ -324,265 +338,300 @@ export function CreateStoryView() {
           </div>
         )}
 
-        {/* Linked Event */}
-        {linkedScheduleId && (
-          <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-xl">
-            <Calendar className="w-4 h-4 text-orange-600" />
-            <span className="text-sm text-orange-700">
-              {schedules.find(s => s.scheduleId === linkedScheduleId)?.scheduleName || '일정'}
-            </span>
+        {/* 카테고리 선택 */}
+        <div className="space-y-2">
+          <Label className="text-base font-medium text-stone-700">게시글 유형</Label>
+          <div className="flex gap-2">
             <button
-              onClick={() => setLinkedScheduleId(null)}
-              className="ml-auto"
+              onClick={() => setPostCategory('story')}
+              className={`flex-1 px-4 py-3 rounded-xl border-2 transition-colors ${
+                postCategory === 'story'
+                  ? 'border-orange-500 bg-orange-50 text-orange-700'
+                  : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
+              }`}
             >
-              <X className="w-4 h-4 text-orange-600" />
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-sm font-medium">일반 게시글</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setPostCategory('vote')}
+              className={`flex-1 px-4 py-3 rounded-xl border-2 transition-colors ${
+                postCategory === 'vote'
+                  ? 'border-orange-500 bg-orange-50 text-orange-700'
+                  : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <Vote className="w-4 h-4" />
+                <span className="text-sm font-medium">투표</span>
+              </div>
             </button>
           </div>
-        )}
-
-        {/* 일정 선택 */}
-        {schedules.length > 0 && !linkedScheduleId && (
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2 text-stone-700">
-              <Calendar className="w-4 h-4" />
-              일정 연결 (선택)
-            </Label>
-            <div className="flex flex-wrap gap-2">
-              {schedules.slice(0, 5).map(schedule => (
-                <button
-                  key={schedule.scheduleId}
-                  onClick={() => setLinkedScheduleId(schedule.scheduleId)}
-                  className="px-3 py-1.5 rounded-full text-sm bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors"
-                >
-                  {schedule.scheduleName}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Content Input */}
-        <Textarea
-          placeholder="게시글 내용을 입력하세요..."
-          className="min-h-32 border-none shadow-none text-base resize-none focus-visible:ring-0 p-0 select-text"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onDragStart={(e) => e.stopPropagation()}
-          maxLength={500}
-        />
-        <p className="text-xs text-stone-400 text-right">{content.length}/500</p>
-
-        {/* Images */}
-        {images.length > 0 && (
-          <div className="grid grid-cols-3 gap-2">
-            {images.map((img, index) => (
-              <div key={index} className="relative aspect-square rounded-xl overflow-hidden bg-stone-100">
-                <img src={img} alt="" className="w-full h-full object-cover" draggable={false} onDragStart={(e) => e.preventDefault()} />
-                <button
-                  onClick={() => removeImage(index)}
-                  className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center"
-                >
-                  <X className="w-4 h-4 text-white" />
-                </button>
-              </div>
-            ))}
-            {images.length < 9 && (
-              <button
-                onClick={handleImageUpload}
-                className="aspect-square rounded-xl border-2 border-dashed border-stone-200 flex flex-col items-center justify-center text-stone-400 hover:border-orange-300 hover:text-orange-500 transition-colors"
-              >
-                <Image className="w-6 h-6" />
-                <span className="text-xs mt-1">추가</span>
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Add Image Button (when no images) */}
-        {images.length === 0 && (
-          <button
-            onClick={handleImageUpload}
-            className="w-full p-6 border-2 border-dashed border-stone-200 rounded-xl flex flex-col items-center justify-center text-stone-400 hover:border-orange-300 hover:text-orange-500 transition-colors"
-          >
-            <Image className="w-8 h-8" />
-            <span className="mt-2">사진 추가</span>
-            <span className="text-xs mt-1">최대 9장까지</span>
-          </button>
-        )}
-
-        {/* Location */}
-        <div className="space-y-2">
-          <Label className="flex items-center gap-2 text-stone-700">
-            <MapPin className="w-4 h-4" />
-            위치
-          </Label>
-          <Input
-            placeholder="위치를 입력하세요"
-            className="h-11 bg-stone-50 border-stone-200 rounded-xl select-text"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            onDragStart={(e) => e.stopPropagation()}
-          />
         </div>
 
-        {/* Tag Members */}
-        {members.length > 0 && (
-          <div className="space-y-3">
-            <Label className="flex items-center gap-2 text-stone-700">
-              <Users className="w-4 h-4" />
-              멤버 태그 (선택)
-            </Label>
-            <div className="flex flex-wrap gap-2">
-              {members.map(member => {
-                const isSelected = taggedMembers.includes(member.memberId);
-                return (
-                  <button
-                    key={member.memberId}
-                    onClick={() => toggleMember(member.memberId)}
-                    className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
-                      isSelected
-                        ? 'bg-orange-500 text-white'
-                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                    }`}
-                  >
-                    @{member.clubNickname || member.realName}
-                  </button>
-                );
-              })}
+        {/* 투표 게시글 UI */}
+        {postCategory === 'vote' ? (
+          <>
+            {/* 투표 제목 */}
+            <div className="space-y-2">
+              <Label htmlFor="voteTitle" className="text-base font-medium text-stone-700">
+                투표 제목 <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="voteTitle"
+                placeholder="투표 제목을 입력하세요"
+                className="h-12 bg-white border-stone-200 focus-visible:ring-orange-500 rounded-xl"
+                value={voteTitle}
+                onChange={(e) => setVoteTitle(e.target.value)}
+                maxLength={200}
+              />
+              <p className="text-xs text-stone-400 text-right">{voteTitle.length}/200</p>
             </div>
-          </div>
-        )}
 
-        {/* Selected Tags Preview */}
-        {taggedMembers.length > 0 && (
-          <div className="bg-stone-50 rounded-xl p-4">
-            <p className="text-sm text-stone-600">
-              {taggedMembers.map((memberId, i) => {
-                const member = members.find(m => m.memberId === memberId);
-                return (
-                  <span key={memberId}>
-                    <span className="text-orange-600">@{member?.clubNickname || member?.realName || '멤버'}</span>
-                    {i < taggedMembers.length - 1 && ', '}
-                  </span>
-                );
-              })}
-              님을 태그했습니다
-            </p>
-          </div>
-        )}
+            {/* 투표 설명 */}
+            <div className="space-y-2">
+              <Label htmlFor="voteDescription" className="text-base font-medium text-stone-700">
+                투표 설명 (선택)
+              </Label>
+              <Textarea
+                id="voteDescription"
+                placeholder="투표에 대한 설명을 입력하세요"
+                className="min-h-24 bg-white border-stone-200 focus-visible:ring-orange-500 rounded-xl resize-none"
+                value={voteDescription}
+                onChange={(e) => setVoteDescription(e.target.value)}
+                maxLength={500}
+              />
+              <p className="text-xs text-stone-400 text-right">{voteDescription.length}/500</p>
+            </div>
 
-        {/* 일반 투표 생성 옵션 */}
-        <div className="space-y-4 pt-4 border-t border-stone-200">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-2 text-stone-700 cursor-pointer">
-              <Vote className="w-4 h-4" />
-              일반 투표 함께 생성 (선택)
-            </Label>
-            <Switch
-              checked={createGeneralVote}
-              onCheckedChange={setCreateGeneralVote}
-              className="data-[state=checked]:bg-orange-500"
-            />
-          </div>
+            {/* 투표 옵션 */}
+            <div className="space-y-2">
+              <Label className="text-base font-medium text-stone-700">
+                투표 옵션 <span className="text-red-500">*</span> (최소 2개)
+              </Label>
+              {voteOptions.map((option, index) => (
+                <div key={index} className="flex gap-2">
+                  <Input
+                    placeholder={`옵션 ${index + 1}`}
+                    className="flex-1 h-12 bg-white border-stone-200 focus-visible:ring-orange-500 rounded-xl"
+                    value={option.optionText}
+                    onChange={(e) => updateVoteOption(index, e.target.value)}
+                  />
+                  {voteOptions.length > 2 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeVoteOption(index)}
+                      className="h-12 w-12 text-stone-400 hover:text-red-500"
+                    >
+                      <X className="w-5 h-5" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              {voteOptions.length < 10 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addVoteOption}
+                  className="w-full h-12 border-stone-200 text-stone-600 hover:bg-stone-50 rounded-xl"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  옵션 추가
+                </Button>
+              )}
+            </div>
 
-          {createGeneralVote && (
-            <div className="space-y-4 p-4 bg-orange-50 rounded-xl border border-orange-100">
-              <div className="space-y-2">
-                <Label className="text-sm text-stone-700">투표 제목 *</Label>
-                <Input
-                  placeholder="투표 제목을 입력하세요"
-                  className="h-11 bg-white border-stone-200 rounded-xl select-text"
-                  value={voteTitle}
-                  onChange={(e) => setVoteTitle(e.target.value)}
-                  onDragStart={(e) => e.stopPropagation()}
-                  maxLength={100}
+            {/* 투표 설정 */}
+            <div className="space-y-4 bg-stone-50 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-base font-medium text-stone-700">익명 투표</Label>
+                  <p className="text-xs text-stone-500 mt-1">투표자가 익명으로 표시됩니다</p>
+                </div>
+                <Switch
+                  checked={isAnonymous}
+                  onCheckedChange={setIsAnonymous}
+                  className="data-[state=checked]:bg-orange-500"
                 />
               </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm text-stone-700">투표 설명 (선택)</Label>
-                <Textarea
-                  placeholder="투표에 대한 설명을 입력하세요"
-                  className="bg-white border-stone-200 rounded-xl resize-none min-h-[80px] select-text"
-                  value={voteDescription}
-                  onChange={(e) => setVoteDescription(e.target.value)}
-                  onDragStart={(e) => e.stopPropagation()}
-                  maxLength={500}
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-base font-medium text-stone-700">복수 선택 허용</Label>
+                  <p className="text-xs text-stone-500 mt-1">여러 옵션을 선택할 수 있습니다</p>
+                </div>
+                <Switch
+                  checked={allowMultiple}
+                  onCheckedChange={setAllowMultiple}
+                  className="data-[state=checked]:bg-orange-500"
                 />
               </div>
-
               <div className="space-y-2">
-                <Label className="text-sm text-stone-700">투표 마감일 (선택)</Label>
+                <Label htmlFor="voteDeadline" className="text-base font-medium text-stone-700">
+                  마감일 (선택)
+                </Label>
                 <Input
+                  id="voteDeadline"
                   type="datetime-local"
-                  className="h-11 bg-white border-stone-200 rounded-xl [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer select-text"
+                  className="h-12 bg-white border-stone-200 focus-visible:ring-orange-500 rounded-xl"
                   value={voteDeadline}
                   onChange={(e) => setVoteDeadline(e.target.value)}
-                  onDragStart={(e) => e.stopPropagation()}
-                  placeholder="투표 마감일 선택"
                 />
               </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Linked Event */}
+            {linkedScheduleId && (
+              <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-xl">
+                <Calendar className="w-4 h-4 text-orange-600" />
+                <span className="text-sm text-orange-700">
+                  {schedules.find(s => s.scheduleId === linkedScheduleId)?.scheduleName || '일정'}
+                </span>
+                <button
+                  onClick={() => setLinkedScheduleId(null)}
+                  className="ml-auto"
+                >
+                  <X className="w-4 h-4 text-orange-600" />
+                </button>
+              </div>
+            )}
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm text-stone-700">투표 옵션 *</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addVoteOption}
-                    className="h-8 text-xs"
-                  >
-                    <Plus className="w-3 h-3 mr-1" />
-                    옵션 추가
-                  </Button>
+            {/* 일정 선택 */}
+            {schedules.length > 0 && !linkedScheduleId && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-stone-700">
+                  <Calendar className="w-4 h-4" />
+                  일정 연결 (선택)
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {schedules.slice(0, 5).map(schedule => (
+                    <button
+                      key={schedule.scheduleId}
+                      onClick={() => setLinkedScheduleId(schedule.scheduleId)}
+                      className="px-3 py-1.5 rounded-full text-sm bg-stone-100 text-stone-600 hover:bg-stone-200 transition-colors"
+                    >
+                      {schedule.scheduleName}
+                    </button>
+                  ))}
                 </div>
-                {voteOptions.map((option, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <Input
-                      placeholder={`옵션 ${index + 1}`}
-                      className="flex-1 h-10 bg-white border-stone-200 rounded-xl select-text"
-                      value={option.optionText}
-                      onChange={(e) => updateVoteOption(index, e.target.value)}
-                      onDragStart={(e) => e.stopPropagation()}
-                      maxLength={100}
-                    />
-                    {voteOptions.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeVoteOption(index)}
-                        className="h-10 w-10 text-stone-400 hover:text-red-500"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    )}
+              </div>
+            )}
+
+            {/* Content Input */}
+            <Textarea
+              placeholder="게시글 내용을 입력하세요..."
+              className="min-h-32 border-none shadow-none text-base resize-none focus-visible:ring-0 p-0 select-text"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              onDragStart={(e) => e.stopPropagation()}
+              maxLength={500}
+            />
+            <p className="text-xs text-stone-400 text-right">{content.length}/500</p>
+
+            {/* Images */}
+            {images.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {images.map((img, index) => (
+                  <div key={index} className="relative aspect-square rounded-xl overflow-hidden bg-stone-100">
+                    <img src={img} alt="" className="w-full h-full object-cover" draggable={false} onDragStart={(e) => e.preventDefault()} />
+                    <button
+                      onClick={() => removeImage(index)}
+                      className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center"
+                    >
+                      <X className="w-4 h-4 text-white" />
+                    </button>
                   </div>
                 ))}
+                {images.length < 9 && (
+                  <button
+                    onClick={handleImageUpload}
+                    className="aspect-square rounded-xl border-2 border-dashed border-stone-200 flex flex-col items-center justify-center text-stone-400 hover:border-orange-300 hover:text-orange-500 transition-colors"
+                  >
+                    <Image className="w-6 h-6" />
+                    <span className="text-xs mt-1">추가</span>
+                  </button>
+                )}
               </div>
+            )}
 
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm text-stone-700">익명 투표</Label>
-                  <Switch
-                    checked={isAnonymous}
-                    onCheckedChange={setIsAnonymous}
-                    className="data-[state=checked]:bg-orange-500"
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm text-stone-700">중복 선택 허용</Label>
-                  <Switch
-                    checked={allowMultiple}
-                    onCheckedChange={setAllowMultiple}
-                    className="data-[state=checked]:bg-orange-500"
-                  />
+            {/* Add Image Button (when no images) */}
+            {images.length === 0 && (
+              <button
+                onClick={handleImageUpload}
+                className="w-full p-6 border-2 border-dashed border-stone-200 rounded-xl flex flex-col items-center justify-center text-stone-400 hover:border-orange-300 hover:text-orange-500 transition-colors"
+              >
+                <Image className="w-8 h-8" />
+                <span className="mt-2">사진 추가</span>
+                <span className="text-xs mt-1">최대 9장까지</span>
+              </button>
+            )}
+
+            {/* Location */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 text-stone-700">
+                <MapPin className="w-4 h-4" />
+                위치
+              </Label>
+              <Input
+                placeholder="위치를 입력하세요"
+                className="h-11 bg-stone-50 border-stone-200 rounded-xl select-text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                onDragStart={(e) => e.stopPropagation()}
+              />
+            </div>
+
+            {/* Tag Members */}
+            {members.length > 0 && (
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2 text-stone-700">
+                  <Users className="w-4 h-4" />
+                  멤버 태그 (선택)
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {members.map(member => {
+                    const isSelected = taggedMembers.includes(member.memberId);
+                    return (
+                      <button
+                        key={member.memberId}
+                        onClick={() => toggleMember(member.memberId)}
+                        className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                          isSelected
+                            ? 'bg-orange-500 text-white'
+                            : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                        }`}
+                      >
+                        @{member.clubNickname || member.realName}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+
+            {/* Selected Tags Preview */}
+            {taggedMembers.length > 0 && (
+              <div className="bg-stone-50 rounded-xl p-4">
+                <p className="text-sm text-stone-600">
+                  {taggedMembers.map((memberId, i) => {
+                    const member = members.find(m => m.memberId === memberId);
+                    return (
+                      <span key={memberId}>
+                        <span className="text-orange-600">@{member?.clubNickname || member?.realName || '멤버'}</span>
+                        {i < taggedMembers.length - 1 && ', '}
+                      </span>
+                    );
+                  })}
+                  님을 태그했습니다
+                </p>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

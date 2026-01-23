@@ -13,9 +13,10 @@ public record PostCardResponse(
         List<String> imagesUrl,
         Long postLikes,
         Long commentCount,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        Boolean isLiked
 ) {
-    public static PostCardResponse of(PostCardBase p, List<String> imagesUrl) {
+    public static PostCardResponse of(PostCardBase p, List<String> imagesUrl, Boolean isLiked) {
         return new PostCardResponse(
                 p.clubId(),
                 p.postId(),
@@ -26,7 +27,8 @@ public record PostCardResponse(
                 imagesUrl,
                 p.postLikes(),
                 p.commentCount(),
-                p.createdAt()
+                p.createdAt(),
+                isLiked
         );
     }
 }
