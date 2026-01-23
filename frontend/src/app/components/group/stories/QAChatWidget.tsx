@@ -23,6 +23,8 @@ export function QAChatWidget({ groupId }: QAChatWidgetProps) {
   const [chatHistory, setChatHistory] = useState<QAPair[]>([]);
   const [isAskingAI, setIsAskingAI] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [lastRequestTime, setLastRequestTime] = useState<number>(0);
+  const MIN_REQUEST_INTERVAL = 3000; // 최소 3초 간격
 
   // 현재 사용자 ID 조회
   useEffect(() => {
@@ -38,11 +40,26 @@ export function QAChatWidget({ groupId }: QAChatWidgetProps) {
   }, []);
 
   const handleAskAI = async () => {
+    console.log('handleAskAI 호출됨', { message: message.trim(), groupId, currentUserId, isAskingAI });
+    
     if (!message.trim() || !groupId || !currentUserId) {
       if (!groupId) {
         toast.error('모임 정보를 찾을 수 없습니다');
+      } else if (!currentUserId) {
+        toast.error('사용자 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
       }
       return;
+    }
+
+    // 요청 간격 체크 (첫 요청이거나 3초 이상 지났으면 허용)
+    const now = Date.now();
+    if (lastRequestTime > 0) {
+      const timeSinceLastRequest = now - lastRequestTime;
+      if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+        const remainingTime = Math.ceil((MIN_REQUEST_INTERVAL - timeSinceLastRequest) / 1000);
+        toast.error(`잠시 후 다시 시도해주세요. (${remainingTime}초 대기 필요)`);
+        return;
+      }
     }
 
     const question = message.trim();
@@ -51,6 +68,9 @@ export function QAChatWidget({ groupId }: QAChatWidgetProps) {
     try {
       setIsAskingAI(true);
       const response = await askAI(groupId, currentUserId, question);
+      
+      // 성공한 경우에만 lastRequestTime 업데이트
+      setLastRequestTime(now);
       
       // 채팅 히스토리에 추가
       setChatHistory(prev => [...prev, { question, answer: response.answer }]);

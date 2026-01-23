@@ -85,6 +85,8 @@ export function StoryDetailView() {
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [isAskingAI, setIsAskingAI] = useState(false);
   const [aiChatHistory, setAiChatHistory] = useState<Array<{ question: string; answer: string }>>([]);
+  const [lastAIRequestTime, setLastAIRequestTime] = useState<number>(0);
+  const MIN_AI_REQUEST_INTERVAL = 3000; // 최소 3초 간격
 
   // 현재 사용자 정보 조회
   useEffect(() => {
@@ -241,10 +243,26 @@ export function StoryDetailView() {
 
   const handleAskAI = async () => {
     if (!aiQuestion.trim() || !groupId || !currentUserId) return;
+    
+    // 요청 간격 체크 (첫 요청이거나 3초 이상 지났으면 허용)
+    const now = Date.now();
+    if (lastAIRequestTime > 0) {
+      const timeSinceLastRequest = now - lastAIRequestTime;
+      if (timeSinceLastRequest < MIN_AI_REQUEST_INTERVAL) {
+        const remainingTime = Math.ceil((MIN_AI_REQUEST_INTERVAL - timeSinceLastRequest) / 1000);
+        toast.error(`잠시 후 다시 시도해주세요. (${remainingTime}초 대기 필요)`);
+        return;
+      }
+    }
+    
     try {
       setIsAskingAI(true);
       setAiAnswer(null);
       const response = await askAI(Number(groupId), currentUserId, aiQuestion.trim());
+      
+      // 성공한 경우에만 lastAIRequestTime 업데이트
+      setLastAIRequestTime(now);
+      
       setAiAnswer(response.answer);
       setAiChatHistory(prev => [...prev, { question: aiQuestion.trim(), answer: response.answer }]);
       setAiQuestion('');
