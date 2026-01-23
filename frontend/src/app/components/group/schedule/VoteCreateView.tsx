@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
+import * as React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, MapPin, Clock, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Clock, AlertCircle, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
@@ -9,6 +10,7 @@ import { Textarea } from '../../ui/textarea';
 import { createSchedule, ScheduleCreateRequest } from '../../../../api/schedule';
 import { useUserPermissions } from '../../../data/userRoles';
 import { NoPermissionView } from '../../common/NoPermissionView';
+import { getBankAccount, type BankAccounts } from '../../../../api/bank';
 
 export function VoteCreateView() {
   const navigate = useNavigate();
@@ -24,6 +26,47 @@ export function VoteCreateView() {
   const [voteDeadline, setVoteDeadline] = useState('');
   const [entryFee, setEntryFee] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [bankAccount, setBankAccount] = useState<BankAccounts | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // 은행 코드를 은행 이름으로 변환
+  const getBankName = (bankCode: string): string => {
+    const bankMap: Record<string, string> = {
+      'KB': 'KB국민은행',
+      'NH': 'NH농협은행',
+      'SHINHAN': '신한은행',
+      'WOORI': '우리은행',
+      'HANA': '하나은행',
+      'KAKAO': '카카오뱅크',
+      'TOSS': '토스뱅크',
+      'STUB': '테스트은행',
+    };
+    return bankMap[bankCode] || bankCode;
+  };
+
+  // 계좌 정보 조회
+  useEffect(() => {
+    async function fetchBankAccount() {
+      if (!groupId) return;
+      try {
+        const account = await getBankAccount(Number(groupId));
+        setBankAccount(account);
+      } catch (error) {
+        // 계좌가 없을 수 있으므로 에러는 무시 (조용히 처리)
+      }
+    }
+    fetchBankAccount();
+  }, [groupId]);
+
+  // 계좌번호 복사
+  const handleCopyAccount = () => {
+    if (!bankAccount) return;
+    navigator.clipboard.writeText(bankAccount.accountNumber.replace(/-/g, ''));
+    setCopied(true);
+    toast.success('계좌번호가 복사되었습니다');
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   // 권한 체크: 일정 생성은 운영진 이상만 가능
   useEffect(() => {
@@ -31,6 +74,20 @@ export function VoteCreateView() {
       // 운영진 이상 권한이 없으면 접근 불가
     }
   }, [permissions]);
+
+  // selectstart는 div 표준 prop이 아니므로 ref + addEventListener 사용
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: Event) => {
+      const t = e.target as Node;
+      if (!(t instanceof HTMLTextAreaElement || t instanceof HTMLInputElement)) {
+        e.preventDefault();
+      }
+    };
+    el.addEventListener('selectstart', handler);
+    return () => el.removeEventListener('selectstart', handler);
+  }, []);
 
   if (!permissions.canFinalizeSchedule && !permissions.canManageGroup) {
     return <NoPermissionView message="일정 생성은 운영진 이상만 가능합니다." />;
@@ -85,8 +142,8 @@ export function VoteCreateView() {
       if (!groupId) return;
 
       // 참가비 권한 체크: 총무 이상만 설정 가능
-      const feeAmount = entryFee.trim() ? parseFloat(entryFee) : 0;
-      if (feeAmount > 0 && !permissions.canWithdraw) {
+      const feeAmount = entryFee.trim() ? parseFloat(entryFee) : undefined;
+      if (feeAmount !== undefined && feeAmount > 0 && !permissions.canWithdraw) {
         toast.error('참가비 설정은 총무 이상만 가능합니다');
         return;
       }
@@ -116,15 +173,45 @@ export function VoteCreateView() {
   };
 
   return (
-    <div className="bg-white min-h-screen pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
-      <header className="flex items-center p-4 border-b border-stone-100 sticky top-0 bg-white z-10">
+    <div 
+      ref={containerRef}
+      className="bg-white min-h-screen pb-20 select-none" 
+      onDragStart={(e) => {
+        if (!(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement)) {
+          e.preventDefault();
+          e.dataTransfer.effectAllowed = 'none';
+          const canvas = document.createElement('canvas');
+          canvas.width = 1;
+          canvas.height = 1;
+          e.dataTransfer.setDragImage(canvas, 0, 0);
+        }
+      }} 
+      onDragOver={(e) => {
+        if (!(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement)) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'none';
+        }
+      }}
+      onDragEnd={(e) => {
+        if (!(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement)) {
+          e.preventDefault();
+        }
+      }}
+      style={{ 
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitUserDrag: 'none',
+        backgroundColor: '#ffffff'
+      } as CSSProperties}
+    >
+      <header className="flex items-center p-4 border-b border-stone-100 sticky top-0 bg-white z-10" style={{ backgroundColor: '#ffffff' }}>
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="-ml-2">
           <ArrowLeft className="w-5 h-5 text-stone-600" />
         </Button>
         <h1 className="text-lg font-semibold ml-2 text-stone-800">일정 투표 만들기</h1>
       </header>
 
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6" style={{ backgroundColor: '#ffffff' }}>
         {/* 안내 메시지 */}
         <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 flex gap-3">
           <AlertCircle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
@@ -143,9 +230,10 @@ export function VoteCreateView() {
             <Input
               id="title"
               placeholder="예: 4월 정기 산행"
-              className="h-12 bg-stone-50 border-stone-200 rounded-xl"
+              className="h-12 bg-stone-50 border-stone-200 rounded-xl select-text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onDragStart={(e) => e.stopPropagation()}
             />
           </div>
 
@@ -158,9 +246,10 @@ export function VoteCreateView() {
               <Input
                 id="location"
                 placeholder="모임 장소를 입력하세요"
-                className="h-12 pl-12 bg-stone-50 border-stone-200 rounded-xl"
+                className="h-12 pl-12 bg-stone-50 border-stone-200 rounded-xl select-text"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
+                onDragStart={(e) => e.stopPropagation()}
               />
             </div>
           </div>
@@ -182,7 +271,8 @@ export function VoteCreateView() {
                   type="datetime-local"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="h-12 bg-stone-50 border-stone-200 rounded-xl pl-11 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:relative [&::-webkit-calendar-picker-indicator]:z-20"
+                  className="h-12 bg-stone-50 border-stone-200 rounded-xl pl-11 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:relative [&::-webkit-calendar-picker-indicator]:z-20 select-text"
+                  onDragStart={(e) => e.stopPropagation()}
                   placeholder="시작 일시 선택"
                 />
               </div>
@@ -195,7 +285,8 @@ export function VoteCreateView() {
                   type="datetime-local"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="h-12 bg-stone-50 border-stone-200 rounded-xl pl-11 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:relative [&::-webkit-calendar-picker-indicator]:z-20"
+                  className="h-12 bg-stone-50 border-stone-200 rounded-xl pl-11 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:relative [&::-webkit-calendar-picker-indicator]:z-20 select-text"
+                  onDragStart={(e) => e.stopPropagation()}
                   placeholder="종료 일시 선택"
                 />
               </div>
@@ -218,7 +309,8 @@ export function VoteCreateView() {
                 type="datetime-local"
                 value={voteDeadline}
                 onChange={(e) => setVoteDeadline(e.target.value)}
-                className="h-12 bg-stone-50 border-stone-200 rounded-xl pl-11 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:relative [&::-webkit-calendar-picker-indicator]:z-20"
+                className="h-12 bg-stone-50 border-stone-200 rounded-xl pl-11 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:relative [&::-webkit-calendar-picker-indicator]:z-20 select-text"
+                onDragStart={(e) => e.stopPropagation()}
                 placeholder="투표 마감일 선택"
               />
             </div>
@@ -238,10 +330,11 @@ export function VoteCreateView() {
               <Input
                 id="entryFee"
                 type="number"
-                placeholder="0"
-                className="h-12 bg-stone-50 border-stone-200 rounded-xl pr-12"
+                placeholder="참가비를 입력하세요"
+                className="h-12 bg-stone-50 border-stone-200 rounded-xl pr-12 select-text"
                 value={entryFee}
                 onChange={(e) => setEntryFee(e.target.value)}
+                onDragStart={(e) => e.stopPropagation()}
                 min="0"
               />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-500">원</span>
@@ -249,6 +342,44 @@ export function VoteCreateView() {
             <p className="text-xs text-stone-500 pl-1">
               참가비를 설정하면 일정 참석 시 자동으로 입금 요청이 생성됩니다.
             </p>
+            {/* 참가비가 입력되었을 때 계좌 정보 표시 */}
+            {entryFee && parseFloat(entryFee) > 0 && bankAccount && (
+              <div className="bg-orange-50 rounded-xl p-4 border border-orange-100 space-y-2 mt-3">
+                <h4 className="text-sm font-semibold text-stone-700">입금 계좌</h4>
+                <div className="bg-white rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-stone-500">은행</span>
+                    <span className="font-medium text-stone-900">{getBankName(bankAccount.bankCode)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-stone-500">계좌번호</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-stone-900 font-mono">{bankAccount.accountNumber}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleCopyAccount}
+                        className="h-6 px-2"
+                      >
+                        {(() => {
+                          if (copied) {
+                            return <Check className="w-3 h-3 text-green-600" /> as React.ReactNode;
+                          }
+                          return <Copy className="w-3 h-3" /> as React.ReactNode;
+                        })()}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-stone-500">예금주</span>
+                    <span className="font-medium text-stone-900">{bankAccount.depositorName}</span>
+                  </div>
+                </div>
+                <p className="text-xs text-stone-500">
+                  💡 이체 시 입금자명을 꼭 본인 이름으로 남겨주세요.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -258,9 +389,10 @@ export function VoteCreateView() {
           <Textarea
             id="description"
             placeholder="일정에 대한 상세 설명을 입력하세요"
-            className="bg-stone-50 border-stone-200 rounded-xl resize-none min-h-[100px]"
+            className="bg-stone-50 border-stone-200 rounded-xl resize-none min-h-[100px] select-text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            onDragStart={(e) => e.stopPropagation()}
           />
         </div>
 

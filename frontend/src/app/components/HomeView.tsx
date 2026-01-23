@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import * as React from 'react';
 import { Plus, Bell, Search, X, Users, Compass, KeyRound, Crown, Wallet, Shield } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -90,16 +91,13 @@ export function HomeView() {
   }, [searchQuery, navigate]);
 
   // 내 모임 필터링 (카테고리 포함)
-  const filteredMyGroups = myClubs.filter(club => {
+  const displayGroups = myClubs.filter(club => {
     const matchesSearch =
       club.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = filterCategory === 'all' || club.category === filterCategory;
 
     return matchesSearch && matchesCategory;
   });
-
-  // 항상 내 모임만 표시
-  const displayGroups = filteredMyGroups;
 
   // 역할별 모임 수 계산
   const roleCounts = {
@@ -121,11 +119,11 @@ export function HomeView() {
             <Button variant="ghost" size="icon" className="text-stone-500 relative">
               <span className="sr-only">알림</span>
               <Bell className="w-6 h-6" />
-              {unreadNotifications > 0 && (
+              {unreadNotifications > 0 ? (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
                   {unreadNotifications}
                 </span>
-              )}
+              ) : null}
             </Button>
           </Link>
           <Link to="/profile">
@@ -294,9 +292,18 @@ export function HomeView() {
                     {roleLabel && (
                       <div className="absolute bottom-2 left-2">
                         <Badge className={`${roleColor} text-xs flex items-center gap-1 shadow-sm`}>
-                          {primaryRole === 'OWNER' && <Crown className="w-3 h-3" />}
-                          {primaryRole === 'ACCOUNTANT' && <Wallet className="w-3 h-3" />}
-                          {primaryRole === 'STAFF' && <Shield className="w-3 h-3" />}
+                          {(() => {
+                            if (primaryRole === 'OWNER') {
+                              return <Crown className="w-3 h-3" /> as React.ReactNode;
+                            }
+                            if (primaryRole === 'ACCOUNTANT') {
+                              return <Wallet className="w-3 h-3" /> as React.ReactNode;
+                            }
+                            if (primaryRole === 'STAFF') {
+                              return <Shield className="w-3 h-3" /> as React.ReactNode;
+                            }
+                            return null;
+                          })()}
                           {roleLabel}
                         </Badge>
                       </div>
@@ -306,11 +313,11 @@ export function HomeView() {
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="font-bold text-lg text-stone-900">{club.name}</h3>
                     </div>
-                    {club.category && (
+                    {club.category ? (
                       <Badge variant="secondary" className="bg-stone-100 text-stone-600 text-xs font-normal mt-2">
                         {CATEGORY_LABELS[club.category as CategoryType] || club.category}
                       </Badge>
-                    )}
+                    ) : null}
                   </CardContent>
                 </Card>
               </Link>
@@ -349,14 +356,16 @@ export function HomeView() {
         </div>
       )}
 
-      {/* FAB for Creating Group */}
-      <div className="fixed bottom-20 right-4 md:right-[calc(50%-220px+1rem)] z-40">
-        <Link to="/create-group" aria-label="새 모임 만들기">
-          <Button size="lg" className="rounded-full w-14 h-14 shadow-lg bg-orange-500 hover:bg-orange-600 text-white p-0 transition-transform hover:scale-110 active:scale-95">
-            <Plus className="w-8 h-8" />
-          </Button>
-        </Link>
-      </div>
+      {/* FAB for Creating Group - 모임이 있을 때만 표시 */}
+      {myClubs.length > 0 && (
+        <div className="fixed bottom-20 right-4 md:right-[calc(50%-220px+1rem)] z-40">
+          <Link to="/create-group" aria-label="새 모임 만들기">
+            <Button size="lg" className="rounded-full w-14 h-14 shadow-lg bg-orange-500 hover:bg-orange-600 text-white p-0 transition-transform hover:scale-110 active:scale-95">
+              <Plus className="w-8 h-8" />
+            </Button>
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

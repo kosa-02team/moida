@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import * as React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, Clock, MapPin, Users, MessageCircle, Share2, Edit3, Trash2, Check, X, AlertCircle, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, MessageCircle, Share2, Edit3, Check, X, AlertCircle, AlertTriangle, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
+import { Avatar, AvatarFallback } from '../../ui/avatar';
 import { Badge } from '../../ui/badge';
 import { Textarea } from '../../ui/textarea';
 import { Input } from '../../ui/input';
@@ -20,11 +21,11 @@ import {
 } from '../../ui/alert-dialog';
 import { getSchedule, getScheduleParticipants, updateSchedule, closeSchedule, cancelSchedule, finalizeSchedule, updateParticipantFeeStatus, updateParticipantRefundStatus, updateParticipantAttendance, type ScheduleResponse, type ScheduleParticipantResponse, type ScheduleUpdateRequest, type ScheduleCancelRequest } from '../../../../api/schedule';
 import { getMyInfo } from '../../../../api/user';
-import { getVotes, getVote, answerVote, type VoteDetailResponse, type VoteAnswerRequest } from '../../../../api/vote';
-import { getRecentPosts, type PostCardResponse } from '../../../../api/post';
+import { getVotes, getVote, answerVote, type VoteDetailResponse, type VoteAnswerRequest, type VoteListResponse } from '../../../../api/vote';
+import { getRecentPosts } from '../../../../api/post';
 import { getPostComments, createComment, deleteComment, type PostCommentItem } from '../../../../api/comment';
 import { getMembers, type MemberListResponse } from '../../../../api/member';
-import { settleSchedule } from '../../../../api/payment-request';
+import { getBankAccount, type BankAccounts } from '../../../../api/bank';
 import { useUserPermissions } from '../../../data/userRoles';
 import {
   Dialog,
@@ -50,7 +51,6 @@ export function ScheduleDetailView() {
   const [linkedPostId, setLinkedPostId] = useState<number | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [loadingComments, setLoadingComments] = useState(false);
-  const [isSettling, setIsSettling] = useState(false);
   const [members, setMembers] = useState<MemberListResponse[]>([]);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -68,6 +68,24 @@ export function ScheduleDetailView() {
   const [isClosing, setIsClosing] = useState(false);
   const [showFinalizeDialog, setShowFinalizeDialog] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
+  const [bankAccount, setBankAccount] = useState<BankAccounts | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [loadingBankAccount, setLoadingBankAccount] = useState(false);
+
+  // 은행 코드를 은행 이름으로 변환
+  const getBankName = (bankCode: string): string => {
+    const bankMap: Record<string, string> = {
+      'KB': 'KB국민은행',
+      'NH': 'NH농협은행',
+      'SHINHAN': '신한은행',
+      'WOORI': '우리은행',
+      'HANA': '하나은행',
+      'KAKAO': '카카오뱅크',
+      'TOSS': '토스뱅크',
+      'STUB': '테스트은행',
+    };
+    return bankMap[bankCode] || bankCode;
+  };
 
   // 현재 사용자 정보 조회
   useEffect(() => {
@@ -114,66 +132,85 @@ export function ScheduleDetailView() {
       if (!groupId || !scheduleId) return;
       try {
         setLoading(true);
-        const scheduleData = await getSchedule(Number(groupId), Number(scheduleId));
-        const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
-        const membersData = await getMembers(Number(groupId), 'ACTIVE').catch(() => [] as MemberListResponse[]);
+        
+        // 핵심 데이터를 병렬로 가져오기 (투표 정보 포함)
+        const schedulePromise = getSchedule(Number(groupId), Number(scheduleId));
+        const participantsPromise = getScheduleParticipants(Number(groupId), Number(scheduleId));
+        const votesPromise = getVotes(Number(groupId)).catch(() => [] as VoteListResponse[]);
+        const membersPromise = getMembers(Number(groupId), 'ACTIVE').catch(() => [] as MemberListResponse[]);
+        const accountPromise = getBankAccount(Number(groupId)).catch((error: any) => {
+          // 에러 발생 시 null 반환 (나중에 별도로 재시도)
+          const errorMessage = error?.message || String(error) || '';
+          const status = error?.status || error?.response?.status;
+          const isNotFound = status === 404 || 
+                            status === 400 ||
+                            errorMessage.toLowerCase().includes('404') || 
+                            errorMessage.toLowerCase().includes('400') ||
+                            errorMessage.toLowerCase().includes('not found') ||
+                            errorMessage.toLowerCase().includes('존재하지') ||
+                            errorMessage.includes('찾을 수 없습니다') ||
+                            errorMessage.includes('계좌를 찾을 수 없습니다');
+          if (!isNotFound) {
+            console.warn('계좌 정보 조회 실패 (재시도 예정):', { status, message: errorMessage, error });
+          }
+          return null as BankAccounts | null;
+        });
+        
+        const [scheduleData, participantsData, votesData, membersData, accountData] = await Promise.all([
+          schedulePromise,
+          participantsPromise,
+          votesPromise,
+          membersPromise,
+          accountPromise
+        ] as any) as [
+          ScheduleResponse,
+          ScheduleParticipantResponse[],
+          VoteListResponse[],
+          MemberListResponse[],
+          BankAccounts | null
+        ];
+        
         setSchedule(scheduleData);
         setParticipants(participantsData);
         setMembers(membersData);
+        setBankAccount(accountData);
         
-        // 일정과 연결된 게시글 및 댓글 조회
-        await fetchLinkedPostComments();
+        // votes를 명시적으로 VoteListResponse[] 타입으로 지정
+        const votes: VoteListResponse[] = Array.isArray(votesData) ? votesData : [];
         
-        // 일정의 ATTENDANCE 투표 조회
-        try {
-          const votes = await getVotes(Number(groupId));
-          const attendanceVote = votes.find(v => 
-            v.voteType === 'ATTENDANCE'
-          );
-          
-          if (attendanceVote) {
-            // 투표 상세 조회
+        // 계좌 정보가 없으면 재시도 (계좌가 방금 생성되었을 수 있음)
+        if (!accountData && scheduleData.entryFee && scheduleData.entryFee > 0) {
+          // 즉시 재시도
+          (async () => {
             try {
-              const voteDetail = await getVote(Number(groupId), attendanceVote.voteId);
-              if (voteDetail.scheduleId === Number(scheduleId)) {
-                setVote(voteDetail);
-                
-                // 내 투표 확인 (optionText가 "참석" 또는 "불참"인 옵션 찾기)
-                if (currentUserId) {
-                  const mySelectedOptions = voteDetail.options.filter(opt => 
-                    opt.voters?.some(v => v.userId === currentUserId)
-                  );
-                  
-                  if (mySelectedOptions.length > 0) {
-                    const selectedOption = mySelectedOptions[0];
-                    if (selectedOption.optionText === '참석' || selectedOption.optionText.includes('참석')) {
-                      setMyResponse('attending');
-                    } else if (selectedOption.optionText === '불참' || selectedOption.optionText.includes('불참')) {
-                      setMyResponse('not_attending');
-                    }
-                  }
-                }
-              }
-            } catch (error) {
-              console.error('투표 상세 조회 실패:', error);
+              setLoadingBankAccount(true);
+              const retryAccount = await getBankAccount(Number(groupId));
+              setBankAccount(retryAccount);
+            } catch (retryError: any) {
+              // 재시도 실패 시 조용히 처리 (에러 로그만)
+            } finally {
+              setLoadingBankAccount(false);
             }
-          }
-          
-          // 내 참석 상태 확인 (participants에서도 확인)
-          if (currentUserId) {
-            const myParticipant = participantsData.find(p => p.userId === currentUserId);
-            if (myParticipant) {
-              if (myParticipant.attendanceStatus === 'ATTENDING') {
-                setMyResponse('attending');
-              } else if (myParticipant.attendanceStatus === 'NOT_ATTENDING') {
-                setMyResponse('not_attending');
-              }
-            }
-          }
-        } catch (error) {
-          console.error('투표 조회 실패:', error);
-          // 투표가 없어도 일정은 표시 가능
+          })();
         }
+        
+        // 일정의 ATTENDANCE 투표 조회 (scheduleId로 바로 필터링 가능)
+        const attendanceVote = votes.find(v => 
+          v.voteType === 'ATTENDANCE' && v.scheduleId === Number(scheduleId)
+        );
+        
+        // 투표 상세 정보를 병렬로 가져오기 (로딩 완료 전에 가져와야 투표 창이 바로 표시됨)
+        if (attendanceVote) {
+          try {
+            const voteDetail = await getVote(Number(groupId), attendanceVote.voteId);
+            setVote(voteDetail);
+          } catch (error) {
+            console.error('투표 상세 조회 실패:', error);
+          }
+        }
+        
+        // 일정과 연결된 게시글 및 댓글 조회 (비동기로 처리하여 블로킹 방지)
+        fetchLinkedPostComments();
       } catch (error) {
         console.error('일정 상세 불러오기 실패:', error);
         toast.error('일정 정보를 불러오는데 실패했습니다.');
@@ -193,16 +230,16 @@ export function ScheduleDetailView() {
           setSchedule(scheduleData);
           setParticipants(participantsData);
           
-          // 투표 정보 업데이트
+          // 투표 정보 업데이트 (상태와 관계없이 해당 일정의 투표 찾기)
           try {
             const votes = await getVotes(Number(groupId));
             const attendanceVote = votes.find(v => 
               v.voteType === 'ATTENDANCE' && 
-              v.status === 'OPEN'
+              v.scheduleId === Number(scheduleId)
             );
             if (attendanceVote) {
               const voteDetail = await getVote(Number(groupId), attendanceVote.voteId);
-              if (voteDetail && voteDetail.scheduleId === Number(scheduleId)) {
+              if (voteDetail) {
                 setVote(voteDetail);
               }
             }
@@ -219,7 +256,36 @@ export function ScheduleDetailView() {
     }, 5000);
     
     return () => clearInterval(interval);
-  }, [groupId, scheduleId, navigate, currentUserId, fetchLinkedPostComments]);
+  }, [groupId, scheduleId, navigate, fetchLinkedPostComments]);
+  
+  // currentUserId가 설정되면 투표 상태 업데이트
+  useEffect(() => {
+    if (!currentUserId || !vote || !participants.length) return;
+    
+    // 내 투표 확인 (optionText가 "참석" 또는 "불참"인 옵션 찾기)
+    const mySelectedOptions = vote.options.filter(opt => 
+      opt.voters?.some(v => v.userId === currentUserId)
+    );
+    
+    if (mySelectedOptions.length > 0) {
+      const selectedOption = mySelectedOptions[0];
+      if (selectedOption.optionText === '참석' || selectedOption.optionText.includes('참석')) {
+        setMyResponse('attending');
+      } else if (selectedOption.optionText === '불참' || selectedOption.optionText.includes('불참')) {
+        setMyResponse('not_attending');
+      }
+    } else {
+      // participants에서도 확인
+      const myParticipant = participants.find(p => p.userId === currentUserId);
+      if (myParticipant) {
+        if (myParticipant.attendanceStatus === 'ATTENDING') {
+          setMyResponse('attending');
+        } else if (myParticipant.attendanceStatus === 'NOT_ATTENDING') {
+          setMyResponse('not_attending');
+        }
+      }
+    }
+  }, [currentUserId, vote, participants]);
 
   // 참석자 수 즉시 반영을 위해 useMemo 사용 (early return 전에 호출해야 함 - Hook 규칙)
   const { attendingCount, notAttendingCount, pendingCount, paidCount } = useMemo(() => {
@@ -242,6 +308,7 @@ export function ScheduleDetailView() {
   const endDate = new Date(schedule.endDate);
   const now = new Date();
   const isEventStarted = eventDate <= now; // 일정이 시작되었는지 확인
+  const isEventEnded = endDate < now; // 일정이 종료되었는지 확인
 
   const handleResponse = async (response: 'attending' | 'not_attending') => {
     if (!groupId || !scheduleId || !vote) return;
@@ -255,85 +322,100 @@ export function ScheduleDetailView() {
         opt.optionText === '불참' || opt.optionText.includes('불참')
       );
       
-      // 토글 기능: 같은 버튼을 다시 누르면 다른 옵션으로 변경
-      let selectedOptionId: number | undefined;
+      // 토글 기능: 같은 버튼을 다시 누르면 취소(미정으로)
       const isToggling = (response === 'attending' && myResponse === 'attending') || 
                          (response === 'not_attending' && myResponse === 'not_attending');
       
       if (isToggling) {
-        // 이미 선택된 옵션을 다시 클릭하면 다른 옵션으로 변경
-        selectedOptionId = response === 'attending' 
-          ? notAttendingOption?.optionId 
-          : attendingOption?.optionId;
-        
-        if (!selectedOptionId) {
-          toast.info('투표를 취소할 수 없습니다');
+        // 이미 선택된 옵션을 다시 클릭하면 취소 (미정으로 변경)
+        if (!currentUserId) {
+          toast.error('사용자 정보를 찾을 수 없습니다');
           return;
         }
+        
+        // 현재 사용자의 participant 찾기
+        const myParticipant = participants.find(p => p.userId === currentUserId);
+        if (!myParticipant) {
+          toast.error('참가자 정보를 찾을 수 없습니다');
+          return;
+        }
+        
+        // 직접 참가자 상태를 UNDECIDED로 변경
+        await updateParticipantAttendance(Number(groupId), Number(scheduleId), myParticipant.participantId, { 
+          attendanceStatus: 'UNDECIDED' 
+        });
+        
+        // 약간의 딜레이 후 서버 데이터로 동기화
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
+        const updatedVote = await getVote(Number(groupId), vote.voteId);
+        
+        setParticipants(participantsData);
+        setVote(updatedVote);
+        setMyResponse(null);
+        
+        toast.success('투표가 취소되었습니다');
       } else {
         // 새로운 선택
-        selectedOptionId = response === 'attending' 
+        const selectedOptionId = response === 'attending' 
           ? attendingOption?.optionId 
           : notAttendingOption?.optionId;
-      }
-      
-      if (!selectedOptionId) {
-        toast.error('투표 옵션을 찾을 수 없습니다');
-        return;
-      }
-      
-      const request: VoteAnswerRequest = {
-        optionIds: [selectedOptionId]
-      };
-      
-      await answerVote(Number(groupId), vote.voteId, request);
-      
-      // 약간의 딜레이 후 서버 데이터로 동기화 (백엔드에서 ScheduleParticipants 생성/업데이트 시간 확보)
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
-      const updatedVote = await getVote(Number(groupId), vote.voteId);
-      
-      // 상태 업데이트
-      setParticipants(participantsData);
-      setVote(updatedVote);
-      
-      // 서버 응답을 기반으로 myResponse 상태 업데이트
-      if (currentUserId) {
-        // 먼저 participants에서 확인
-        const myParticipant = participantsData.find(p => p.userId === currentUserId);
-        if (myParticipant) {
-          if (myParticipant.attendanceStatus === 'ATTENDING') {
-            setMyResponse('attending');
-          } else if (myParticipant.attendanceStatus === 'NOT_ATTENDING') {
-            setMyResponse('not_attending');
-          } else {
-            setMyResponse(null);
-          }
-        } else if (updatedVote.mySelectedOptionIds && updatedVote.mySelectedOptionIds.length > 0) {
-          // participants에 없으면 투표 데이터로 확인
-          const selectedOption = updatedVote.options.find(opt => 
-            updatedVote.mySelectedOptionIds?.includes(opt.optionId)
-          );
-          if (selectedOption) {
-            if (selectedOption.optionText === '참석' || selectedOption.optionText.includes('참석')) {
+        
+        if (!selectedOptionId) {
+          toast.error('투표 옵션을 찾을 수 없습니다');
+          return;
+        }
+        
+        const request: VoteAnswerRequest = {
+          optionIds: [selectedOptionId]
+        };
+        
+        await answerVote(Number(groupId), vote.voteId, request);
+        
+        // 약간의 딜레이 후 서버 데이터로 동기화 (백엔드에서 ScheduleParticipants 생성/업데이트 시간 확보)
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
+        const updatedVote = await getVote(Number(groupId), vote.voteId);
+        
+        // 상태 업데이트
+        setParticipants(participantsData);
+        setVote(updatedVote);
+        
+        // 서버 응답을 기반으로 myResponse 상태 업데이트
+        if (currentUserId) {
+          // 먼저 participants에서 확인
+          const myParticipant = participantsData.find(p => p.userId === currentUserId);
+          if (myParticipant) {
+            if (myParticipant.attendanceStatus === 'ATTENDING') {
               setMyResponse('attending');
-            } else if (selectedOption.optionText === '불참' || selectedOption.optionText.includes('불참')) {
+            } else if (myParticipant.attendanceStatus === 'NOT_ATTENDING') {
               setMyResponse('not_attending');
+            } else {
+              setMyResponse(null);
+            }
+          } else if (updatedVote.mySelectedOptionIds && updatedVote.mySelectedOptionIds.length > 0) {
+            // participants에 없으면 투표 데이터로 확인
+            const selectedOption = updatedVote.options.find(opt => 
+              updatedVote.mySelectedOptionIds?.includes(opt.optionId)
+            );
+            if (selectedOption) {
+              if (selectedOption.optionText === '참석' || selectedOption.optionText.includes('참석')) {
+                setMyResponse('attending');
+              } else if (selectedOption.optionText === '불참' || selectedOption.optionText.includes('불참')) {
+                setMyResponse('not_attending');
+              } else {
+                setMyResponse(null);
+              }
             } else {
               setMyResponse(null);
             }
           } else {
             setMyResponse(null);
           }
-        } else {
-          setMyResponse(null);
         }
-      }
-      
-      if (isToggling) {
-        toast.success(response === 'attending' ? '불참으로 변경되었습니다' : '참석으로 변경되었습니다');
-      } else {
+        
         toast.success(response === 'attending' ? '참석으로 응답했습니다' : '불참으로 응답했습니다');
       }
     } catch (error) {
@@ -386,24 +468,6 @@ export function ScheduleDetailView() {
     toast.success('링크가 복사되었습니다');
   };
 
-  const handleSettle = async () => {
-    if (!groupId || !scheduleId) return;
-    if (!confirm('정산 및 잔액 환급을 진행하시겠습니까?')) return;
-    
-    try {
-      setIsSettling(true);
-      await settleSchedule(Number(groupId), Number(scheduleId));
-      toast.success('정산 및 잔액 환급이 완료되었습니다.');
-      // 일정 정보 새로고침
-      const scheduleData = await getSchedule(Number(groupId), Number(scheduleId));
-      setSchedule(scheduleData);
-    } catch (error) {
-      console.error('정산 실패:', error);
-      toast.error('정산에 실패했습니다.');
-    } finally {
-      setIsSettling(false);
-    }
-  };
 
   // 일정 마무리 다이얼로그 열기
   const handleOpenFinalizeDialog = () => {
@@ -448,6 +512,11 @@ export function ScheduleDetailView() {
       // 일정 정보도 새로고침 (집계 금액 업데이트)
       const scheduleData = await getSchedule(Number(groupId), Number(scheduleId));
       setSchedule(scheduleData);
+      
+      // 목록 페이지에 알림을 위한 커스텀 이벤트 발생
+      window.dispatchEvent(new CustomEvent('scheduleFeeStatusUpdated', { 
+        detail: { scheduleId: Number(scheduleId), groupId: Number(groupId) } 
+      }));
     } catch (error) {
       console.error('납부 상태 변경 실패:', error);
       toast.error('납부 상태 변경에 실패했습니다.');
@@ -536,10 +605,10 @@ export function ScheduleDetailView() {
 
     // 참가비 변경 여부 확인 및 권한 체크
     const currentEntryFee = schedule.entryFee || 0;
-    const newEntryFee = editEntryFee.trim() ? parseFloat(editEntryFee) : 0;
-    const isEntryFeeChanged = currentEntryFee !== newEntryFee;
+    const newEntryFee = editEntryFee.trim() ? parseFloat(editEntryFee) : undefined;
+    const isEntryFeeChanged = currentEntryFee !== (newEntryFee ?? 0);
 
-    if (isEntryFeeChanged && newEntryFee > 0 && !permissions.canWithdraw) {
+    if (isEntryFeeChanged && newEntryFee !== undefined && newEntryFee !== null && newEntryFee > 0 && !permissions.canWithdraw) {
       toast.error('참가비 변경은 총무 이상만 가능합니다');
       return;
     }
@@ -694,7 +763,7 @@ export function ScheduleDetailView() {
         )}
 
         {/* 참가비 정보 및 집계 */}
-        {schedule.entryFee && schedule.entryFee > 0 && (
+        {(schedule.entryFee ?? 0) > 0 && (
           <div className="bg-white rounded-2xl p-4 border border-stone-100 space-y-3">
             <h3 className="font-bold text-stone-900">참가비</h3>
             <div className="space-y-2">
@@ -717,6 +786,62 @@ export function ScheduleDetailView() {
                 </span>
               </div>
             </div>
+            {/* 모임 통장 계좌 정보 - 참가비가 있을 때 항상 표시 */}
+            <div className="pt-3 border-t border-stone-100 space-y-2">
+              <h4 className="text-sm font-semibold text-stone-700">입금 계좌</h4>
+              {bankAccount ? (
+                <>
+                  <div className="bg-stone-50 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-stone-500">은행</span>
+                      <span className="font-medium text-stone-900">{getBankName(bankAccount.bankCode)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-stone-500">계좌번호</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-stone-900 font-mono">{bankAccount.accountNumber || '계좌번호 없음'}</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            const accountNumber = bankAccount?.accountNumber;
+                            if (!accountNumber) return;
+                            navigator.clipboard.writeText(accountNumber.replace(/-/g, ''));
+                            setCopied(true);
+                            toast.success('계좌번호가 복사되었습니다');
+                            setTimeout(() => setCopied(false), 2000);
+                          }}
+                          className="h-6 px-2"
+                        >
+                          {(() => {
+                            if (copied) {
+                              return <Check className="w-3 h-3 text-green-600" /> as React.ReactNode;
+                            }
+                            return <Copy className="w-3 h-3" /> as React.ReactNode;
+                          })()}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-stone-500">예금주</span>
+                      <span className="font-medium text-stone-900">{bankAccount.depositorName}</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-stone-500">
+                    💡 이체 시 입금자명을 꼭 본인 이름으로 남겨주세요.
+                  </p>
+                </>
+              ) : (
+                <div className="bg-stone-50 rounded-lg p-3">
+                  <p className="text-sm text-stone-500 text-center">
+                    모임 계좌 정보를 불러올 수 없습니다.
+                  </p>
+                  <p className="text-xs text-stone-400 text-center mt-1">
+                    관리 페이지에서 계좌를 생성해주세요.
+                  </p>
+                </div>
+              )}
+            </div>
             {/* 정산 정보 (마감된 경우) */}
             {schedule.status === 'CLOSED' && schedule.totalSpent !== undefined && schedule.totalSpent > 0 && (
               <div className="pt-2 border-t border-stone-100">
@@ -732,20 +857,24 @@ export function ScheduleDetailView() {
                 )}
               </div>
             )}
-            {/* 일정 마무리 버튼 (OPEN 상태이고 총무 이상, 일정이 시작된 후) */}
-            {permissions.canWithdraw && schedule.status === 'OPEN' && isEventStarted && (
-              <div className="pt-3 border-t border-stone-100">
-                <Button
-                  onClick={handleOpenFinalizeDialog}
-                  size="sm"
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-                >
-                  일정 마무리 (정산 및 환급)
-                </Button>
-                <p className="text-xs text-stone-500 mt-2 text-center">
-                  총 지출을 입력하면 자동으로 환급액이 계산됩니다.
-                </p>
-              </div>
+            {/* 일정 마무리 버튼 (OPEN 상태이고, 참가비가 있으면 총무 이상, 없으면 운영진 이상, 일정이 시작된 후) */}
+            {schedule.status === 'OPEN' && isEventStarted && (
+              (schedule.entryFee && schedule.entryFee > 0 
+                ? permissions.canWithdraw 
+                : permissions.canFinalizeSchedule) && (
+                <div className="pt-3 border-t border-stone-100">
+                  <Button
+                    onClick={handleOpenFinalizeDialog}
+                    size="sm"
+                    className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                  >
+                    {isEventEnded ? '일정 마무리 (정산 및 환급)' : '일정 조기 종료 (정산 및 환급)'}
+                  </Button>
+                  <p className="text-xs text-stone-500 mt-2 text-center">
+                    총 지출을 입력하면 자동으로 환급액이 계산됩니다.
+                  </p>
+                </div>
+              )
             )}
           </div>
         )}
@@ -760,7 +889,7 @@ export function ScheduleDetailView() {
               </Badge>
             </div>
             {/* 본인 입금 상태 표시 (참석한 경우) */}
-            {myResponse === 'attending' && schedule.entryFee && schedule.entryFee > 0 && currentUserId && (() => {
+            {myResponse === 'attending' && (schedule.entryFee ?? 0) > 0 && currentUserId && (() => {
               const myParticipant = participants.find(p => p.userId === currentUserId);
               const isPaid = myParticipant?.feeStatus === 'PAID';
               return (
@@ -825,7 +954,7 @@ export function ScheduleDetailView() {
               <span className="text-green-600">참석 {attendingCount}</span>
               <span className="text-red-500">불참 {notAttendingCount}</span>
               <span className="text-stone-400">미정 {pendingCount}</span>
-              {schedule.entryFee && schedule.entryFee > 0 && (
+              {(schedule.entryFee ?? 0) > 0 && (
                 <>
                   <span className="text-stone-300">|</span>
                   <span className="text-blue-600">납부 {paidCount}/{attendingCount}</span>
@@ -881,13 +1010,15 @@ export function ScheduleDetailView() {
                           <span className="text-sm font-medium text-stone-900">{participant.userName}</span>
                           {/* 이상 케이스 경고 아이콘 */}
                           {isAnomaly && (
-                            <AlertTriangle className="w-4 h-4 text-yellow-600" title="불참/미정인데 납부함" />
+                            <div title="불참/미정인데 납부함">
+                              <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                            </div>
                           )}
                         </div>
                         {/* 참가비가 있는 경우 납부/환급 상태 표시 */}
                         {hasEntryFee && (
                           <div className="flex items-center gap-2 mt-0.5">
-                            {isAttending && !isPaid && (
+                            {isAttending && !isPaid && schedule.status !== 'CANCELLED' && (
                               <span className="text-xs font-medium text-orange-600">
                                 입금 필요: {(schedule.entryFee || 0).toLocaleString()}원
                               </span>
@@ -912,54 +1043,40 @@ export function ScheduleDetailView() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {/* 참석 상태 뱃지 */}
-                      <Badge
-                        variant="secondary"
-                        className={`text-xs ${
-                          participant.attendanceStatus === 'ATTENDING' 
-                            ? 'bg-green-100 text-green-700' 
-                            : participant.attendanceStatus === 'NOT_ATTENDING'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-stone-100 text-stone-500'
-                        }`}
-                      >
-                        {participant.attendanceStatus === 'ATTENDING' ? '참석' : participant.attendanceStatus === 'NOT_ATTENDING' ? '불참' : '미정'}
-                      </Badge>
-                      
                       {/* 총무 이상인 경우 상태 변경 버튼 표시 */}
                       {permissions.canWithdraw && schedule.status !== 'CANCELLED' && (
                         <div className="flex gap-1 flex-wrap">
-                          {/* 참석 상태 변경 버튼 (총무 이상) */}
-                          {participant.attendanceStatus !== 'ATTENDING' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-1.5 text-xs text-green-600 hover:text-green-700"
-                              onClick={() => handleUpdateAttendanceStatus(participant.participantId, 'ATTENDING')}
-                            >
-                              참석
-                            </Button>
-                          )}
-                          {participant.attendanceStatus !== 'NOT_ATTENDING' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-1.5 text-xs text-red-600 hover:text-red-700"
-                              onClick={() => handleUpdateAttendanceStatus(participant.participantId, 'NOT_ATTENDING')}
-                            >
-                              불참
-                            </Button>
-                          )}
-                          {participant.attendanceStatus !== 'UNDECIDED' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-1.5 text-xs text-stone-500 hover:text-stone-600"
-                              onClick={() => handleUpdateAttendanceStatus(participant.participantId, 'UNDECIDED')}
-                            >
-                              미정
-                            </Button>
-                          )}
+                          {/* 참석 상태 변경 버튼 (총무 이상) - 순서 고정: 참석, 불참 */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-6 px-1.5 text-xs ${
+                              participant.attendanceStatus === 'ATTENDING'
+                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                : 'text-green-600 hover:text-green-700 hover:bg-green-50'
+                            }`}
+                            onClick={() => {
+                              const newStatus = participant.attendanceStatus === 'ATTENDING' ? 'UNDECIDED' : 'ATTENDING';
+                              handleUpdateAttendanceStatus(participant.participantId, newStatus);
+                            }}
+                          >
+                            참석
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-6 px-1.5 text-xs ${
+                              participant.attendanceStatus === 'NOT_ATTENDING'
+                                ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                : 'text-red-600 hover:text-red-700 hover:bg-red-50'
+                            }`}
+                            onClick={() => {
+                              const newStatus = participant.attendanceStatus === 'NOT_ATTENDING' ? 'UNDECIDED' : 'NOT_ATTENDING';
+                              handleUpdateAttendanceStatus(participant.participantId, newStatus);
+                            }}
+                          >
+                            불참
+                          </Button>
                           {/* 납부 상태 토글 (참가비가 있고 일정이 열려있을 때만) */}
                           {hasEntryFee && schedule.status === 'OPEN' && (
                             <Button
@@ -1018,7 +1135,7 @@ export function ScheduleDetailView() {
                 일정 취소
               </Button>
             </div>
-            {schedule.entryFee && schedule.entryFee > 0 && (
+            {(schedule.entryFee ?? 0) > 0 && (
               <p className="text-xs text-stone-500 mt-2">
                 * 참가비가 설정된 일정의 마감/취소는 총무 이상만 가능합니다.
               </p>
@@ -1249,7 +1366,7 @@ export function ScheduleDetailView() {
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-500">원</span>
                 </div>
-                {schedule && schedule.entryFee && schedule.entryFee > 0 && (
+                {schedule && (schedule.entryFee ?? 0) > 0 && (
                   <div className="bg-orange-50 p-3 rounded-xl border border-orange-100 flex gap-2">
                     <AlertCircle className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
                     <p className="text-xs text-orange-800">

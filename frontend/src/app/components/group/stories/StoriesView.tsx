@@ -5,6 +5,7 @@ import { getVotes, getVote, answerVote, type VoteListResponse, type VoteDetailRe
 import { Card, CardContent } from '../../ui/card';
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
+import { Input } from '../../ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
 import {
   Select,
@@ -13,9 +14,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../ui/select';
-import { Heart, MessageCircle, Calendar, Clock, Users, ChevronRight, Plus, ArrowDown, ArrowUp, TrendingUp } from 'lucide-react';
+import { Heart, MessageCircle, Calendar, Clock, Users, ChevronRight, Plus, ArrowDown, ArrowUp, TrendingUp, Search, Edit2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ClubDetailResponse } from '@/api/club-full';
+import { QAChatWidget } from './QAChatWidget';
+import { deletePost } from '@/api/post';
+import { getMyInfo } from '@/api/user';
+import { useUserPermissions } from '../../../data/userRoles';
+import { useNavigate } from 'react-router-dom';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../ui/alert-dialog';
 
 interface GroupContextType {
   club: ClubDetailResponse | null;
@@ -32,12 +48,31 @@ interface PostWithVote extends PostCardResponse {
 
 export function StoriesView() {
   const { groupId } = useParams<{ groupId: string }>();
+  const navigate = useNavigate();
   useOutletContext<GroupContextType>(); // context 구독
+  const permissions = useUserPermissions(groupId || '1');
   const [allPosts, setAllPosts] = useState<PostWithVote[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'popular'>('newest');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [postToDelete, setPostToDelete] = useState<number | null>(null);
+
+  // 현재 사용자 정보 조회
+  useEffect(() => {
+    async function fetchMyInfo() {
+      try {
+        const userInfo = await getMyInfo();
+        setCurrentUserId(userInfo.userId);
+      } catch (error) {
+        console.error('사용자 정보 조회 실패:', error);
+      }
+    }
+    fetchMyInfo();
+  }, []);
 
   // 게시글과 투표 데이터 가져오기
   useEffect(() => {
@@ -215,22 +250,46 @@ export function StoriesView() {
     }
   };
 
-  // 정렬 적용
-  const sortedPosts = [...allPosts].sort((a, b) => {
-    if (sortOrder === 'newest') {
+  // 검색 및 정렬 적용
+  const filteredAndSortedPosts = [...allPosts]
+    .filter(post => {
+      if (!searchQuery.trim()) return true;
+      return post.title?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
+    })
+    .sort((a, b) => {
+      if (sortOrder === 'newest') {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      } else if (sortOrder === 'oldest') {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      } else if (sortOrder === 'popular') {
+        // 좋아요 수 기준 내림차순 (좋아요가 같으면 최신순)
+        const likesDiff = (b.postLikes || 0) - (a.postLikes || 0);
+        return likesDiff !== 0 ? likesDiff : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    } else if (sortOrder === 'oldest') {
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    } else if (sortOrder === 'popular') {
-      // 좋아요 수 기준 내림차순 (좋아요가 같으면 최신순)
-      const likesDiff = (b.postLikes || 0) - (a.postLikes || 0);
-      return likesDiff !== 0 ? likesDiff : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    }
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
+    });
 
   const handleSortChange = (order: 'newest' | 'oldest' | 'popular') => {
     setSortOrder(order);
+  };
+
+  // 게시글 삭제 핸들러
+  const handleDeletePost = async () => {
+    if (!groupId || !postToDelete) return;
+    try {
+      await deletePost(Number(groupId), postToDelete);
+      toast.success('게시글이 삭제되었습니다');
+      setShowDeleteDialog(false);
+      setPostToDelete(null);
+      // 게시글 목록 새로고침
+      setPage(0);
+      setAllPosts([]);
+    } catch (error) {
+      console.error('게시글 삭제 실패:', error);
+      toast.error('게시글 삭제에 실패했습니다.');
+      setShowDeleteDialog(false);
+      setPostToDelete(null);
+    }
   };
 
   if (loading && page === 0) {
@@ -249,9 +308,19 @@ export function StoriesView() {
   }
 
   return (
-    <div className="space-y-4 pb-20">
-      {/* 정렬 옵션 */}
-      <div className="flex justify-start items-center">
+    <div className="space-y-4 pb-20 relative">
+      {/* 검색 및 정렬 옵션 */}
+      <div className="flex gap-2 items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+          <Input
+            type="text"
+            placeholder="게시글 제목으로 검색..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 h-9 bg-white border-stone-200"
+          />
+        </div>
         <Select value={sortOrder} onValueChange={(value) => handleSortChange(value as 'newest' | 'oldest' | 'popular')}>
           <SelectTrigger className="w-[130px] h-9 text-stone-600 px-3">
             <SelectValue placeholder="정렬" />
@@ -280,7 +349,7 @@ export function StoriesView() {
       </div>
 
       {/* 게시글 목록 */}
-      {sortedPosts.map((post) => (
+      {filteredAndSortedPosts.map((post) => (
         <Card key={post.postId} className="overflow-hidden">
           <CardContent className="p-0">
             {/* 게시글 헤더 */}
@@ -296,6 +365,42 @@ export function StoriesView() {
                   <div className="font-medium text-stone-900">{post.writerName}</div>
                   <div className="text-sm text-stone-500">{formatDate(post.createdAt)}</div>
                 </div>
+                {/* 수정/삭제 버튼 */}
+                {(currentUserId === post.writerId || permissions.canDeletePosts) && (
+                  <div className="flex flex-col gap-1">
+                    {currentUserId === post.writerId && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate(`/group/${groupId}/posts/${post.postId}`);
+                        }}
+                        className="h-8 w-8"
+                        aria-label="게시글 수정"
+                      >
+                        <Edit2 className="w-4 h-4 text-stone-600" />
+                      </Button>
+                    )}
+                    {(currentUserId === post.writerId || permissions.canDeletePosts) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setPostToDelete(post.postId);
+                          setShowDeleteDialog(true);
+                        }}
+                        className="h-8 w-8"
+                        aria-label="게시글 삭제"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-600" />
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -455,23 +560,50 @@ export function StoriesView() {
       )}
 
       {/* 게시글이 없을 때 */}
-      {!loading && sortedPosts.length === 0 && (
+      {!loading && filteredAndSortedPosts.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-stone-500">
           <Calendar className="h-12 w-12 mb-4 text-stone-300" />
-          <p className="text-lg font-medium mb-1">아직 게시글이 없습니다</p>
-          <p className="text-sm">첫 게시글을 작성해보세요!</p>
+          <p className="text-lg font-medium mb-1">
+            {searchQuery.trim() ? `"${searchQuery}" 검색 결과가 없습니다` : '아직 게시글이 없습니다'}
+          </p>
+          <p className="text-sm">
+            {searchQuery.trim() ? '다른 검색어를 시도해보세요' : '첫 게시글을 작성해보세요!'}
+          </p>
         </div>
       )}
 
       {/* FAB - 게시글 작성 */}
-      <div className="fixed bottom-24 right-8 z-40">
-        <Link to="create">
-          <Button className="rounded-full h-12 px-6 shadow-lg bg-stone-900 hover:bg-stone-800 text-white flex items-center gap-2">
-            <Plus className="w-5 h-5" />
-            <span>글쓰기</span>
-          </Button>
-        </Link>
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-40 w-full max-w-md md:max-w-2xl lg:max-w-4xl px-4 pb-4 pointer-events-none">
+        <div className="flex justify-between items-end pointer-events-auto">
+          <QAChatWidget />
+          <Link to="create">
+            <Button className="rounded-full h-14 w-14 shadow-lg bg-lime-300 hover:bg-lime-400 text-white p-0">
+              <Plus className="w-6 h-6" />
+            </Button>
+          </Link>
+        </div>
       </div>
+
+      {/* 삭제 확인 다이얼로그 */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>게시글 삭제</AlertDialogTitle>
+            <AlertDialogDescription>
+              정말로 이 게시글을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeletePost}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              삭제
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

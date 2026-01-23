@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
+import * as React from 'react';
 import { useParams, useOutletContext } from 'react-router-dom';
-import { ChevronRight, Shield, Users, LogOut, AlertTriangle, Crown, Globe, Lock, BookOpen, Info } from 'lucide-react';
+import { ChevronRight, Shield, Users, LogOut, AlertTriangle, Crown, Globe, Lock, BookOpen, Info, Wallet, Copy, Check } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Switch } from '../../ui/switch';
 import { Label } from '../../ui/label';
 import { Input } from '../../ui/input';
 import { Badge } from '../../ui/badge';
+import { getBankAccount, createBankAccount, type BankAccounts, type AccountCreateRequest } from '../../../../api/bank';
+import { getMembers } from '../../../../api/member';
+import { getMyInfo } from '../../../../api/user';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,14 +23,7 @@ import {
 } from '../../ui/alert-dialog';
 import { Button } from '../../ui/button';
 import { Card, CardContent } from '../../ui/card';
-import {
-  useUserRole,
-  useUserPermissions,
-  getRoleLabel,
-  getRoleColor,
-} from '../../../data/userRoles';
 import { ClubDetailResponse, activateClub, closeClub } from '../../../../api/club-full';
-import { getMembers } from '../../../../api/member';
 
 interface GroupContextType {
   club: ClubDetailResponse | null;
@@ -38,15 +35,85 @@ export function AdminView() {
   const { groupId } = useParams();
   const { club, loading: clubLoading } = useOutletContext<GroupContextType>();
   
-  // 모임별 역할 가져오기
-  const { userRole, allRoles } = useUserRole(groupId || '1');
-  const permissions = useUserPermissions(groupId || '1');
+  // 실제 API에서 역할 정보 가져오기
+  const [userRole, setUserRole] = useState<'owner' | 'treasurer' | 'manager' | 'member'>('member');
+  const [allRoles, setAllRoles] = useState<Array<'owner' | 'treasurer' | 'manager' | 'member'>>([]);
+  const [loadingRole, setLoadingRole] = useState(true);
   
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [pendingCount, setPendingCount] = useState(0);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
+  const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [bankAccount, setBankAccount] = useState<BankAccounts | null>(null);
+  const [loadingAccount, setLoadingAccount] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showCreateAccountDialog, setShowCreateAccountDialog] = useState(false);
+  const [creatingAccount, setCreatingAccount] = useState(false);
+  const [bankCode, setBankCode] = useState('STUB');
+  const [ownerName, setOwnerName] = useState('');
+
+  // 실제 API에서 사용자 역할 조회
+  useEffect(() => {
+    async function fetchUserRole() {
+      if (!groupId) return;
+      try {
+        setLoadingRole(true);
+        const myInfo = await getMyInfo();
+        const members = await getMembers(Number(groupId), 'ACTIVE');
+        const currentMember = members.find(m => m.userId === myInfo.userId);
+        
+        if (currentMember) {
+          const roles = currentMember.roles || [];
+          const roleArray: Array<'owner' | 'treasurer' | 'manager' | 'member'> = [];
+          
+          if (roles.includes('OWNER')) {
+            roleArray.push('owner');
+            setUserRole('owner');
+          }
+          if (roles.includes('ACCOUNTANT')) {
+            roleArray.push('treasurer');
+            if (!roleArray.includes('owner')) setUserRole('treasurer');
+          }
+          if (roles.includes('STAFF')) {
+            roleArray.push('manager');
+            if (!roleArray.includes('owner') && !roleArray.includes('treasurer')) setUserRole('manager');
+          }
+          if (roleArray.length === 0) {
+            roleArray.push('member');
+            setUserRole('member');
+          }
+          
+          setAllRoles(roleArray);
+        } else {
+          setUserRole('member');
+          setAllRoles(['member']);
+        }
+      } catch (error) {
+        console.error('사용자 역할 조회 실패:', error);
+        setUserRole('member');
+        setAllRoles(['member']);
+      } finally {
+        setLoadingRole(false);
+      }
+    }
+    fetchUserRole();
+  }, [groupId]);
+
+  // 권한 계산 (실제 역할 기반)
+  const permissions = {
+    canManageGroup: allRoles.includes('owner') || allRoles.includes('manager'),
+    canManageDues: allRoles.includes('owner') || allRoles.includes('treasurer'),
+    canWithdraw: allRoles.includes('owner') || allRoles.includes('treasurer'),
+    canManageShares: allRoles.includes('owner') || allRoles.includes('treasurer'),
+    canManageMembers: allRoles.includes('owner') || allRoles.includes('manager'),
+    canDeletePosts: allRoles.includes('owner') || allRoles.includes('manager'),
+    canDeleteComments: allRoles.includes('owner') || allRoles.includes('manager'),
+    canFinalizeSchedule: allRoles.includes('owner') || allRoles.includes('treasurer') || allRoles.includes('manager'),
+    canChangeManagementType: allRoles.includes('owner') || allRoles.includes('treasurer'),
+    canAssignRoles: allRoles.includes('owner'),
+  };
 
   useEffect(() => {
     async function fetchPendingCount() {
@@ -64,6 +131,71 @@ export function AdminView() {
     fetchPendingCount();
   }, [groupId]);
 
+  // 계좌 정보 미리 조회 (조용히 처리, 에러가 있어도 사용자에게 표시하지 않음)
+  useEffect(() => {
+    async function fetchAccount() {
+      if (!groupId) return;
+      
+      // 여러 번 재시도
+      let retryCount = 0;
+      const maxRetries = 2;
+      const retryDelay = 1000;
+      
+      const attemptFetch = async (): Promise<void> => {
+        try {
+          const account = await getBankAccount(Number(groupId));
+          setBankAccount(account);
+          console.log('계좌 정보 조회 성공:', account);
+        } catch (error: any) {
+          // 에러 메시지에서 404, 400 또는 "not found", "찾을 수 없습니다" 확인
+          const errorMessage = error?.message || String(error) || '';
+          const status = error?.status || error?.response?.status;
+          const isNotFound = status === 404 || 
+                            status === 400 ||
+                            errorMessage.toLowerCase().includes('404') || 
+                            errorMessage.toLowerCase().includes('400') ||
+                            errorMessage.toLowerCase().includes('not found') ||
+                            errorMessage.toLowerCase().includes('존재하지') ||
+                            errorMessage.includes('찾을 수 없습니다') ||
+                            errorMessage.includes('계좌를 찾을 수 없습니다');
+          
+          if (isNotFound) {
+            // 404/400이면 계좌가 없는 것이므로 재시도하지 않음
+            console.log('계좌 정보 없음 (정상):', { status, message: errorMessage });
+            setBankAccount(null);
+          } else {
+            // 다른 에러면 재시도
+            retryCount++;
+            console.warn(`계좌 정보 조회 실패 (시도 ${retryCount}/${maxRetries}):`, {
+              error,
+              status,
+              message: errorMessage
+            });
+            
+            if (retryCount < maxRetries) {
+              setTimeout(attemptFetch, retryDelay);
+            } else {
+              console.warn('계좌 정보 조회 최종 실패:', { status, message: errorMessage });
+              setBankAccount(null);
+            }
+          }
+        }
+      };
+      
+      attemptFetch();
+    }
+    fetchAccount();
+  }, [groupId]);
+  
+  // 로딩 중일 때는 권한 체크를 하지 않음
+  if (loadingRole) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+        <div className="text-stone-500">로딩 중...</div>
+      </div>
+    );
+  }
+
   const groupName = club?.clubName || '모임';
   const currentVisibility = club?.visibility === 'PUBLIC' ? 'public' : 
                            club?.visibility === 'PRIVATE' ? 'private' : 'searchable';
@@ -71,6 +203,127 @@ export function AdminView() {
   // 모임이 닫혔는지 확인 (status가 INACTIVE이거나 closedAt이 null이 아닌 경우)
   const isClosed = club?.status === 'INACTIVE' || club?.closedAt !== null;
   const isOwner = userRole === 'owner';
+
+  // 은행 코드를 은행 이름으로 변환
+  const getBankName = (bankCode: string): string => {
+    const bankMap: Record<string, string> = {
+      'KB': 'KB국민은행',
+      'NH': 'NH농협은행',
+      'SHINHAN': '신한은행',
+      'WOORI': '우리은행',
+      'HANA': '하나은행',
+      'KAKAO': '카카오뱅크',
+      'TOSS': '토스뱅크',
+      'STUB': '테스트은행',
+    };
+    return bankMap[bankCode] || bankCode;
+  };
+
+  // 계좌 정보 조회
+  const handleShowAccount = async () => {
+    if (!groupId) return;
+    
+    // 이미 조회된 계좌 정보가 있으면 바로 표시
+    if (bankAccount) {
+      setShowAccountDialog(true);
+      return;
+    }
+    
+    // 계좌 정보를 여러 번 재시도하여 조회
+    let retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = 500;
+    
+    const attemptFetch = async (): Promise<void> => {
+      try {
+        setLoadingAccount(true);
+        // 계좌 정보를 다시 조회 (최신 정보 확인)
+        const account = await getBankAccount(Number(groupId));
+        setBankAccount(account);
+        setShowAccountDialog(true);
+        setLoadingAccount(false);
+      } catch (error: any) {
+        // 에러 메시지에서 404, 400 또는 "not found", "찾을 수 없습니다" 확인
+        const errorMessage = error?.message || String(error) || '';
+        const status = error?.status || error?.response?.status;
+        const isNotFound = status === 404 || 
+                          status === 400 ||
+                          errorMessage.toLowerCase().includes('404') || 
+                          errorMessage.toLowerCase().includes('400') ||
+                          errorMessage.toLowerCase().includes('not found') ||
+                          errorMessage.toLowerCase().includes('존재하지') ||
+                          errorMessage.includes('찾을 수 없습니다') ||
+                          errorMessage.includes('계좌를 찾을 수 없습니다');
+        
+        if (isNotFound && retryCount === 0) {
+          // 첫 번째 시도에서 404/400이면 계좌가 없는 것이므로 생성 다이얼로그 표시
+          setLoadingAccount(false);
+          setShowCreateAccountDialog(true);
+        } else if (!isNotFound && retryCount < maxRetries - 1) {
+          // 다른 에러면 재시도
+          retryCount++;
+          setTimeout(attemptFetch, retryDelay * retryCount);
+        } else {
+          // 최종 실패
+          setLoadingAccount(false);
+          // 네트워크 에러나 일시적인 문제일 수 있으므로 생성 다이얼로그 표시
+          setShowCreateAccountDialog(true);
+        }
+      }
+    };
+    
+    attemptFetch();
+  };
+
+  // 계좌 생성
+  const handleCreateAccount = async () => {
+    if (!groupId) return;
+    try {
+      setCreatingAccount(true);
+      const myInfo = await getMyInfo();
+      
+      const request: AccountCreateRequest = {
+        userId: myInfo.userId,
+        bankCode: bankCode || 'STUB',
+        accountNumber: null, // 자동 생성
+        ownerName: ownerName || myInfo.realName,
+      };
+
+      const account = await createBankAccount(Number(groupId), request);
+      
+      // 계좌 정보를 상태에 저장
+      setBankAccount(account);
+      setShowCreateAccountDialog(false);
+      setShowAccountDialog(true);
+      toast.success('계좌가 생성되었습니다');
+      
+      // 계좌 생성 후 즉시 다시 조회하여 확인 (1회만)
+      setTimeout(async () => {
+        try {
+          const verifyAccount = await getBankAccount(Number(groupId));
+          setBankAccount(verifyAccount);
+        } catch (verifyError) {
+          // 재시도 실패 시 생성된 계좌 정보는 유지
+          setBankAccount(account);
+        }
+      }, 500);
+    } catch (error: any) {
+      console.error('계좌 생성 실패:', error);
+      toast.error(error.message || '계좌 생성에 실패했습니다.');
+    } finally {
+      setCreatingAccount(false);
+    }
+  };
+
+
+  // 계좌번호 복사
+  const handleCopyAccount = () => {
+    if (!bankAccount || !bankAccount.accountNumber) return;
+    navigator.clipboard.writeText(bankAccount.accountNumber.replace(/-/g, ''));
+    setCopied(true);
+    toast.success('계좌번호가 복사되었습니다');
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleActivateClub = async () => {
     if (!groupId) {
@@ -113,8 +366,15 @@ export function AdminView() {
 
   // 복합 역할 표시
   const isMultiRole = allRoles.length > 1;
-  const multiRoleLabel = getRoleLabel(groupId || '1');
-  const multiRoleColor = getRoleColor(groupId || '1');
+
+  // 로딩 중일 때는 권한 체크를 하지 않음
+  if (loadingRole) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+        <div className="text-stone-500">로딩 중...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
@@ -223,6 +483,22 @@ export function AdminView() {
               <ChevronRight className="w-5 h-5 text-stone-300" />
             </div>
           </Link>
+
+          {/* 계좌 */}
+          <button onClick={handleShowAccount} className="block w-full text-left">
+            <div className="p-4 flex items-center justify-between hover:bg-stone-50 cursor-pointer">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                  <Wallet className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="font-medium text-stone-900">계좌 관리</p>
+                  <p className="text-xs text-stone-500">모임통장 계좌 정보 확인</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-stone-300" />
+            </div>
+          </button>
         </div>
       )}
 
@@ -330,6 +606,109 @@ export function AdminView() {
         </Card>
       )}
 
+
+      {/* Account Dialog */}
+      <AlertDialog open={showAccountDialog} onOpenChange={setShowAccountDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl">모임통장 계좌 정보</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                if (loadingAccount) {
+                  return <div className="py-8 text-center text-stone-500">로딩 중...</div> as React.ReactNode;
+                }
+                if (bankAccount) {
+                  return (
+                    <div className="space-y-4 pt-4">
+                      <div className="bg-stone-50 rounded-xl p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-stone-600">은행</span>
+                          <span className="font-medium text-stone-900">{getBankName(bankAccount.bankCode)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-stone-600">계좌번호</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-stone-900 font-mono">{bankAccount.accountNumber || '계좌번호 없음'}</span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={handleCopyAccount}
+                              className="h-8 px-2"
+                            >
+                              {(() => {
+                                if (copied) {
+                                  return <Check className="w-4 h-4 text-green-600" /> as React.ReactNode;
+                                }
+                                return <Copy className="w-4 h-4" /> as React.ReactNode;
+                              })()}
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-stone-600">예금주</span>
+                          <span className="font-medium text-stone-900">{bankAccount.depositorName}</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-stone-500">
+                        💡 이체 시 입금자명을 꼭 본인 이름으로 남겨주세요.
+                      </p>
+                    </div>
+                  ) as React.ReactNode;
+                }
+                return (
+                  <div className="py-8 text-center text-stone-500">
+                    계좌 정보를 불러올 수 없습니다.
+                  </div>
+                ) as React.ReactNode;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>닫기</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Create Account Dialog */}
+      <AlertDialog open={showCreateAccountDialog} onOpenChange={setShowCreateAccountDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl">계좌 생성</AlertDialogTitle>
+            <AlertDialogDescription>
+              <div className="space-y-4 pt-4">
+                <p className="text-sm text-stone-600">
+                  모임 계좌가 없습니다. 계좌를 생성하시겠습니까?
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="ownerName">예금주명</Label>
+                  <Input
+                    id="ownerName"
+                    value={ownerName}
+                    onChange={(e) => setOwnerName(e.target.value)}
+                    placeholder="예금주명을 입력하세요"
+                    className="h-10"
+                  />
+                </div>
+                <p className="text-xs text-stone-500">
+                  💡 기본값으로 STUB 은행 계좌가 자동 생성됩니다.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowCreateAccountDialog(false)}>
+              취소
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCreateAccount}
+              disabled={creatingAccount || !ownerName.trim()}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              {creatingAccount ? '생성 중...' : '계좌 생성'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Group Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { useParams } from 'react-router-dom';
-import { createStory, type StoryCreateRequest, type PostIdResponse } from '../../../../api/post';
+import { createStory, type StoryCreateRequest } from '../../../../api/post';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Image, X, MapPin, Calendar, Users, Send, Vote, Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -8,8 +8,7 @@ import { Button } from '../../ui/button';
 import { Textarea } from '../../ui/textarea';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
-import { Badge } from '../../ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
+import { Avatar, AvatarFallback,  } from '../../ui/avatar';
 import { Switch } from '../../ui/switch';
 import { getMembers, type MemberListResponse } from '../../../../api/member';
 import { getSchedules } from '../../../../api/schedule';
@@ -40,6 +39,7 @@ export function CreateStoryView() {
   const [voteOptions, setVoteOptions] = useState<VoteOptionCreateRequest[]>([
     { optionText: '', order: 1 }
   ]);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -65,6 +65,20 @@ export function CreateStoryView() {
     }
     fetchData();
   }, [groupId]);
+
+  // selectstart는 div 표준 prop이 아니므로 ref + addEventListener 사용
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: Event) => {
+      const t = e.target as Node;
+      if (!(t instanceof HTMLTextAreaElement || t instanceof HTMLInputElement)) {
+        e.preventDefault();
+      }
+    };
+    el.addEventListener('selectstart', handler);
+    return () => el.removeEventListener('selectstart', handler);
+  }, []);
 
   const handleImageUpload = () => {
     const input = document.createElement('input');
@@ -225,9 +239,40 @@ export function CreateStoryView() {
   }
 
   return (
-    <div className="min-h-screen bg-white pb-24" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
+    <div 
+      ref={containerRef}
+      className="min-h-screen bg-white pb-24 select-none" 
+      onDragStart={(e) => {
+        // 입력 필드가 아닌 경우에만 드래그 방지
+        if (!(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement)) {
+          e.preventDefault();
+          e.dataTransfer.effectAllowed = 'none';
+          const canvas = document.createElement('canvas');
+          canvas.width = 1;
+          canvas.height = 1;
+          e.dataTransfer.setDragImage(canvas, 0, 0);
+        }
+      }} 
+      onDragOver={(e) => {
+        if (!(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement)) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'none';
+        }
+      }}
+      onDragEnd={(e) => {
+        if (!(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement)) {
+          e.preventDefault();
+        }
+      }}
+      style={{ 
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitUserDrag: 'none',
+        backgroundColor: '#ffffff'
+      } as CSSProperties}
+    >
       {/* Header */}
-      <header className="sticky top-[145px] z-[70] bg-white shadow-sm">
+      <header className="sticky top-0 z-[70] bg-white shadow-sm" style={{ backgroundColor: '#ffffff' }}>
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center">
             <Button
@@ -265,7 +310,7 @@ export function CreateStoryView() {
         </div>
       </header>
 
-      <div className="p-5 space-y-6">
+      <div className="p-5 space-y-6 pt-6" style={{ backgroundColor: '#ffffff' }}>
         {/* Author Info */}
         {userInfo && (
           <div className="flex items-center gap-3">
@@ -319,9 +364,10 @@ export function CreateStoryView() {
         {/* Content Input */}
         <Textarea
           placeholder="게시글 내용을 입력하세요..."
-          className="min-h-32 border-none shadow-none text-base resize-none focus-visible:ring-0 p-0"
+          className="min-h-32 border-none shadow-none text-base resize-none focus-visible:ring-0 p-0 select-text"
           value={content}
           onChange={(e) => setContent(e.target.value)}
+          onDragStart={(e) => e.stopPropagation()}
           maxLength={500}
         />
         <p className="text-xs text-stone-400 text-right">{content.length}/500</p>
@@ -372,9 +418,10 @@ export function CreateStoryView() {
           </Label>
           <Input
             placeholder="위치를 입력하세요"
-            className="h-11 bg-stone-50 border-stone-200 rounded-xl"
+            className="h-11 bg-stone-50 border-stone-200 rounded-xl select-text"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
+            onDragStart={(e) => e.stopPropagation()}
           />
         </div>
 
@@ -444,9 +491,10 @@ export function CreateStoryView() {
                 <Label className="text-sm text-stone-700">투표 제목 *</Label>
                 <Input
                   placeholder="투표 제목을 입력하세요"
-                  className="h-11 bg-white border-stone-200 rounded-xl"
+                  className="h-11 bg-white border-stone-200 rounded-xl select-text"
                   value={voteTitle}
                   onChange={(e) => setVoteTitle(e.target.value)}
+                  onDragStart={(e) => e.stopPropagation()}
                   maxLength={100}
                 />
               </div>
@@ -455,9 +503,10 @@ export function CreateStoryView() {
                 <Label className="text-sm text-stone-700">투표 설명 (선택)</Label>
                 <Textarea
                   placeholder="투표에 대한 설명을 입력하세요"
-                  className="bg-white border-stone-200 rounded-xl resize-none min-h-[80px]"
+                  className="bg-white border-stone-200 rounded-xl resize-none min-h-[80px] select-text"
                   value={voteDescription}
                   onChange={(e) => setVoteDescription(e.target.value)}
+                  onDragStart={(e) => e.stopPropagation()}
                   maxLength={500}
                 />
               </div>
@@ -466,9 +515,10 @@ export function CreateStoryView() {
                 <Label className="text-sm text-stone-700">투표 마감일 (선택)</Label>
                 <Input
                   type="datetime-local"
-                  className="h-11 bg-white border-stone-200 rounded-xl [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                  className="h-11 bg-white border-stone-200 rounded-xl [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer select-text"
                   value={voteDeadline}
                   onChange={(e) => setVoteDeadline(e.target.value)}
+                  onDragStart={(e) => e.stopPropagation()}
                   placeholder="투표 마감일 선택"
                 />
               </div>
@@ -491,9 +541,10 @@ export function CreateStoryView() {
                   <div key={index} className="flex items-center gap-2">
                     <Input
                       placeholder={`옵션 ${index + 1}`}
-                      className="flex-1 h-10 bg-white border-stone-200 rounded-xl"
+                      className="flex-1 h-10 bg-white border-stone-200 rounded-xl select-text"
                       value={option.optionText}
                       onChange={(e) => updateVoteOption(index, e.target.value)}
+                      onDragStart={(e) => e.stopPropagation()}
                       maxLength={100}
                     />
                     {voteOptions.length > 1 && (

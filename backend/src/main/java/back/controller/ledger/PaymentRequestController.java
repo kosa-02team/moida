@@ -4,6 +4,8 @@ import back.config.security.UserPrincipal;
 import back.domain.ledger.PaymentRequest;
 import back.dto.ledger.request.PaymentRequestCreateRequest;
 import back.dto.schedule.ScheduleFinalizeRequest;
+import back.repository.schedule.ScheduleRepository;
+import back.service.club.ClubAuthService;
 import back.service.ledger.EventFundService;
 import back.service.ledger.PaymentRequestService;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +25,8 @@ public class PaymentRequestController {
 
     private final PaymentRequestService paymentRequestService;
     private final EventFundService eventFundService;
+    private final ScheduleRepository scheduleRepository;
+    private final ClubAuthService clubAuthService;
 
     // --- 1. 기본 입금 요청 관리 (PaymentRequestService) ---
 
@@ -104,8 +108,26 @@ public class PaymentRequestController {
     public ResponseEntity<Void> finalizeSchedule(
             @PathVariable Long clubId,
             @PathVariable Long scheduleId,
+            @AuthenticationPrincipal UserPrincipal user,
             @RequestBody(required = false) ScheduleFinalizeRequest request) {
-        java.math.BigDecimal totalSpent = (request != null) ? request.totalSpent() : null;
+        Long userId = user.getUserId();
+        
+        // 권한 체크: 참가비가 있으면 총무 이상, 없으면 운영진 이상
+        var scheduleOpt = scheduleRepository.findById(scheduleId);
+        if (scheduleOpt.isPresent()) {
+            var schedule = scheduleOpt.get();
+            boolean hasEntryFee = schedule.getEntryFee() != null
+                    && schedule.getEntryFee().compareTo(java.math.BigDecimal.ZERO) > 0;
+            if (hasEntryFee) {
+                clubAuthService.assertAtLeastAccountant(clubId, userId);
+            } else {
+                clubAuthService.assertAtLeastManager(clubId, userId);
+            }
+        }
+        
+        java.math.BigDecimal totalSpent = (request != null && request.totalSpent() != null) 
+                ? request.totalSpent() 
+                : null;
         eventFundService.settleAndRefund(clubId, scheduleId, totalSpent);
         return ResponseEntity.ok().build();
     }

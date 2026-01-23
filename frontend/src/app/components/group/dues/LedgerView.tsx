@@ -163,20 +163,10 @@ export function LedgerView() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 pb-20" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
-      {/* Header */}
-      <header className="sticky top-[97px] z-[70] bg-white shadow-sm">
-        <div className="flex items-center px-4 py-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="-ml-2">
-            <ArrowLeft className="w-6 h-6 text-stone-800" />
-          </Button>
-          <h1 className="ml-2 text-lg font-semibold text-stone-800">장부 관리</h1>
-        </div>
-      </header>
-
-      <div className="p-5 space-y-4">
-        {/* 날짜 필터 및 수동 기록 추가 버튼 */}
-        <div className="bg-white rounded-xl p-4 border border-stone-100">
+    <div className="space-y-4 pb-4" onDragStart={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
+      {/* 날짜 필터 및 수동 기록 추가 버튼 - sticky로 고정 (탭 아래에 위치) */}
+      <div className="sticky top-0 z-[60] bg-stone-50 pt-4 pb-2 -mx-4 md:-mx-6 px-4 md:px-6">
+        <div className="bg-white rounded-xl p-4 border border-stone-100 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Filter className="w-5 h-5 text-stone-500" />
@@ -214,18 +204,19 @@ export function LedgerView() {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* 거래 내역 목록 */}
-        {loading ? (
-          <div className="text-center py-8 text-stone-500">로딩 중...</div>
-        ) : transactions.length === 0 ? (
-          <div className="bg-white rounded-xl p-8 text-center border border-stone-100">
-            <p className="text-stone-500">거래 내역이 없습니다</p>
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl border border-stone-100 overflow-hidden">
-            <div className="divide-y divide-stone-100">
-              {transactions.map((tx) => {
+      {/* 거래 내역 목록 */}
+      {loading ? (
+        <div className="text-center py-8 text-stone-500">로딩 중...</div>
+      ) : transactions.length === 0 ? (
+        <div className="bg-white rounded-xl p-8 text-center border border-stone-100">
+          <p className="text-stone-500">거래 내역이 없습니다</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-stone-100 overflow-hidden">
+          <div className="divide-y divide-stone-100">
+            {transactions.map((tx) => {
                 const isDeposit = tx.type === 'DEPOSIT';
                 return (
                   <div key={tx.transactionId} className="p-4">
@@ -292,10 +283,9 @@ export function LedgerView() {
                   </div>
                 );
               })}
-            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* 수동 기록 추가 다이얼로그 */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>

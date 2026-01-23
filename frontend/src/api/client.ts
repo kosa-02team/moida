@@ -162,7 +162,11 @@ export const apiClient = async <T>(
 
       // requiresAuth가 false인 경우 (로그인 API 등)에도 백엔드 메시지 전달
       const errorMessage = errorData.message || errorData.error || `HTTP error! status: ${response.status}`;
-      throw new Error(errorMessage);
+      const error = new Error(errorMessage);
+      // status 정보를 에러 객체에 추가
+      (error as any).status = response.status;
+      (error as any).response = { status: response.status };
+      throw error;
     }
 
     // 응답 데이터 파싱
