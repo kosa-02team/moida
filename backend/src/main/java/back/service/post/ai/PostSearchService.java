@@ -335,14 +335,40 @@ public class PostSearchService {
                 String answer = geminiChatClient.get().generate(prompt);
                 System.err.println("Gemini 응답 받음. 길이: " + answer.length() + "자");
                 return answer;
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 System.err.println("Gemini API 호출 실패: " + e.getMessage());
+                // 원인 예외 확인
+                Throwable cause = e.getCause();
+                if (cause != null) {
+                    System.err.println("원인: " + cause.getClass().getSimpleName() + " - " + cause.getMessage());
+                }
+                e.printStackTrace();
+                // 429 에러인 경우 특별한 메시지 반환
+                if (e.getMessage() != null && e.getMessage().contains("API 호출 제한")) {
+                    return "AI 검색 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
+                }
+                throw e; // 상위로 전파
+            } catch (Exception e) {
+                System.err.println("Gemini API 호출 실패 (예상치 못한 에러): " + e.getMessage());
                 e.printStackTrace();
                 throw e; // 상위로 전파
             }
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             // 에러 발생 시 로그 출력 후 안전한 메시지 반환
             System.err.println("answerWithRag 실패: " + e.getMessage());
+            Throwable cause = e.getCause();
+            if (cause != null) {
+                System.err.println("원인: " + cause.getClass().getSimpleName() + " - " + cause.getMessage());
+            }
+            e.printStackTrace();
+            // 429 에러인 경우 특별한 메시지 반환
+            if (e.getMessage() != null && e.getMessage().contains("API 호출 제한")) {
+                return "AI 검색 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
+            }
+            return "AI 검색 중 오류가 발생했습니다: " + (e.getMessage() != null ? e.getMessage() : "알 수 없는 오류");
+        } catch (Exception e) {
+            // 예상치 못한 에러
+            System.err.println("answerWithRag 실패 (예상치 못한 에러): " + e.getMessage());
             e.printStackTrace();
             return "AI 검색 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
         }
