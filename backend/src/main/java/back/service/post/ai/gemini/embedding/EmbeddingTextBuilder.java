@@ -1,7 +1,9 @@
 package back.service.post.ai.gemini.embedding;
 
 import back.domain.post.Posts;
+import back.domain.schedule.Schedules;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 public final class EmbeddingTextBuilder {
@@ -29,6 +31,39 @@ public final class EmbeddingTextBuilder {
             sb.append("함께한 사람: ")
                     .append(String.join(", ", memberNames))
                     .append("\n");
+        }
+
+        return sb.toString().trim();
+    }
+
+    public static String build(Schedules schedule) {
+        StringBuilder sb = new StringBuilder();
+
+        // 일정 이름 (필수)
+        if (schedule.getScheduleName() != null && !schedule.getScheduleName().isBlank()) {
+            sb.append(schedule.getScheduleName().trim()).append("\n");
+        }
+
+        // 설명 (선택)
+        if (schedule.getDescription() != null && !schedule.getDescription().isBlank()) {
+            sb.append(schedule.getDescription().trim()).append("\n");
+        }
+
+        // 일정 날짜
+        if (schedule.getEventDate() != null) {
+            sb.append("일정 날짜: ")
+                    .append(schedule.getEventDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")))
+                    .append("\n");
+        }
+
+        // 장소 (선택)
+        if (schedule.getLocation() != null && !schedule.getLocation().isBlank()) {
+            sb.append("장소: ").append(schedule.getLocation().trim()).append("\n");
+        }
+
+        // 참가비 (선택)
+        if (schedule.getEntryFee() != null && schedule.getEntryFee().compareTo(java.math.BigDecimal.ZERO) > 0) {
+            sb.append("참가비: ").append(schedule.getEntryFee()).append("원\n");
         }
 
         return sb.toString().trim();

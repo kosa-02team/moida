@@ -95,12 +95,106 @@ export function CreateStoryView() {
     return () => el.removeEventListener('selectstart', handler);
   }, []);
 
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new window.Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          // VARCHAR(255)에 맞추기 위해 매우 작은 크기로 제한
+          // base64 데이터 URL은 "data:image/jpeg;base64," + base64 문자열이므로
+          // 실제 데이터는 약 200자 이하로 제한해야 함
+          const MAX_BASE64_LENGTH = 200; // 안전 마진 포함
+          const MAX_WIDTH = 400;
+          const MAX_HEIGHT = 400;
+          
+          let width = img.width;
+          let height = img.height;
+          
+          // 크기 조정
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height = (height * MAX_WIDTH) / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width = (width * MAX_HEIGHT) / height;
+              height = MAX_HEIGHT;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Canvas context를 가져올 수 없습니다'));
+            return;
+          }
+          
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // 매우 낮은 품질로 시작 (0.3)
+          let quality = 0.3;
+          let compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+          
+          // base64 부분만 추출 (data:image/jpeg;base64, 제외)
+          const base64Part = compressedDataUrl.split(',')[1] || '';
+          
+          // base64 문자열 길이가 200자 이하가 될 때까지 크기와 품질 조정
+          let attempts = 0;
+          while (base64Part.length > MAX_BASE64_LENGTH && attempts < 10) {
+            attempts++;
+            
+            if (quality > 0.1) {
+              // 품질 낮추기
+              quality -= 0.05;
+              compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+            } else {
+              // 크기 줄이기
+              const scale = 0.8;
+              width = Math.floor(width * scale);
+              height = Math.floor(height * scale);
+              canvas.width = width;
+              canvas.height = height;
+              ctx.drawImage(img, 0, 0, width, height);
+              compressedDataUrl = canvas.toDataURL('image/jpeg', 0.2);
+            }
+            
+            const newBase64Part = compressedDataUrl.split(',')[1] || '';
+            if (newBase64Part.length <= MAX_BASE64_LENGTH) {
+              break;
+            }
+          }
+          
+          // 최종 검증
+          const finalBase64Part = compressedDataUrl.split(',')[1] || '';
+          if (finalBase64Part.length > MAX_BASE64_LENGTH) {
+            // 최후의 수단: 매우 작은 크기로 강제 리사이즈
+            canvas.width = 200;
+            canvas.height = 200;
+            ctx.drawImage(img, 0, 0, 200, 200);
+            compressedDataUrl = canvas.toDataURL('image/jpeg', 0.2);
+          }
+          
+          resolve(compressedDataUrl);
+        };
+        img.onerror = () => reject(new Error('이미지 로드 실패'));
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('파일 읽기 실패'));
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleImageUpload = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
     input.multiple = true;
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const files = (e.target as HTMLInputElement).files;
       if (!files) return;
       
@@ -110,24 +204,20 @@ export function CreateStoryView() {
         return;
       }
       
-      fileArray.forEach((file) => {
+      for (const file of fileArray) {
         if (!file.type.startsWith('image/')) {
           toast.error('이미지 파일만 업로드 가능합니다');
-          return;
+          continue;
         }
         
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const result = event.target?.result as string;
-          if (result) {
-            setImages(prev => [...prev, result]);
-          }
-        };
-        reader.onerror = () => {
-          toast.error('이미지 읽기에 실패했습니다');
-        };
-        reader.readAsDataURL(file);
-      });
+        try {
+          const compressedImage = await compressImage(file);
+          setImages(prev => [...prev, compressedImage]);
+        } catch (error) {
+          console.error('이미지 압축 실패:', error);
+          toast.error('이미지 처리에 실패했습니다');
+        }
+      }
     };
     input.click();
   };
@@ -241,18 +331,31 @@ export function CreateStoryView() {
     try {
       const request: StoryCreateRequest = {
         title: title.trim() || null,
-        content: content.trim(),
+        content: content.trim() || null,
         imagesUrl: images.length > 0 ? images : undefined,
         scheduleId: linkedScheduleId || null,
         place: location.trim() || null,
         taggedMemberIds: taggedMembers.length > 0 ? taggedMembers : undefined,
       };
+      
+      console.log('게시글 생성 요청:', {
+        ...request,
+        imagesUrl: request.imagesUrl?.map((url, idx) => `${idx}: ${url.substring(0, 50)}...`)
+      });
+      
       await createStory(Number(groupId), request);
       toast.success('게시글이 작성되었습니다');
       navigate(-1);
-    } catch (error) {
+    } catch (error: any) {
       console.error('게시글 작성 실패:', error);
-      toast.error('게시글 작성에 실패했습니다');
+      console.error('에러 상세:', {
+        message: error?.message,
+        response: error?.response,
+        status: error?.status
+      });
+      
+      const errorMessage = error?.message || error?.response?.data?.message || '게시글 작성에 실패했습니다';
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

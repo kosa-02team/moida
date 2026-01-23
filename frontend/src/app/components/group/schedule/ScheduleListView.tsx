@@ -24,6 +24,7 @@ import { getMyInfo } from '../../../../api/user';
 import { getRecentPosts, type PostCardResponse } from '../../../../api/post';
 import { getBankAccount, type BankAccounts } from '../../../../api/bank';
 import { Copy } from 'lucide-react';
+import { QAChatWidget } from '../stories/QAChatWidget';
 
 interface Schedule {
   id: number;
@@ -755,7 +756,8 @@ export function ScheduleListView() {
       
       {/* FAB - 일정 만들기 */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-40 w-full max-w-md md:max-w-2xl lg:max-w-4xl px-4 pb-4 pointer-events-none">
-        <div className="flex justify-end pointer-events-auto">
+        <div className="flex justify-between items-end pointer-events-auto">
+          <QAChatWidget groupId={groupId ? Number(groupId) : undefined} />
           <Link to="create-vote">
             <Button className="rounded-full h-14 w-14 shadow-lg bg-lime-300 hover:bg-lime-400 text-white p-0">
               <Plus className="w-6 h-6" />
