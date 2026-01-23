@@ -169,6 +169,8 @@ class ScheduleServiceTest {
             );
 
             Schedules savedSchedule = schedule(1L, clubId);
+            // scheduleId가 확실히 설정되도록 다시 설정 (createSchedule에서 getScheduleId() 호출 시 필요)
+            ReflectionTestUtils.setField(savedSchedule, "scheduleId", 1L);
             ReflectionTestUtils.setField(savedSchedule, "scheduleName", request.scheduleName());
             ReflectionTestUtils.setField(savedSchedule, "eventDate", request.eventDate());
             ReflectionTestUtils.setField(savedSchedule, "endDate", request.endDate());
@@ -251,6 +253,8 @@ class ScheduleServiceTest {
             );
 
             Schedules savedSchedule = schedule(1L, clubId);
+            // scheduleId가 확실히 설정되도록 다시 설정 (createSchedule에서 getScheduleId() 호출 시 필요)
+            ReflectionTestUtils.setField(savedSchedule, "scheduleId", 1L);
             ReflectionTestUtils.setField(savedSchedule, "scheduleName", request.scheduleName());
             ReflectionTestUtils.setField(savedSchedule, "eventDate", request.eventDate());
             ReflectionTestUtils.setField(savedSchedule, "endDate", request.endDate());
@@ -356,6 +360,8 @@ class ScheduleServiceTest {
             LocalDateTime endDate = LocalDateTime.now().plusDays(8);
 
             Schedules schedule = schedule(scheduleId, clubId);
+            // scheduleId가 확실히 설정되도록 다시 설정 (toResponse에서 getScheduleId() 호출 시 필요)
+            ReflectionTestUtils.setField(schedule, "scheduleId", scheduleId);
             ReflectionTestUtils.setField(schedule, "scheduleName", "기존 일정");
             ReflectionTestUtils.setField(schedule, "status", "OPEN");
             ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.valueOf(10000));
@@ -400,6 +406,8 @@ class ScheduleServiceTest {
             LocalDateTime endDate = LocalDateTime.now().plusDays(8);
 
             Schedules schedule = schedule(scheduleId, clubId);
+            // scheduleId가 확실히 설정되도록 다시 설정 (toResponse에서 getScheduleId() 호출 시 필요)
+            ReflectionTestUtils.setField(schedule, "scheduleId", scheduleId);
             ReflectionTestUtils.setField(schedule, "scheduleName", "기존 일정");
             ReflectionTestUtils.setField(schedule, "status", "OPEN");
             ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.valueOf(10000));
