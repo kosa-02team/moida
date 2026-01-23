@@ -183,6 +183,8 @@ class ScheduleServiceTest {
 
             given(scheduleRepository.save(any(Schedules.class))).willReturn(savedSchedule);
             given(voteRepository.save(any(Votes.class))).willReturn(savedVote);
+            // voteOptionRepository.save()는 입력된 객체를 그대로 반환
+            given(voteOptionRepository.save(any(VoteOptions.class))).willAnswer(invocation -> invocation.getArgument(0));
             // toResponse에서 transactionLogRepository를 사용하므로 Mock 설정
             given(transactionLogRepository.findByScheduleId(any(Long.class))).willReturn(List.of());
             // request에 entryFee가 있으므로 assertAtLeastAccountant가 호출됨
@@ -262,6 +264,8 @@ class ScheduleServiceTest {
 
             given(scheduleRepository.save(any(Schedules.class))).willReturn(savedSchedule);
             given(voteRepository.save(any(Votes.class))).willReturn(savedVote);
+            // voteOptionRepository.save()는 입력된 객체를 그대로 반환
+            given(voteOptionRepository.save(any(VoteOptions.class))).willAnswer(invocation -> invocation.getArgument(0));
             // toResponse에서 transactionLogRepository를 사용하므로 Mock 설정
             given(transactionLogRepository.findByScheduleId(any(Long.class))).willReturn(List.of());
 
