@@ -416,14 +416,19 @@ public class TransactionMatchingService {
     @Transactional
     public void matchRequestsWithExistingTransactions(Long clubId, List<PaymentRequest> newRequests) {
         synchronized (clubId.toString().intern()) {
-            // 1. 미매칭 거래내역 조회
+            // 1. 미매칭 거래내역 조회 (오래된 순)
             List<BankTransactionHistory> unmatchedHistories = transactionHistoryRepository
                     .findByClubIdAndIsMatchedFalse(clubId);
+            unmatchedHistories.sort((h1, h2) -> h1.getBankTransactionAt().compareTo(h2.getBankTransactionAt()));
+
             if (unmatchedHistories.isEmpty()) {
                 return;
             }
 
-            // 2. 각 요청에 대해 매칭 시도
+            // 2. 새로운 요청들도 오래된 날짜 순으로 정렬
+            newRequests.sort((r1, r2) -> r1.getExpectedDate().compareTo(r2.getExpectedDate()));
+
+            // 3. 각 요청에 대해 매칭 시도
             for (PaymentRequest request : newRequests) {
                 if (!request.isMatchable()) {
                     continue;
