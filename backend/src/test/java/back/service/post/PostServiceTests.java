@@ -560,6 +560,7 @@ public class PostServiceTests {
                         Clubs clubRef = club(clubId);
                         ClubMembers writerRef = user(writerId);
                         ReflectionTestUtils.setField(writerRef, "memberId", writerId);
+                        ReflectionTestUtils.setField(writerRef, "clubId", clubId);
                         Schedules scheduleRef = schedule(1L);
 
                         willDoNothing().given(clubAuthorizationService)
