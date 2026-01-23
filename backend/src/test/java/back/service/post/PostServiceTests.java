@@ -502,11 +502,16 @@ public class PostServiceTests {
                         Long writerId = 1L;
 
                         StoryCreateRequest request = new StoryCreateRequest(
-                                        null,
-                                        "모임 게시글 생성",
-                                        null,
-                                        "  남한산성  ",
-                                        null);
+                                        null, // scheduleId
+                                        "모임 게시글 생성", // content
+                                        null, // title
+                                        null, // imagesUrl
+                                        "  남한산성  ", // place
+                                        null, // taggedMemberIds
+                                        null, // voteOptions
+                                        null, // voteDeadline
+                                        null, // isAnonymous
+                                        null); // allowMultiple
 
                         Clubs clubRef = club(clubId);
                         ClubMembers writerRef = user(writerId);
@@ -538,11 +543,16 @@ public class PostServiceTests {
                         Long writerId = 1L;
 
                         StoryCreateRequest request = new StoryCreateRequest(
-                                        1L,
-                                        "모임 게시글 생성",
-                                        List.of("https://example.com/1.png", "https://example.com/2.png"),
-                                        "강남역",
-                                        List.of(2L, 3L));
+                                        1L, // scheduleId
+                                        "모임 게시글 생성", // content
+                                        null, // title
+                                        List.of("https://example.com/1.png", "https://example.com/2.png"), // imagesUrl
+                                        "강남역", // place
+                                        List.of(2L, 3L), // taggedMemberIds
+                                        null, // voteOptions
+                                        null, // voteDeadline
+                                        null, // isAnonymous
+                                        null); // allowMultiple
 
                         Clubs clubRef = club(clubId);
                         ClubMembers writerRef = user(writerId);
@@ -578,11 +588,16 @@ public class PostServiceTests {
                         Long writerId = 999L; // 게스트/비회원 가정
 
                         StoryCreateRequest request = new StoryCreateRequest(
-                                        null,
-                                        "content",
-                                        null,
-                                        null,
-                                        null);
+                                        null, // scheduleId
+                                        "content", // content
+                                        null, // title
+                                        null, // imagesUrl
+                                        null, // place
+                                        null, // taggedMemberIds
+                                        null, // voteOptions
+                                        null, // voteDeadline
+                                        null, // isAnonymous
+                                        null); // allowMultiple
 
                         willThrow(new ClubException.AuthLoginRequired()) // 프로젝트 예외로 교체
                                         .given(clubAuthorizationService)
