@@ -51,6 +51,11 @@ public class PaymentRequestService {
             createdRequests.add(paymentRequestRepository.save(paymentRequest));
         }
 
+        // 새로운 요청들을 기존 미매칭 거래내역과 매칭 시도
+        if (!createdRequests.isEmpty()) {
+            transactionMatchingService.matchRequestsWithExistingTransactions(clubId, createdRequests);
+        }
+
         return createdRequests;
     }
 
