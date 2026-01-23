@@ -5,9 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
-import { Textarea } from '../../ui/textarea';
-import { Badge } from '../../ui/badge';
-import { getClub, updateClub, type ClubDetailResponse, type ClubUpdateRequest } from '../../../../api/club-full';
+import { getClub, updateClub, type ClubUpdateRequest } from '../../../../api/club-full';
 import { getMembers } from '../../../../api/member';
 import { getMyInfo } from '../../../../api/user';
 
@@ -18,9 +16,6 @@ export function EditGroupView() {
   const [canEdit, setCanEdit] = useState(false);
   
   const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState('');
   const [image, setImage] = useState<string | null>(null);
   
   useEffect(() => {
@@ -49,8 +44,6 @@ export function EditGroupView() {
         setLoading(true);
         const club = await getClub(Number(groupId));
         setName(club.clubName || '');
-        setDescription(''); // TODO: 백엔드에 description 필드 추가 필요
-        setTags([]); // TODO: 백엔드에 tags 필드 추가 필요
         
         // localStorage에서 기존 이미지 불러오기
         const savedImage = localStorage.getItem(`club_image_${groupId}`);
@@ -67,17 +60,6 @@ export function EditGroupView() {
     }
     fetchClubData();
   }, [groupId, navigate]);
-
-  const handleAddTag = () => {
-    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
-      setTags([...tags, tagInput.trim()]);
-      setTagInput('');
-    }
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
-  };
 
   const handleImageUpload = () => {
     const input = document.createElement('input');
@@ -130,7 +112,6 @@ export function EditGroupView() {
     try {
       const request: ClubUpdateRequest = {
         clubName: name.trim(),
-        // TODO: description, tags, image 필드 추가 (백엔드 API 확장 필요)
       };
       await updateClub(Number(groupId), request);
       
@@ -224,62 +205,6 @@ export function EditGroupView() {
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-        </div>
-
-        {/* Description */}
-        <div className="space-y-2">
-          <Label htmlFor="description" className="text-base font-medium">모임 소개</Label>
-          <Textarea 
-            id="description" 
-            placeholder="모임에 대한 소개를 작성하세요"
-            className="min-h-24 bg-white border-stone-200 focus-visible:ring-orange-500 rounded-xl resize-none"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </div>
-
-        {/* Tags */}
-        <div className="space-y-2">
-          <Label htmlFor="tags" className="text-base font-medium">태그</Label>
-          <div className="flex gap-2">
-            <Input 
-              id="tags" 
-              placeholder="태그를 입력하고 엔터" 
-              className="flex-1 h-12 bg-white border-stone-200 focus-visible:ring-orange-500 rounded-xl"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleAddTag();
-                }
-              }}
-            />
-            <Button 
-              type="button"
-              onClick={handleAddTag}
-              className="h-12 px-4 bg-orange-500 hover:bg-orange-600 text-white rounded-xl"
-            >
-              추가
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-2 pt-2">
-            {tags.map(tag => (
-              <Badge 
-                key={tag} 
-                variant="secondary" 
-                className="bg-orange-100 text-orange-700 font-normal px-3 py-1 flex items-center gap-1.5"
-              >
-                #{tag}
-                <button
-                  onClick={() => handleRemoveTag(tag)}
-                  className="hover:bg-orange-200 rounded-full p-0.5 transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </Badge>
-            ))}
-          </div>
         </div>
 
         {/* Submit Button */}
