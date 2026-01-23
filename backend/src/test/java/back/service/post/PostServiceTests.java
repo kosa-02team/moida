@@ -514,9 +514,13 @@ public class PostServiceTests {
                                         null); // allowMultiple
 
                         Clubs clubRef = club(clubId);
-                        ClubMembers writerRef = user(writerId);
+                        ClubMembers writerRef = ClubMembers.builder()
+                                        .clubId(clubId)
+                                        .userId(writerId)
+                                        .nickname("테스트닉네임")
+                                        .build();
                         ReflectionTestUtils.setField(writerRef, "memberId", writerId);
-                        ReflectionTestUtils.setField(writerRef, "clubId", clubId);
+                        writerRef.approve(); // ACTIVE 상태로 변경
 
                         willDoNothing().given(clubAuthorizationService)
                                         .assertActiveMember(clubId, writerId);
@@ -559,9 +563,13 @@ public class PostServiceTests {
                                         null); // allowMultiple
 
                         Clubs clubRef = club(clubId);
-                        ClubMembers writerRef = user(writerId);
+                        ClubMembers writerRef = ClubMembers.builder()
+                                        .clubId(clubId)
+                                        .userId(writerId)
+                                        .nickname("테스트닉네임")
+                                        .build();
                         ReflectionTestUtils.setField(writerRef, "memberId", writerId);
-                        ReflectionTestUtils.setField(writerRef, "clubId", clubId);
+                        writerRef.approve(); // ACTIVE 상태로 변경
                         Schedules scheduleRef = schedule(1L);
 
                         willDoNothing().given(clubAuthorizationService)
