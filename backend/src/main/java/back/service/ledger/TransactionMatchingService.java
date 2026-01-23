@@ -9,6 +9,7 @@ import back.repository.club.ClubMemberRepository;
 import back.repository.club.ClubRepository;
 import back.repository.ledger.PaymentRequestRepository;
 import back.repository.ledger.TransactionLogRepository;
+import back.repository.schedule.ScheduleParticipantRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,17 +31,20 @@ public class TransactionMatchingService {
     private final ClubMemberRepository clubMemberRepository;
     private final ClubRepository clubRepository;
     private final TransactionLogRepository transactionLogRepository;
+    private final ScheduleParticipantRepository scheduleParticipantRepository;
 
     public TransactionMatchingService(PaymentRequestRepository paymentRequestRepository,
             BankTransactionHistoryRepository transactionHistoryRepository,
             ClubMemberRepository clubMemberRepository,
             ClubRepository clubRepository,
-            TransactionLogRepository transactionLogRepository) {
+            TransactionLogRepository transactionLogRepository,
+            ScheduleParticipantRepository scheduleParticipantRepository) {
         this.paymentRequestRepository = paymentRequestRepository;
         this.transactionHistoryRepository = transactionHistoryRepository;
         this.clubMemberRepository = clubMemberRepository;
         this.clubRepository = clubRepository;
         this.transactionLogRepository = transactionLogRepository;
+        this.scheduleParticipantRepository = scheduleParticipantRepository;
     }
 
     /**
@@ -83,6 +87,9 @@ public class TransactionMatchingService {
                 // 자동 매칭 처리
                 request.autoMatch(transaction.getHistoryId());
                 paymentRequestRepository.save(request);
+
+                // 일정 참가자 상태 업데이트
+                updateScheduleParticipantStatus(request, transaction.getHistoryId());
 
                 // FAIR_SETTLEMENT 타입인 경우 TransactionLog에 scheduleId 저장
                 if (isFairSettlement && newTransactionLogs != null
@@ -212,6 +219,9 @@ public class TransactionMatchingService {
         // 수동 매칭 처리
         request.confirmMatch(historyId, matchedBy);
         paymentRequestRepository.save(request);
+
+        // 일정 참가자 상태 업데이트
+        updateScheduleParticipantStatus(request, historyId);
     }
 
     /**
@@ -229,6 +239,9 @@ public class TransactionMatchingService {
         // 수동 확인 처리 (현금)
         request.confirmManualCashPayment(matchedBy);
         paymentRequestRepository.save(request);
+
+        // 일정 참가자 상태 업데이트 (historyId는 null)
+        updateScheduleParticipantStatus(request, null);
     }
 
     /**
@@ -246,6 +259,25 @@ public class TransactionMatchingService {
                 request.expire();
                 paymentRequestRepository.save(request);
             }
+        }
+    }
+
+    /**
+     * 일정 참가자 상태 업데이트 헬퍼 메서드
+     */
+    private void updateScheduleParticipantStatus(PaymentRequest request, Long historyId) {
+        if (request.getScheduleId() != null) {
+            // memberId를 통해 userId를 가져와야 함 (PaymentRequest에는 memberId=ClubMemberId 인지 UserId
+            // 인지 확인 필요)
+            // PaymentRequest.java 를 다시 보니 memberId 가 있음.
+            // ClubMemberRepository에서 해당 member의 userId를 가져옴
+            clubMemberRepository.findById(request.getMemberId()).ifPresent(member -> {
+                scheduleParticipantRepository.findByScheduleIdAndUserId(request.getScheduleId(), member.getUserId())
+                        .ifPresent(participant -> {
+                            participant.matchTransaction(historyId);
+                            scheduleParticipantRepository.save(participant);
+                        });
+            });
         }
     }
 
