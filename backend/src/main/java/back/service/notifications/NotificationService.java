@@ -32,7 +32,7 @@ public class NotificationService {
     private final PostRepository postRepository;
     private final VoteRepository voteRepository;
 
-    //구독 (Subscribe)
+    // 구독 (Subscribe)
     public SseEmitter subscribe(Long userId) {
         SseEmitter emitter = new SseEmitter(60L * 60 * 1000);
         String key = userId + "_" + System.currentTimeMillis();
@@ -49,7 +49,7 @@ public class NotificationService {
         return emitterRepository.save(key, emitter);
     }
 
-    //전송 (Send)
+    // 전송 (Send)
     public void send(Long userId, Object data) {
         Map<String, SseEmitter> emitters = emitterRepository.findAllEmitterStartWithByUserId(userId);
 
@@ -84,6 +84,7 @@ public class NotificationService {
 
     /**
      * 알림에서 clubId 추출
+     * 
      * @param notification 알림 엔티티
      * @return clubId (없으면 null)
      */
@@ -126,7 +127,8 @@ public class NotificationService {
                             })
                             .orElse(null);
                 }
-                case "CLUB_WELCOME": {
+                case "CLUB_WELCOME":
+                case "CLUB_JOIN_REQUEST": {
                     // refId가 clubId인 경우
                     return notification.getRefId();
                 }

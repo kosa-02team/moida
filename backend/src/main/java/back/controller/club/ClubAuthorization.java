@@ -13,9 +13,23 @@ public class ClubAuthorization {
     private final ClubAuthService clubAuthService;
 
     public boolean isOwner(Long clubId) {
-        Long currentUserId = 1L; 
-        // 로그인 연동 시 아래 주석 해제하고 위 코드 삭제
-        // Long currentUserId = SecurityUtils.getCurrentUserId();
+        // SecurityContextHolder에서 현재 인증된 사용자 정보 가져오기
+        org.springframework.security.core.Authentication authentication = org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated() ||
+                authentication.getPrincipal().equals("anonymousUser")) {
+            return false;
+        }
+
+        Long currentUserId;
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof UserPrincipal) {
+            currentUserId = ((UserPrincipal) principal).getUserId();
+        } else {
+            return false;
+        }
 
         return clubAuthService.isOwner(clubId, currentUserId);
     }

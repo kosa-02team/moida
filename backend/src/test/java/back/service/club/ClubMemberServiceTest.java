@@ -90,6 +90,7 @@ class ClubMemberServiceTest {
 
                         then(clubMemberRepository).should(times(1)).findByClubIdAndUserId(clubId, userId);
                         then(clubMemberRepository).should(times(1)).save(any(ClubMembers.class));
+                        then(eventPublisher).should(times(1)).publishEvent(any(back.event.ClubJoinRequestEvent.class));
                 }
 
                 @Test
@@ -130,6 +131,7 @@ class ClubMemberServiceTest {
 
                         then(clubMemberRepository).should(times(1)).findByClubIdAndUserId(clubId, userId);
                         then(clubMemberRepository).should(never()).save(any(ClubMembers.class));
+                        then(eventPublisher).should(times(1)).publishEvent(any(back.event.ClubJoinRequestEvent.class));
                 }
 
                 @Test

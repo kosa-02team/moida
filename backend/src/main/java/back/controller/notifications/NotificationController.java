@@ -1,7 +1,7 @@
 package back.controller.notifications;
 
 import back.common.response.SuccessResponse;
-import back.config.security.CustomUserDetail;
+import back.config.security.UserPrincipal;
 import back.dto.NotificationResponse;
 import back.service.notifications.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -25,8 +25,8 @@ public class NotificationController {
      * SSE 알림 구독
      */
     @GetMapping(value = "/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter subscribe(@AuthenticationPrincipal CustomUserDetail userDetails) {
-        return notificationService.subscribe(userDetails.getUserId());
+    public SseEmitter subscribe(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        return notificationService.subscribe(userPrincipal.getUserId());
     }
 
     /**
@@ -35,11 +35,11 @@ public class NotificationController {
      */
     @GetMapping
     public SuccessResponse<Page<NotificationResponse>> getNotifications(
-            @AuthenticationPrincipal CustomUserDetail userDetails,
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) Boolean isRead) {
-        Long userId = userDetails.getUserId();
+        Long userId = userPrincipal.getUserId();
         Pageable pageable = PageRequest.of(page, size);
         Page<NotificationResponse> notifications = notificationService.getNotifications(userId, pageable, isRead);
         return SuccessResponse.success(HttpStatus.OK, notifications);
@@ -50,8 +50,8 @@ public class NotificationController {
      * GET /api/notifications/unread-count
      */
     @GetMapping("/unread-count")
-    public SuccessResponse<Long> getUnreadCount(@AuthenticationPrincipal CustomUserDetail userDetails) {
-        Long userId = userDetails.getUserId();
+    public SuccessResponse<Long> getUnreadCount(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        Long userId = userPrincipal.getUserId();
         long count = notificationService.getUnreadCount(userId);
         return SuccessResponse.success(HttpStatus.OK, count);
     }
@@ -62,9 +62,9 @@ public class NotificationController {
      */
     @PutMapping("/{notificationId}/read")
     public SuccessResponse<Void> markAsRead(
-            @AuthenticationPrincipal CustomUserDetail userDetails,
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
             @PathVariable Long notificationId) {
-        Long userId = userDetails.getUserId();
+        Long userId = userPrincipal.getUserId();
         notificationService.markAsRead(notificationId, userId);
         return SuccessResponse.success(HttpStatus.OK);
     }
@@ -75,9 +75,9 @@ public class NotificationController {
      */
     @DeleteMapping("/{notificationId}")
     public SuccessResponse<Void> deleteNotification(
-            @AuthenticationPrincipal CustomUserDetail userDetails,
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
             @PathVariable Long notificationId) {
-        Long userId = userDetails.getUserId();
+        Long userId = userPrincipal.getUserId();
         notificationService.deleteNotification(notificationId, userId);
         return SuccessResponse.success(HttpStatus.OK);
     }

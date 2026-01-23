@@ -50,6 +50,8 @@ export function NotificationsView() {
         return '댓글';
       case 'CLUB_WELCOME':
         return '모임 가입 환영';
+      case 'CLUB_JOIN_REQUEST':
+        return '모임 가입 신청';
       case 'VOTE_DEADLINE':
         return '투표 마감 임박';
       default:
@@ -60,6 +62,8 @@ export function NotificationsView() {
   const getIcon = (type: string) => {
     switch (type) {
       case 'CLUB_WELCOME':
+        return <Users className="w-5 h-5" />;
+      case 'CLUB_JOIN_REQUEST':
         return <Users className="w-5 h-5" />;
       case 'SCHEDULE':
         return <Calendar className="w-5 h-5" />;
@@ -78,6 +82,8 @@ export function NotificationsView() {
     switch (type) {
       case 'CLUB_WELCOME':
         return 'bg-green-100 text-green-600';
+      case 'CLUB_JOIN_REQUEST':
+        return 'bg-blue-100 text-blue-600';
       case 'SCHEDULE':
         return 'bg-blue-100 text-blue-600';
       case 'VOTE_DEADLINE':
@@ -150,7 +156,7 @@ export function NotificationsView() {
     if (!notification.isRead) {
       handleMarkAsRead(notification.id);
     }
-    
+
     // refId와 type, clubId에 따라 적절한 페이지로 이동
     if (!notification.refId) {
       return;
@@ -189,6 +195,16 @@ export function NotificationsView() {
           // 모임 가입 환영 알림은 모임 메인으로 이동
           // refId가 clubId인 경우
           if (notification.refId) {
+            navigate(`/group/${notification.refId}`);
+          }
+          break;
+        }
+        case 'CLUB_JOIN_REQUEST': {
+          // 모임 가입 신청 알림 - 모임 관리/멤버 목록으로 이동하면 좋겠지만, 
+          // 일단 모임 메인으로 이동 (권한이 있으면 관리 메뉴 보일 것임)
+          if (notification.clubId) {
+            navigate(`/group/${notification.clubId}`);
+          } else if (notification.refId) {
             navigate(`/group/${notification.refId}`);
           }
           break;
@@ -236,9 +252,8 @@ export function NotificationsView() {
               <div
                 key={notification.id}
                 onClick={() => handleNotificationClick(notification)}
-                className={`bg-white rounded-xl border p-4 cursor-pointer transition-all hover:shadow-md ${
-                  notification.isRead ? 'border-stone-100' : 'border-orange-200 bg-orange-50/30'
-                }`}
+                className={`bg-white rounded-xl border p-4 cursor-pointer transition-all hover:shadow-md ${notification.isRead ? 'border-stone-100' : 'border-orange-200 bg-orange-50/30'
+                  }`}
               >
                 <div className="flex items-start gap-3">
                   <div className={`p-2 rounded-lg ${getIconBg(notification.type)}`}>
