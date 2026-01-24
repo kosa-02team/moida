@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Clock, Users, Check, BarChart2, Filter } from 'lucide-react';
+import { ArrowLeft, Plus, Clock, Users, BarChart2, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
@@ -73,17 +73,6 @@ export function VoteListView() {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-    });
-  };
-
-  const formatDateTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString('ko-KR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     });
   };
 

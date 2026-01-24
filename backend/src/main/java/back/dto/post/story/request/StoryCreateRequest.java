@@ -1,11 +1,11 @@
 package back.dto.post.story.request;
 
 import back.dto.vote.VoteOptionCreateRequest;
+import back.validation.UrlOrDataUrl;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
-import org.hibernate.validator.constraints.URL;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,7 +27,7 @@ public record StoryCreateRequest(
         @Size(max = 9, message = "이미지는 최대 9장까지 가능합니다.")
         List<
                 @NotBlank(message = "imagesUrl에는 빈 값이 올 수 없습니다.")
-                @URL(message = "imagesUrl은 올바른 URL 형식이어야 합니다.")
+                @UrlOrDataUrl(message = "imagesUrl은 올바른 URL 형식이어야 합니다.")
                         String
                 > imagesUrl,
 

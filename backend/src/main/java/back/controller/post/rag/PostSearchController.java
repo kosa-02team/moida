@@ -40,9 +40,17 @@ public class PostSearchController {
             @RequestParam Long userId,
             @RequestParam String question
     ) {
-        clubAuthService.validateAndGetClubForReadPosts(clubId, userId);
-        String answer = postSearchService.answerWithRag(question);
-        return ResponseEntity.ok(new RagAnswerResponse(answer));
+        try {
+            clubAuthService.validateAndGetClubForReadPosts(clubId, userId);
+            String answer = postSearchService.answerWithRag(question, clubId);
+            return ResponseEntity.ok(new RagAnswerResponse(answer));
+        } catch (Exception e) {
+            // 예외 발생 시 로그 출력
+            System.err.println("PostSearchController.answer 실패: " + e.getMessage());
+            e.printStackTrace();
+            // 안전한 메시지 반환
+            return ResponseEntity.ok(new RagAnswerResponse("AI 검색 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."));
+        }
     }
 
 }

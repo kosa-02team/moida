@@ -1,6 +1,7 @@
 package back.service.post.ai;
 
 import back.domain.post.Posts;
+import back.domain.schedule.Schedules;
 import back.repository.club.ClubMemberRepository;
 import back.repository.post.PostMemberTagRepository;
 import back.service.post.ai.chroma.ChromaCollectionHolder;
@@ -46,6 +47,7 @@ public class PostVectorService {
         metadata.put("clubId", post.getClub().getClubId());
         metadata.put("writerName", post.getWriter().getNickname());
         metadata.put("writerId", post.getWriter().getUserId());
+        metadata.put("type", "post"); // 게시글 타입 구분
         if (!memberNames.isEmpty()) {
             metadata.put("memberNames", String.join(",", memberNames));
         }
@@ -83,6 +85,46 @@ public class PostVectorService {
     }
 
 
+
+    public void saveSchedule(Schedules schedule) {
+        if (geminiEmbeddingClient.isEmpty()) {
+            return; // API 키가 없으면 벡터 저장 스킵
+        }
+
+        String embeddingText = EmbeddingTextBuilder.build(schedule);
+        float[] embedding = geminiEmbeddingClient.get().embed(embeddingText);
+
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("scheduleId", schedule.getScheduleId());
+        metadata.put("clubId", schedule.getClubId());
+        metadata.put("type", "schedule"); // 일정 타입 구분
+
+        // 장소는 null 아닐 때만
+        if (schedule.getLocation() != null && !schedule.getLocation().isBlank()) {
+            metadata.put("place", schedule.getLocation());
+        }
+
+        // 일정 이름을 document로 저장
+        String document = schedule.getScheduleName();
+        if (schedule.getDescription() != null && !schedule.getDescription().isBlank()) {
+            document += " " + schedule.getDescription();
+        }
+
+        chromaWebClient.post()
+                .uri(
+                        "/tenants/default_tenant/databases/default_database/collections/{id}/upsert",
+                        chromaCollectionHolder.getCollectionId()
+                )
+                .bodyValue(Map.of(
+                        "ids", List.of("schedule-" + schedule.getScheduleId()),
+                        "embeddings", List.of(toList(embedding)),
+                        "documents", List.of(document),
+                        "metadatas", List.of(metadata)
+                ))
+                .retrieve()
+                .bodyToMono(Void.class)
+                .block();
+    }
 
     private List<Float> toList(float[] arr) {
         List<Float> list = new ArrayList<>(arr.length);

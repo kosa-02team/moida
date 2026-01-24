@@ -15,6 +15,8 @@ import back.repository.schedule.ScheduleRepository;
 import back.repository.vote.VoteOptionRepository;
 import back.repository.vote.VoteRepository;
 import back.service.club.ClubAuthService;
+import back.service.ledger.EventFundService;
+import back.service.post.ai.PostVectorService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -24,6 +26,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.junit.jupiter.api.BeforeEach;
+
+import java.util.Optional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -60,10 +65,19 @@ class ScheduleServiceTest {
     private TransactionLogRepository transactionLogRepository;
 
     @Mock
+    private EventFundService eventFundService;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private ScheduleService scheduleService;
+
+    @BeforeEach
+    void setUp() {
+        // postVectorService는 Optional이므로 empty로 설정
+        ReflectionTestUtils.setField(scheduleService, "postVectorService", Optional.empty());
+    }
 
     private static <T> T newEntity(Class<T> type) {
         try {
@@ -155,6 +169,8 @@ class ScheduleServiceTest {
             );
 
             Schedules savedSchedule = schedule(1L, clubId);
+            // scheduleId가 확실히 설정되도록 다시 설정 (createSchedule에서 getScheduleId() 호출 시 필요)
+            ReflectionTestUtils.setField(savedSchedule, "scheduleId", 1L);
             ReflectionTestUtils.setField(savedSchedule, "scheduleName", request.scheduleName());
             ReflectionTestUtils.setField(savedSchedule, "eventDate", request.eventDate());
             ReflectionTestUtils.setField(savedSchedule, "endDate", request.endDate());
@@ -169,6 +185,8 @@ class ScheduleServiceTest {
 
             given(scheduleRepository.save(any(Schedules.class))).willReturn(savedSchedule);
             given(voteRepository.save(any(Votes.class))).willReturn(savedVote);
+            // voteOptionRepository.save()는 입력된 객체를 그대로 반환
+            given(voteOptionRepository.save(any(VoteOptions.class))).willAnswer(invocation -> invocation.getArgument(0));
             // toResponse에서 transactionLogRepository를 사용하므로 Mock 설정
             given(transactionLogRepository.findByScheduleId(any(Long.class))).willReturn(List.of());
             // request에 entryFee가 있으므로 assertAtLeastAccountant가 호출됨
@@ -235,7 +253,14 @@ class ScheduleServiceTest {
             );
 
             Schedules savedSchedule = schedule(1L, clubId);
+            // scheduleId가 확실히 설정되도록 다시 설정 (createSchedule에서 getScheduleId() 호출 시 필요)
+            ReflectionTestUtils.setField(savedSchedule, "scheduleId", 1L);
             ReflectionTestUtils.setField(savedSchedule, "scheduleName", request.scheduleName());
+            ReflectionTestUtils.setField(savedSchedule, "eventDate", request.eventDate());
+            ReflectionTestUtils.setField(savedSchedule, "endDate", request.endDate());
+            ReflectionTestUtils.setField(savedSchedule, "location", request.location());
+            ReflectionTestUtils.setField(savedSchedule, "description", request.description());
+            ReflectionTestUtils.setField(savedSchedule, "entryFee", request.entryFee());
             ReflectionTestUtils.setField(savedSchedule, "voteDeadline", voteDeadline);
 
             Votes savedVote = newEntity(Votes.class);
@@ -243,6 +268,10 @@ class ScheduleServiceTest {
 
             given(scheduleRepository.save(any(Schedules.class))).willReturn(savedSchedule);
             given(voteRepository.save(any(Votes.class))).willReturn(savedVote);
+            // voteOptionRepository.save()는 입력된 객체를 그대로 반환
+            given(voteOptionRepository.save(any(VoteOptions.class))).willAnswer(invocation -> invocation.getArgument(0));
+            // toResponse에서 transactionLogRepository를 사용하므로 Mock 설정
+            given(transactionLogRepository.findByScheduleId(any(Long.class))).willReturn(List.of());
 
             // when
             ScheduleResponse result = scheduleService.createSchedule(clubId, userId, request);
@@ -331,9 +360,15 @@ class ScheduleServiceTest {
             LocalDateTime endDate = LocalDateTime.now().plusDays(8);
 
             Schedules schedule = schedule(scheduleId, clubId);
+            // scheduleId가 확실히 설정되도록 다시 설정 (toResponse에서 getScheduleId() 호출 시 필요)
+            ReflectionTestUtils.setField(schedule, "scheduleId", scheduleId);
             ReflectionTestUtils.setField(schedule, "scheduleName", "기존 일정");
             ReflectionTestUtils.setField(schedule, "status", "OPEN");
             ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.valueOf(10000));
+            ReflectionTestUtils.setField(schedule, "eventDate", eventDate);
+            ReflectionTestUtils.setField(schedule, "endDate", endDate);
+            ReflectionTestUtils.setField(schedule, "location", "기존 장소");
+            ReflectionTestUtils.setField(schedule, "description", "기존 설명");
 
             ScheduleUpdateRequest request = new ScheduleUpdateRequest(
                     "수정된 일정",
@@ -371,9 +406,15 @@ class ScheduleServiceTest {
             LocalDateTime endDate = LocalDateTime.now().plusDays(8);
 
             Schedules schedule = schedule(scheduleId, clubId);
+            // scheduleId가 확실히 설정되도록 다시 설정 (toResponse에서 getScheduleId() 호출 시 필요)
+            ReflectionTestUtils.setField(schedule, "scheduleId", scheduleId);
             ReflectionTestUtils.setField(schedule, "scheduleName", "기존 일정");
             ReflectionTestUtils.setField(schedule, "status", "OPEN");
             ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.valueOf(10000));
+            ReflectionTestUtils.setField(schedule, "eventDate", eventDate);
+            ReflectionTestUtils.setField(schedule, "endDate", endDate);
+            ReflectionTestUtils.setField(schedule, "location", "기존 장소");
+            ReflectionTestUtils.setField(schedule, "description", "기존 설명");
 
             ScheduleUpdateRequest request = new ScheduleUpdateRequest(
                     "수정된 일정",

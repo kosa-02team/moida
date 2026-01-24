@@ -1,6 +1,7 @@
 package back.bank.domain;
 
 import back.domain.BaseEntity;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -10,6 +11,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "banks")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Banks extends BaseEntity {
 
     @Id

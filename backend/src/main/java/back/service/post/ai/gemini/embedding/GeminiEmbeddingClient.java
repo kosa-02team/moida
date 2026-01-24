@@ -4,9 +4,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Mono;
 import java.util.List;
 import java.util.Map;
 
@@ -31,27 +33,44 @@ public class GeminiEmbeddingClient {
                 )
         );
 
-        Map<String, Object> response =
-                webClient.post()
-                        .uri(uriBuilder -> uriBuilder
-                                .path("/models/text-embedding-004:embedContent")
-                                .queryParam("key", apiKey)
-                                .build())
-                        .bodyValue(body)
-                        .retrieve()
-                        .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                        .block();
+        try {
+            Map<String, Object> response =
+                    webClient.post()
+                            .uri(uriBuilder -> uriBuilder
+                                    .path("/models/text-embedding-004:embedContent")
+                                    .queryParam("key", apiKey)
+                                    .build())
+                            .bodyValue(body)
+                            .retrieve()
+                            .onStatus(status -> status == HttpStatus.TOO_MANY_REQUESTS, clientResponse -> {
+                                System.err.println("Gemini Embedding API 호출 제한에 도달했습니다.");
+                                return Mono.error(new RuntimeException("API 호출 제한"));
+                            })
+                            .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                            .block();
 
-        Map<String, Object> embedding =
-                (Map<String, Object>) response.get("embedding");
+            if (response == null) {
+                throw new IllegalStateException("Gemini Embedding API 응답이 null입니다.");
+            }
 
-        List<Double> values =
-                (List<Double>) embedding.get("values");
+            Map<String, Object> embedding =
+                    (Map<String, Object>) response.get("embedding");
 
-        float[] result = new float[values.size()];
-        for (int i = 0; i < values.size(); i++) {
-            result[i] = values.get(i).floatValue();
+            List<Double> values =
+                    (List<Double>) embedding.get("values");
+
+            float[] result = new float[values.size()];
+            for (int i = 0; i < values.size(); i++) {
+                result[i] = values.get(i).floatValue();
+            }
+            return result;
+        } catch (WebClientResponseException ex) {
+            if (ex.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                throw new RuntimeException("API 호출 제한", ex);
+            }
+            throw ex;
+        } catch (Exception e) {
+            throw new RuntimeException("Gemini Embedding API 호출 실패: " + e.getMessage(), e);
         }
-        return result;
     }
 }

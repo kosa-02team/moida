@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Globe, Lock, Search, Eye, Users, KeyRound, Info } from 'lucide-react';
+import { ArrowLeft, Globe, Lock, Search, Users, KeyRound, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
 import { Switch } from '../../ui/switch';
@@ -142,49 +142,6 @@ export function GroupPrivacySettingsView() {
             </div>
           </RadioGroup>
         </div>
-
-        {/* 완전 공개일 때만 게시글/멤버 목록 공개 옵션 표시 */}
-        {visibility === 'public' && (
-          <div className="bg-white rounded-2xl border border-stone-100 divide-y divide-stone-100">
-            <div className="px-4 py-3 bg-stone-50">
-              <h3 className="font-medium text-stone-700">완전 공개 설정</h3>
-            </div>
-
-            {/* Show Posts - 완전 공개일 때만 활성화 */}
-            <div className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <Eye className="w-5 h-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-stone-900">게시글 공개</p>
-                  <p className="text-xs text-stone-500">비회원에게 게시글 표시</p>
-                </div>
-              </div>
-              <Switch
-                defaultChecked
-                className="data-[state=checked]:bg-orange-500"
-              />
-            </div>
-
-            {/* Show Members - 완전 공개일 때만 활성화 */}
-            <div className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                  <Users className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-stone-900">멤버 목록 공개</p>
-                  <p className="text-xs text-stone-500">비회원에게 멤버 목록 표시</p>
-                </div>
-              </div>
-              <Switch
-                defaultChecked
-                className="data-[state=checked]:bg-orange-500"
-              />
-            </div>
-          </div>
-        )}
 
         {/* Join Settings */}
         <div className="bg-white rounded-2xl border border-stone-100 divide-y divide-stone-100">

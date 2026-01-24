@@ -17,10 +17,14 @@ import back.repository.vote.VoteOptionRepository;
 import back.repository.vote.VoteRepository;
 import back.service.club.ClubAuthService;
 import back.service.ledger.EventFundService;
+import back.service.post.ai.PostVectorService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -28,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ScheduleService {
@@ -43,6 +48,9 @@ public class ScheduleService {
 
     // 알림 전송을 위해 의존성 추가
     private final ApplicationEventPublisher eventPublisher;
+    
+    // 벡터화 서비스 (Optional로 주입)
+    private final Optional<PostVectorService> postVectorService;
 
     /**
      * 모임에 속한 전체 일정 목록을 조회합니다.
@@ -141,6 +149,16 @@ public class ScheduleService {
                 savedSchedule.getScheduleName(),
                 userId));
 
+        // 벡터 서비스 호출 (실패해도 일정 생성은 성공)
+        postVectorService.ifPresent(service -> {
+            try {
+                service.saveSchedule(savedSchedule);
+            } catch (Exception e) {
+                // 벡터 DB 연결 실패 등으로 인한 에러는 로그만 남기고 일정 생성은 계속 진행
+                log.warn("벡터 서비스 저장 실패 (일정 생성은 성공): {}", e.getMessage());
+            }
+        });
+
         return toResponse(savedSchedule);
     }
 
@@ -219,6 +237,16 @@ public class ScheduleService {
                 request.description(),
                 request.entryFee(),
                 request.voteDeadline());
+
+        // 벡터 서비스 호출 (실패해도 일정 수정은 성공)
+        postVectorService.ifPresent(service -> {
+            try {
+                service.saveSchedule(schedule);
+            } catch (Exception e) {
+                // 벡터 DB 연결 실패 등으로 인한 에러는 로그만 남기고 일정 수정은 계속 진행
+                log.warn("벡터 서비스 저장 실패 (일정 수정은 성공): {}", e.getMessage());
+            }
+        });
 
         return toResponse(schedule);
     }

@@ -1,5 +1,6 @@
 package back.dto.club;
 
+import back.domain.club.Clubs;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -31,4 +32,25 @@ public class ClubRequest {
 
     @Pattern(regexp = "STUDY|SPORTS|SOCIAL|HOBBY|FINANCE|ETC", message = "카테고리는 STUDY, SPORTS, SOCIAL, HOBBY, FINANCE, ETC 중 선택해주세요. (선택 안할 시 ETC로 설정됩니다.)")
     private String category;
+
+    public Clubs.Visibility getVisibilityEnum() {
+        if (visibility == null || visibility.isEmpty()) {
+            return Clubs.Visibility.PUBLIC;
+        }
+        return Clubs.Visibility.valueOf(visibility);
+    }
+
+    public Clubs.Type getTypeEnum() {
+        if (type == null || type.isEmpty()) {
+            return Clubs.Type.OPERATION_FEE;
+        }
+        return Clubs.Type.valueOf(type);
+    }
+
+    public Clubs.Category getCategoryEnum() {
+        if (category == null || category.isEmpty()) {
+            return Clubs.Category.ETC;
+        }
+        return Clubs.Category.valueOf(category);
+    }
 }

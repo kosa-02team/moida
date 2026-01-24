@@ -1,24 +1,40 @@
+-- ============================================================
+-- 전제: Flyway 마이그레이션(V1~V17)으로 스키마가 적용된 DB에서만 실행.
+--       단, banks 테이블은 없으면 자동 생성됨.
+-- ============================================================
+
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- ============================================================
 -- 1. 은행 데이터 (모든 은행 코드 포함)
 -- ============================================================
+-- banks 테이블이 없으면 생성 (V2 스키마와 동일)
+CREATE TABLE IF NOT EXISTS banks (
+    bank_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    bank_code VARCHAR(10) NOT NULL UNIQUE COMMENT '은행 코드',
+    bank_name VARCHAR(50) NOT NULL COMMENT '은행 이름',
+    provider_class_name VARCHAR(255) COMMENT 'Provider 클래스명',
+    is_active TINYINT(1) DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 INSERT INTO banks (bank_code, bank_name, provider_class_name, is_active)
 VALUES
-('004', '국민은행', 'back.bank.provider.test.StubBankProvider', 1),
-('003', '기업은행', 'back.bank.provider.test.StubBankProvider', 1),
-('020', '우리은행', 'back.bank.provider.test.StubBankProvider', 1),
-('088', '신한은행', 'back.bank.provider.test.StubBankProvider', 1),
-('081', '하나은행', 'back.bank.provider.test.StubBankProvider', 1),
-('011', 'NH농협은행', 'back.bank.provider.test.StubBankProvider', 1),
-('089', '케이뱅크', 'back.bank.provider.test.StubBankProvider', 1),
-('090', '카카오뱅크', 'back.bank.provider.test.StubBankProvider', 1),
-('092', '토스뱅크', 'back.bank.provider.test.StubBankProvider', 1),
-('STUB','오픈은행', 'back.bank.provider.test.StubBankProvider', 1)
+    ('004', '국민은행', 'back.bank.provider.test.StubBankProvider', 1),
+    ('003', '기업은행', 'back.bank.provider.test.StubBankProvider', 1),
+    ('020', '우리은행', 'back.bank.provider.test.StubBankProvider', 1),
+    ('088', '신한은행', 'back.bank.provider.test.StubBankProvider', 1),
+    ('081', '하나은행', 'back.bank.provider.test.StubBankProvider', 1),
+    ('011', 'NH농협은행', 'back.bank.provider.test.StubBankProvider', 1),
+    ('089', '케이뱅크', 'back.bank.provider.test.StubBankProvider', 1),
+    ('090', '카카오뱅크', 'back.bank.provider.test.StubBankProvider', 1),
+    ('092', '토스뱅크', 'back.bank.provider.test.StubBankProvider', 1),
+    ('STUB', '스텁은행', 'back.bank.provider.test.StubBankProvider', 1)
 ON DUPLICATE KEY UPDATE
-bank_name = VALUES(bank_name),
-provider_class_name = VALUES(provider_class_name),
-is_active = VALUES(is_active);
+    bank_name = VALUES(bank_name),
+    provider_class_name = VALUES(provider_class_name),
+    is_active = VALUES(is_active);
 
 -- ============================================================
 -- 2. 사용자 데이터 (모든 상태 포함: ACTIVE, DELETED, BANNED)

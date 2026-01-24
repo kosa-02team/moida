@@ -5,8 +5,9 @@ import { getPostComments, createComment, updateComment, deleteComment, likeComme
 import { getMyInfo } from '../../../../api/user';
 import { getMembers, type MemberListResponse } from '../../../../api/member';
 import { getVotes, getVote, answerVote, closeVote, type VoteDetailResponse, type VoteListResponse } from '../../../../api/vote';
+import { askAI } from '../../../../api/ai';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Heart, MessageCircle, Send, Trash2, Flag, AlertTriangle, Edit2, Image, X, MapPin, Users, Clock, Vote, XCircle, Check, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Heart, MessageCircle, Send, Trash2, Flag, AlertTriangle, Edit2, Image, X, MapPin, Users, Clock, Vote, XCircle, Check, MoreVertical, Bot, Loader2 } from 'lucide-react';
 import { Badge } from '../../ui/badge';
 import { Progress } from '../../ui/progress';
 import { Button } from '../../ui/button';
@@ -77,6 +78,15 @@ export function StoryDetailView() {
   const [selectedVoteOptions, setSelectedVoteOptions] = useState<number[]>([]);
   const [isVoting, setIsVoting] = useState(false);
   const [isClosingVote, setIsClosingVote] = useState(false);
+  
+  // AI 채팅 관련 상태
+  const [showAIChat, setShowAIChat] = useState(false);
+  const [aiQuestion, setAiQuestion] = useState('');
+  const [aiAnswer, setAiAnswer] = useState<string | null>(null);
+  const [isAskingAI, setIsAskingAI] = useState(false);
+  const [aiChatHistory, setAiChatHistory] = useState<Array<{ question: string; answer: string }>>([]);
+  const [lastAIRequestTime, setLastAIRequestTime] = useState<number>(0);
+  const MIN_AI_REQUEST_INTERVAL = 3000; // 최소 3초 간격
 
   // 현재 사용자 정보 조회
   useEffect(() => {
@@ -228,6 +238,41 @@ export function StoryDetailView() {
     } catch (error) {
       console.error('댓글 작성 실패:', error);
       toast.error('댓글 작성에 실패했습니다.');
+    }
+  };
+
+  const handleAskAI = async () => {
+    if (!aiQuestion.trim() || !groupId || !currentUserId) return;
+    
+    // 요청 간격 체크 (첫 요청이거나 3초 이상 지났으면 허용)
+    const now = Date.now();
+    if (lastAIRequestTime > 0) {
+      const timeSinceLastRequest = now - lastAIRequestTime;
+      if (timeSinceLastRequest < MIN_AI_REQUEST_INTERVAL) {
+        const remainingTime = Math.ceil((MIN_AI_REQUEST_INTERVAL - timeSinceLastRequest) / 1000);
+        toast.error(`잠시 후 다시 시도해주세요. (${remainingTime}초 대기 필요)`);
+        return;
+      }
+    }
+    
+    try {
+      setIsAskingAI(true);
+      setAiAnswer(null);
+      const response = await askAI(Number(groupId), currentUserId, aiQuestion.trim());
+      
+      // 성공한 경우에만 lastAIRequestTime 업데이트
+      setLastAIRequestTime(now);
+      
+      setAiAnswer(response.answer);
+      setAiChatHistory(prev => [...prev, { question: aiQuestion.trim(), answer: response.answer }]);
+      setAiQuestion('');
+      toast.success('AI 답변을 받았습니다');
+    } catch (error) {
+      console.error('AI 질문 실패:', error);
+      toast.error('AI 질문에 실패했습니다.');
+      setAiAnswer('죄송합니다. AI 서비스에 문제가 발생했습니다.');
+    } finally {
+      setIsAskingAI(false);
     }
   };
 
@@ -850,6 +895,7 @@ export function StoryDetailView() {
           </Button>
         </div>
       </div>
+
 
       {/* 삭제 확인 다이얼로그 */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

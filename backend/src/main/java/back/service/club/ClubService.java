@@ -10,7 +10,6 @@ import back.dto.club.ClubRequest;
 import back.dto.club.ClubResponse;
 import back.exception.AuthException;
 import back.exception.ClubException;
-import back.exception.response.ErrorCode;
 import back.repository.UserRepository;
 import back.repository.club.ClubMemberRepository;
 import back.repository.club.ClubRepository;
@@ -19,8 +18,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -42,19 +39,14 @@ public class ClubService {
         Users owner = userRepository.findById(ownerId)
                 .orElseThrow(AuthException.UserNotFound::new);
 
-        // String을 enum으로 변환
-        Clubs.Type type = parseType(request.getType());
-        Clubs.Visibility visibility = parseVisibility(request.getVisibility());
-        Clubs.Category category = parseCategory(request.getCategory());
-
         Clubs club = new Clubs(
                 request.getClubName(),
                 ownerId,
-                type,
+                request.getTypeEnum(),
                 request.getMaxMembers() != null ? request.getMaxMembers() : 100
         );
-        club.setVisibility(visibility);
-        club.setCategory(category);
+        club.setVisibility(request.getVisibilityEnum());
+        club.setCategory(request.getCategoryEnum());
         Clubs savedClub = clubRepository.save(club);
         
         // 모임 생성 시 자동으로 가상 계좌 생성 (실패해도 모임 생성은 계속 진행)
@@ -123,19 +115,15 @@ public class ClubService {
         }
 
         club.updateName(request.getClubName());
-        
-        // String을 enum으로 변환
-        if (request.getVisibility() != null) {
-            club.setVisibility(parseVisibility(request.getVisibility()));
-        }
+        club.setVisibility(request.getVisibilityEnum());
         if (request.getType() != null) {
-            club.setType(parseType(request.getType()));
+            club.setType(request.getTypeEnum());
         }
         if (request.getMaxMembers() != null) {
             club.setMaxMembers(request.getMaxMembers());
         }
         if (request.getCategory() != null) {
-            club.setCategory(parseCategory(request.getCategory()));
+            club.setCategory(request.getCategoryEnum());
         }
 
         Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE);
@@ -189,14 +177,8 @@ public class ClubService {
         club.changeOwner(newOwnerMember.getUserId());
     }
 
-    // 카테고리별 모임 조회 (String 파라미터)
-    public Page<ClubResponse> getClubsByCategory(String categoryStr, Pageable pageable) {
-        Clubs.Category category = parseCategory(categoryStr);
-        return getClubsByCategory(category, pageable);
-    }
-
-    // 카테고리별 모임 조회 (enum 파라미터 - 내부 사용)
-    private Page<ClubResponse> getClubsByCategory(Clubs.Category category, Pageable pageable) {
+    // 카테고리별 모임 조회
+    public Page<ClubResponse> getClubsByCategory(Clubs.Category category, Pageable pageable) {
         return clubRepository.findByCategory(category, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
@@ -205,15 +187,8 @@ public class ClubService {
                 });
     }
 
-    // 카테고리 + 상태별 모임 조회 (String 파라미터)
-    public Page<ClubResponse> getClubsByCategoryAndStatus(String categoryStr, String statusStr, Pageable pageable) {
-        Clubs.Category category = parseCategory(categoryStr);
-        Clubs.Status status = parseStatus(statusStr);
-        return getClubsByCategoryAndStatus(category, status, pageable);
-    }
-
-    // 카테고리 + 상태별 모임 조회 (enum 파라미터 - 내부 사용)
-    private Page<ClubResponse> getClubsByCategoryAndStatus(Clubs.Category category, Clubs.Status status, Pageable pageable) {
+    // 카테고리 + 상태별 모임 조회
+    public Page<ClubResponse> getClubsByCategoryAndStatus(Clubs.Category category, Clubs.Status status, Pageable pageable) {
         return clubRepository.findByCategoryAndStatus(category, status, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
@@ -222,14 +197,8 @@ public class ClubService {
                 });
     }
 
-    // 카테고리 + 이름 검색 (String 파라미터)
-    public Page<ClubResponse> searchClubsByCategoryAndName(String categoryStr, String clubName, Pageable pageable) {
-        Clubs.Category category = parseCategory(categoryStr);
-        return searchClubsByCategoryAndName(category, clubName, pageable);
-    }
-
-    // 카테고리 + 이름 검색 (enum 파라미터 - 내부 사용)
-    private Page<ClubResponse> searchClubsByCategoryAndName(Clubs.Category category, String clubName, Pageable pageable) {
+    // 카테고리 + 이름 검색
+    public Page<ClubResponse> searchClubsByCategoryAndName(Clubs.Category category, String clubName, Pageable pageable) {
         return clubRepository.findByCategoryAndClubNameContaining(category, clubName, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
@@ -267,50 +236,5 @@ public class ClubService {
 
     public ClubResponse getClubByInviteCode(String inviteCode) {
         return getClubByInviteCode(inviteCode, null);
-    }
-
-    // String을 enum으로 변환하는 헬퍼 메서드들
-    private Clubs.Category parseCategory(String categoryStr) {
-        if (categoryStr == null || categoryStr.trim().isEmpty()) {
-            return Clubs.Category.ETC;
-        }
-        try {
-            return Clubs.Category.valueOf(categoryStr.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new ClubException(ErrorCode.CLUB_INVALID_CATEGORY);
-        }
-    }
-
-    private Clubs.Status parseStatus(String statusStr) {
-        if (statusStr == null || statusStr.trim().isEmpty()) {
-            throw new ClubException(ErrorCode.CLUB_INVALID_STATUS);
-        }
-        try {
-            return Clubs.Status.valueOf(statusStr.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new ClubException(ErrorCode.CLUB_INVALID_STATUS);
-        }
-    }
-
-    private Clubs.Visibility parseVisibility(String visibilityStr) {
-        if (visibilityStr == null || visibilityStr.trim().isEmpty()) {
-            return Clubs.Visibility.PUBLIC;
-        }
-        try {
-            return Clubs.Visibility.valueOf(visibilityStr.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new ClubException(ErrorCode.CLUB_INVALID_STATUS);
-        }
-    }
-
-    private Clubs.Type parseType(String typeStr) {
-        if (typeStr == null || typeStr.trim().isEmpty()) {
-            return Clubs.Type.OPERATION_FEE;
-        }
-        try {
-            return Clubs.Type.valueOf(typeStr.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new ClubException(ErrorCode.CLUB_INVALID_STATUS);
-        }
     }
 }
