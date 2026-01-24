@@ -257,9 +257,18 @@ public class VoteService {
         // clubId 검증: 투표가 해당 모임에 속하는지 확인
         Long voteClubId = null;
         if ("ATTENDANCE".equals(vote.getVoteType()) && vote.getScheduleId() != null) {
+            // ATTENDANCE 투표 마감 시 일정은 마감하지 않음
+            // 일정 마감은 "일정 마무리" 기능에서만 수행
             Schedules schedule = scheduleRepository.findById(vote.getScheduleId())
                     .orElseThrow(ResourceException.NotFound::new);
             voteClubId = schedule.getClubId();
+
+            // 일정이 이미 마감되어 있지 않은지 확인 (방어적 프로그래밍)
+            if ("CLOSED".equals(schedule.getStatus())) {
+                org.slf4j.LoggerFactory.getLogger(VoteService.class)
+                        .warn("ATTENDANCE 투표 마감 시 일정이 이미 CLOSED 상태입니다. scheduleId={}", vote.getScheduleId());
+            }
+            // 일정은 OPEN 상태로 유지 (투표만 마감)
         } else if ("GENERAL".equals(vote.getVoteType()) && vote.getPostId() != null) {
             Posts post = postRepository.findByIdWithClub(vote.getPostId())
                     .orElseThrow(ResourceException.NotFound::new);

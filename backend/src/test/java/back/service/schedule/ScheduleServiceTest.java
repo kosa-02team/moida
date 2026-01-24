@@ -520,15 +520,23 @@ class ScheduleServiceTest {
             ReflectionTestUtils.setField(schedule, "status", "OPEN");
             ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.ZERO);
 
+            Votes vote = newEntity(Votes.class);
+            ReflectionTestUtils.setField(vote, "voteId", 1L);
+            ReflectionTestUtils.setField(vote, "status", "OPEN");
+            ReflectionTestUtils.setField(vote, "voteType", "ATTENDANCE");
+
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
-            given(voteRepository.findByScheduleId(scheduleId)).willReturn(Optional.empty());
+            given(voteRepository.findByScheduleId(scheduleId)).willReturn(Optional.of(vote));
 
             // when
             scheduleService.closeSchedule(clubId, scheduleId, userId);
 
             // then
-            assertThat(schedule.getStatus()).isEqualTo("CLOSED");
+            // 참가비 없을 때는 투표만 마감되고 일정은 OPEN 유지
+            assertThat(schedule.getStatus()).isEqualTo("OPEN");
+            assertThat(vote.getStatus()).isEqualTo("CLOSED");
             then(clubsAuthorizationService).should(times(1)).assertAtLeastManager(clubId, userId);
+            then(voteRepository).should(times(1)).save(vote);
         }
 
         @Test
@@ -543,15 +551,24 @@ class ScheduleServiceTest {
             ReflectionTestUtils.setField(schedule, "status", "OPEN");
             ReflectionTestUtils.setField(schedule, "entryFee", BigDecimal.valueOf(10000));
 
+            Votes vote = newEntity(Votes.class);
+            ReflectionTestUtils.setField(vote, "voteId", 1L);
+            ReflectionTestUtils.setField(vote, "status", "OPEN");
+            ReflectionTestUtils.setField(vote, "voteType", "ATTENDANCE");
+
             given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
-            given(voteRepository.findByScheduleId(scheduleId)).willReturn(Optional.empty());
+            given(voteRepository.findByScheduleId(scheduleId)).willReturn(Optional.of(vote));
 
             // when
             scheduleService.closeSchedule(clubId, scheduleId, userId);
 
             // then
-            assertThat(schedule.getStatus()).isEqualTo("CLOSED");
+            // 참가비 있을 때도 투표만 마감되고 일정은 OPEN 유지 (참가비 요청 발송)
+            assertThat(schedule.getStatus()).isEqualTo("OPEN");
+            assertThat(vote.getStatus()).isEqualTo("CLOSED");
             then(clubsAuthorizationService).should(times(1)).assertAtLeastAccountant(clubId, userId);
+            then(voteRepository).should(times(1)).save(vote);
+            then(eventFundService).should(times(1)).collectEntryFees(clubId, scheduleId);
         }
 
         @Test

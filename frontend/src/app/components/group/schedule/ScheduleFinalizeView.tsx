@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
 import { Badge } from '../../ui/badge';
 import { getSchedule, getScheduleParticipants, updateParticipantAttendance, finalizeSchedule, type ScheduleResponse, type ScheduleParticipantResponse, type ScheduleParticipantUpdateRequest } from '../../../../api/schedule';
+import { getMembers, type MemberListResponse } from '../../../../api/member';
 import { useUserPermissions } from '../../../data/userRoles';
 import {
   AlertDialog,
@@ -49,16 +50,38 @@ export function ScheduleFinalizeView() {
       if (!groupId || !scheduleId) return;
       try {
         setLoading(true);
-        const [scheduleData, participantsData] = await Promise.all([
+        const [scheduleData, participantsData, membersData] = await Promise.all([
           getSchedule(Number(groupId), Number(scheduleId)),
-          getScheduleParticipants(Number(groupId), Number(scheduleId))
+          getScheduleParticipants(Number(groupId), Number(scheduleId)),
+          getMembers(Number(groupId), 'ACTIVE').catch(() => [] as MemberListResponse[])
         ]);
+        
         setSchedule(scheduleData);
-        setParticipants(participantsData);
+        
+        // 모든 ACTIVE 멤버를 포함하도록 participants 확장
+        const participantUserIds = new Set(participantsData.map(p => p.userId));
+        const allParticipants: ScheduleParticipantResponse[] = [
+          ...participantsData,
+          ...membersData
+            .filter(member => !participantUserIds.has(member.userId))
+            .map(member => ({
+              participantId: 0, // 아직 participant가 생성되지 않음
+              scheduleId: scheduleData.scheduleId,
+              userId: member.userId,
+              userName: member.realName || 'Unknown',
+              attendanceStatus: 'UNDECIDED' as const,
+              feeStatus: 'PENDING' as const,
+              isRefunded: false,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }))
+        ];
+        
+        setParticipants(allParticipants);
         setTotalSpent(scheduleData.totalSpent || 0);
         
         // refundPerPerson 계산: 총 비용을 참석자 수로 나누기
-        const attendingCount = participantsData.filter(p => p.attendanceStatus === 'ATTENDING').length;
+        const attendingCount = allParticipants.filter(p => p.attendanceStatus === 'ATTENDING').length;
         const calculatedRefundPerPerson = attendingCount > 0 && scheduleData.totalSpent 
           ? scheduleData.totalSpent / attendingCount 
           : 0;
@@ -127,7 +150,7 @@ export function ScheduleFinalizeView() {
     }
     
     return {
-      id: String(p.participantId),
+      id: String(p.userId), // userId로 고유 식별 (participantId는 0일 수 있음)
       name: p.userName,
       avatar: '',
       voteStatus: isAttending ? 'yes' as const : isNotAttending ? 'no' as const : 'pending' as const,
@@ -140,7 +163,8 @@ export function ScheduleFinalizeView() {
   const toggleActualStatus = async (id: string, status: 'attended' | 'absent') => {
     if (!groupId || !scheduleId) return;
     
-    const participant = participants.find(p => String(p.participantId) === id);
+    // userId로 participant 찾기 (participantId는 0일 수 있음)
+    const participant = participants.find(p => String(p.userId) === id);
     if (!participant) return;
     
     const attendanceStatus = status === 'attended' ? 'ATTENDING' : 'NOT_ATTENDING';
@@ -157,9 +181,31 @@ export function ScheduleFinalizeView() {
         updateRequest
       );
       
-      // 참여자 목록 다시 불러오기
-      const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
-      setParticipants(participantsData);
+      // 참여자 목록 다시 불러오기 (members와 병합)
+      const [participantsData, membersData] = await Promise.all([
+        getScheduleParticipants(Number(groupId), Number(scheduleId)),
+        getMembers(Number(groupId), 'ACTIVE').catch(() => [] as MemberListResponse[])
+      ]);
+
+      const participantUserIds = new Set(participantsData.map(p => p.userId));
+      const allParticipants: ScheduleParticipantResponse[] = [
+        ...participantsData,
+        ...membersData
+          .filter(member => !participantUserIds.has(member.userId))
+          .map(member => ({
+            participantId: 0,
+            scheduleId: Number(scheduleId),
+            userId: member.userId,
+            userName: member.realName || 'Unknown',
+            attendanceStatus: 'UNDECIDED' as const,
+            feeStatus: 'PENDING' as const,
+            isRefunded: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }))
+      ];
+
+      setParticipants(allParticipants);
       
       toast.success('참석 상태가 업데이트되었습니다');
     } catch (error) {

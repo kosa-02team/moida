@@ -254,7 +254,9 @@ public class ScheduleService {
     }
 
     /**
-     * 일정을 마감합니다.
+     * 참석 투표를 마감합니다.
+     * 일정은 OPEN 상태로 유지되며, 일정 마감은 "일정 마무리" 기능에서만 수행됩니다.
+     * 참가비가 있으면 참가비 요청을 발송합니다.
      *
      * @param clubId     모임 ID
      * @param scheduleId 일정 ID
@@ -287,24 +289,24 @@ public class ScheduleService {
             throw new ScheduleException.AlreadyCancelled();
         }
 
-        schedule.close();
+         // 연관된 ATTENDANCE 투표는 항상 종료
+        voteRepository.findByScheduleId(scheduleId).ifPresent(v -> {
+            v.close();
+            voteRepository.save(v);
+        });
 
-        // 연관된 ATTENDANCE 투표도 종료
-        voteRepository.findByScheduleId(scheduleId).ifPresent(Votes::close);
-
-        // 참가비가 설정되어 있으면 참석한 사람에게 자동으로 참가비 요청 발송
-        hasEntryFee = schedule.getEntryFee() != null
-                && schedule.getEntryFee().compareTo(java.math.BigDecimal.ZERO) > 0;
+        // 참가비 유무와 관계없이 투표만 마감하고 일정은 OPEN 유지
+        // 일정 마감은 "일정 마무리" 기능에서만 수행
         if (hasEntryFee) {
+            // 참가비 있음: 참가비 요청 발송
             try {
                 eventFundService.collectEntryFees(clubId, scheduleId);
             } catch (Exception e) {
-                // 참가비 요청 실패해도 일정 마감은 완료된 것으로 처리
-                // 로그만 남기고 예외는 전파하지 않음
                 org.slf4j.LoggerFactory.getLogger(ScheduleService.class)
-                        .warn("일정 마감 후 참가비 요청 발송 실패: scheduleId={}, error={}", scheduleId, e.getMessage());
+                        .warn("참가비 요청 발송 실패: scheduleId={}, error={}", scheduleId, e.getMessage());
             }
         }
+        // 참가비 없음: 투표만 마감하고 일정은 OPEN 유지 (일정 마감은 "일정 마무리"에서만)
     }
 
     /**

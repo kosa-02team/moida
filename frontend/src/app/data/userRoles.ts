@@ -31,13 +31,13 @@ export const ROLE_PERMISSIONS = {
     canAssignRoles: true,      // 역할 부여
   },
   treasurer: {
-    canManageGroup: false,
+    canManageGroup: true,
     canManageDues: true,
     canWithdraw: true,
     canManageShares: true,
-    canManageMembers: false,
-    canDeletePosts: false,
-    canDeleteComments: false,
+    canManageMembers: true,
+    canDeletePosts: true,
+    canDeleteComments: true,
     canFinalizeSchedule: true,
     canChangeManagementType: true,
     canAssignRoles: false,
