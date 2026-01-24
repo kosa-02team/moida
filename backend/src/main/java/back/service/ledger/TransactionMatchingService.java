@@ -274,11 +274,22 @@ public class TransactionMatchingService {
 
         // 거래내역 매칭 상태 업데이트
         if (historyId != null) {
-            transactionHistoryRepository.findById(historyId).ifPresent(transaction -> {
-                transaction.markAsMatched();
-                transaction.updateUnmatchReason(null); // 매칭되었으므로 사유 제거
-                transactionHistoryRepository.save(transaction);
-            });
+            BankTransactionHistory transaction = transactionHistoryRepository.findById(historyId)
+                    .orElseThrow(() -> new IllegalArgumentException("거래내역을 찾을 수 없습니다. historyId: " + historyId));
+
+            if (Boolean.TRUE.equals(transaction.getIsMatched())) {
+                throw new IllegalStateException("이미 매칭된 거래내역입니다. historyId: " + historyId);
+            }
+
+            // [Strict Amount Policy] 수동 매칭이라도 금액 불일치 시 절대 허용 안 함
+            if (transaction.getAmount().abs().compareTo(request.getExpectedAmount().abs()) != 0) {
+                throw new IllegalStateException("금액이 일치하지 않아 매칭할 수 없습니다. (요청: "
+                        + request.getExpectedAmount() + ", 실제: " + transaction.getAmount().abs() + ")");
+            }
+
+            transaction.markAsMatched();
+            transaction.updateUnmatchReason(null); // 매칭되었으므로 사유 제거
+            transactionHistoryRepository.save(transaction);
         }
 
         // 일정 참가자 상태 업데이트
@@ -324,25 +335,48 @@ public class TransactionMatchingService {
      */
     @Transactional
     public void cancelMatch(Long requestId, Long adminId) {
+        System.out.println("=== 매칭 취소 시작 ===");
+        System.out.println("requestId: " + requestId);
+        
         PaymentRequest request = paymentRequestRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("입금요청을 찾을 수 없습니다. requestId: " + requestId));
 
         if (request.getStatus() != PaymentRequest.RequestStatus.MATCHED) {
-            throw new IllegalStateException("매칭된 요청만 취소할 수 있습니다.");
+            throw new IllegalStateException("매칭된 요청만 취소할 수 있습니다. 현재 상태: " + request.getStatus());
         }
 
-        Long historyId = request.getMatchedHistoryId();
+        Long primaryHistoryId = request.getMatchedHistoryId();
+        System.out.println("primaryHistoryId: " + primaryHistoryId);
 
         // 1. 입금요청 원복
         request.unmatch();
         paymentRequestRepository.save(request);
+        System.out.println("✓ 입금요청 매칭 취소 완료");
 
-        // 2. 거래내역 원복
-        if (historyId != null) {
-            transactionHistoryRepository.findById(historyId).ifPresent(history -> {
+        // 2. 거래내역 원복 - primaryHistoryId와 매칭된 모든 거래 찾기
+        if (primaryHistoryId != null) {
+            // 먼저 primary 거래 원복
+            transactionHistoryRepository.findById(primaryHistoryId).ifPresent(history -> {
                 history.unmarkAsMatched();
                 transactionHistoryRepository.save(history);
+                System.out.println("✓ 주 거래내역 " + primaryHistoryId + " 매칭 취소");
             });
+            
+            // 같은 요청과 연결된 다른 거래들도 찾아서 원복 (다중 거래 매칭 케이스)
+            // matchedHistoryId가 같은 다른 PaymentRequest가 있는지 확인
+            List<PaymentRequest> relatedRequests = paymentRequestRepository
+                    .findByClubIdAndMatchedHistoryId(request.getClubId(), primaryHistoryId);
+            
+            if (relatedRequests.size() > 1) {
+                System.out.println("다중 거래 매칭 감지: " + relatedRequests.size() + "건");
+                // 이 경우는 드물지만, 모든 관련 요청도 취소
+                for (PaymentRequest relatedReq : relatedRequests) {
+                    if (!relatedReq.getRequestId().equals(requestId)) {
+                        relatedReq.unmatch();
+                        paymentRequestRepository.save(relatedReq);
+                    }
+                }
+            }
         }
 
         // 3. 일정 참가자 상태 원복
@@ -352,16 +386,18 @@ public class TransactionMatchingService {
                         .ifPresent(participant -> {
                             participant.resetPayment();
                             scheduleParticipantRepository.save(participant);
+                            System.out.println("✓ 일정 참가자 상태 원복");
                         });
             });
         }
 
         // 감사 로그 기록
         auditLogsRepository.save(new back.domain.ledger.AuditLogs(
-                historyId != null ? historyId : -1L,
+                primaryHistoryId != null ? primaryHistoryId : -1L,
                 adminId,
                 "MATCHED",
                 "CANCELLED (Unmatched)"));
+        System.out.println("=== 매칭 취소 완료 ===");
     }
 
     /**
@@ -408,6 +444,88 @@ public class TransactionMatchingService {
                 adminId,
                 "PENDING",
                 "MULTI_MATCHED (" + requests.size() + " requests)"));
+    }
+
+    /**
+     * 다중 거래 매칭 처리 (여러 거래내역을 하나의 요청에 매칭)
+     */
+    @Transactional
+    public void manualMatchMultipleTransactions(Long requestId, List<Long> historyIds, Long adminId) {
+        System.out.println("=== 다중 거래 매칭 시작 ===");
+        System.out.println("requestId: " + requestId);
+        System.out.println("historyIds: " + historyIds);
+        System.out.println("adminId: " + adminId);
+
+        PaymentRequest request = paymentRequestRepository.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("입금요청을 찾을 수 없습니다. requestId: " + requestId));
+
+        System.out.println("입금요청 조회 성공: " + request.getRequestId() + ", 금액: " + request.getExpectedAmount());
+
+        if (!request.isMatchable()) {
+            throw new IllegalStateException("이미 매칭되었거나 만료된 요청입니다.");
+        }
+
+        List<BankTransactionHistory> transactions = transactionHistoryRepository.findAllById(historyIds);
+        if (transactions.size() != historyIds.size()) {
+            System.out.println("⚠️ 거래내역 개수 불일치: 요청=" + historyIds.size() + ", 조회=" + transactions.size());
+            throw new IllegalArgumentException("일부 거래내역을 찾을 수 없습니다.");
+        }
+
+        System.out.println("거래내역 조회 성공: " + transactions.size() + "건");
+        for (BankTransactionHistory tx : transactions) {
+            System.out.println("  - historyId=" + tx.getHistoryId() + ", amount=" + tx.getAmount() + ", isMatched=" + tx.getIsMatched());
+        }
+
+        // 금액 검증
+        BigDecimal totalActual = transactions.stream()
+                .map(tx -> tx.getAmount().abs())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        System.out.println("거래 합계: " + totalActual + ", 요청 금액: " + request.getExpectedAmount());
+
+        if (totalActual.compareTo(request.getExpectedAmount().abs()) != 0) {
+            throw new IllegalStateException(
+                    "선택한 거래들의 합계 금액(" + totalActual + ")이 요청 금액(" + request.getExpectedAmount() + ")과 일치하지 않습니다.");
+        }
+
+        // 이미 매칭된 거래가 있는지 확인
+        for (BankTransactionHistory tx : transactions) {
+            if (Boolean.TRUE.equals(tx.getIsMatched())) {
+                throw new IllegalStateException("이미 매칭된 거래내역이 포함되어 있습니다. historyId: " + tx.getHistoryId());
+            }
+        }
+
+        // 첫 번째 거래의 historyId를 대표로 사용
+        Long primaryHistoryId = historyIds.get(0);
+        
+        // 요청 매칭 처리
+        request.confirmMatch(primaryHistoryId, adminId);
+        paymentRequestRepository.save(request);
+        System.out.println("✓ 입금요청 매칭 완료");
+
+        // 모든 거래내역 매칭 상태 업데이트
+        for (BankTransactionHistory tx : transactions) {
+            tx.markAsMatched();
+            tx.updateUnmatchReason(null);
+            BankTransactionHistory saved = transactionHistoryRepository.save(tx);
+            System.out.println("✓ 거래내역 " + tx.getHistoryId() + " 매칭 상태 업데이트 완료 (isMatched=" + saved.getIsMatched() + ")");
+        }
+        
+        // 명시적으로 flush하여 DB에 반영
+        transactionHistoryRepository.flush();
+        System.out.println("✓ DB flush 완료");
+
+        // 일정 참가자 상태 업데이트
+        updateScheduleParticipantStatus(request, primaryHistoryId);
+        System.out.println("✓ 일정 참가자 상태 업데이트 완료");
+
+        // 감사 로그 기록
+        auditLogsRepository.save(new back.domain.ledger.AuditLogs(
+                primaryHistoryId,
+                adminId,
+                "PENDING",
+                "MULTI_TX_MATCHED (" + transactions.size() + " transactions)"));
+        System.out.println("=== 다중 거래 매칭 완료 ===");
     }
 
     /**

@@ -15,6 +15,8 @@ export interface TransactionLogResponse {
   description: string | null;
   editorId: number | null;
   createdAt: string;
+  bankHistoryId: number | null;
+  matchedMemberName?: string;
 }
 
 export interface ManualTransactionRequest {
@@ -26,6 +28,40 @@ export interface ManualTransactionRequest {
 
 export interface TransactionUpdateRequest {
   memo: string;
+}
+
+export interface BankTransactionHistory {
+  historyId: number;
+  clubId: number;
+  bankTransactionAt: string;
+  printContent: string;
+  amount: number;
+  isMatched: boolean;
+  unmatchReason: string | null;
+  inoutType: string; // "DEPOSIT" | "WITHDRAW"
+}
+
+export interface PaymentRequestResponse {
+  requestId: number;
+  clubId: number;
+  memberId: number;
+  memberName: string;
+  requestType: string; // "DEPOSIT" | "SETTLEMENT" | "MEMBERSHIP_FEE"
+  expectedAmount: number;
+  expectedDate: string;
+  status: string; // "PENDING" | "MATCHED" | "EXPIRED"
+  matchedHistoryId: number | null;
+  scheduleId: number | null;
+}
+
+export interface UnmatchedTransactionsResponse {
+  unmatchedTransactions: BankTransactionHistory[];
+  availableRequests: PaymentRequestResponse[];
+}
+
+export interface ManualMatchRequest {
+  requestId: number;
+  historyId: number;
 }
 
 /**
@@ -68,4 +104,40 @@ export const updateTransaction = async (
 ): Promise<void> => {
   const url = `/api/clubs/${clubId}/ledger/${transactionId}`;
   return patch<void>(url, request);
+};
+
+/**
+ * 미매칭 거래내역 조회
+ */
+export const getUnmatchedTransactions = async (
+  clubId: number
+): Promise<UnmatchedTransactionsResponse> => {
+  const url = `/api/clubs/${clubId}/bank/transactions/unmatched`;
+  return get<UnmatchedTransactionsResponse>(url);
+};
+
+/**
+ * 수동 매칭 처리
+ */
+export const manualMatch = async (
+  clubId: number,
+  requestId: number,
+  historyId: number,
+  matchedBy: number
+): Promise<void> => {
+  const url = `/api/clubs/${clubId}/payment-requests/${requestId}/manual-match`;
+  return post<void>(url, { historyId, matchedBy });
+};
+
+/**
+ * 여러 거래를 하나의 입금 요청에 매칭 (분할 입금)
+ */
+export const manualMatchMultiple = async (
+  clubId: number,
+  requestId: number,
+  historyIds: number[],
+  matchedBy: number
+): Promise<void> => {
+  const url = `/api/clubs/${clubId}/payment-requests/${requestId}/manual-match-multiple`;
+  return post<void>(url, { historyIds, matchedBy });
 };

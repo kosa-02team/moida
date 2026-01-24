@@ -102,15 +102,26 @@ public class StubBankProvider implements BankProvider {
 
     @Override
     public List<BankTransaction> getTransactionsStub(String accountNumber, Long stubId, LocalDate from, LocalDate to) {
-        // stubId를 이용해 파일명 동적 생성 (예: stubId가 1이면 transactions_page1.json)
-        // stubId가 null일 경우 기본값(예: 1)을 설정하는 안전장치를 추가하는 것도 좋습니다.
-        long pageId = (stubId != null) ? stubId : 1L;
-        String filePath = String.format("bank/stub/transactions_page%d.json", pageId);
+        // stubId 기반 파일 경로 결정
+        // stubId가 null이면 기본 경로 사용
+        String filePath;
+        if (stubId == null) {
+            filePath = "bank/stub/transactions_page1.json";
+        } else if (stubId == 1L) {
+            // stubId 1: 입금 내역 (deposits)
+            filePath = "bank/stub/deposits/transactions_page1.json";
+        } else if (stubId == 2L) {
+            // stubId 2: 출금 내역 (withdrawals)
+            filePath = "bank/stub/withdrawals/transactions_page1.json";
+        } else {
+            // 기타: 기본 경로 사용
+            filePath = String.format("bank/stub/transactions_page%d.json", stubId);
+        }
 
         try {
             ClassPathResource resource = new ClassPathResource(filePath);
 
-            // 파일이 존재하는지 확인 (선택 사항)
+            // 파일이 존재하는지 확인
             if (!resource.exists()) {
                 throw new RuntimeException("Stub file not found: " + filePath);
             }

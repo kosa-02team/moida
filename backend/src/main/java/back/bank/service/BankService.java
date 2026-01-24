@@ -179,24 +179,26 @@ public class BankService {
                                         tx.txId(), // uniqueTxKey로 사용
                                         tx.type() // inoutType
                         );
-                        transactionHistoryRepository.save(history);
+                        BankTransactionHistory savedHistory = transactionHistoryRepository.save(history);
 
-                        // 4-2. TransactionLog에 저장 (회계 원장)
+                        // 4-2. TransactionLog에 저장 (회계 원장) - bankHistoryId 연결
                         TransactionLog log = new TransactionLog(
                                         clubId,
+                                        null, // scheduleId는 매칭 시점에 설정
                                         account.getAccountId(),
                                         tx.type(), // "DEPOSIT" or "WITHDRAW"
                                         tx.amount(),
                                         tx.balanceAfter(),
                                         tx.printContent(),
-                                        null // editorId는 시스템 자동 동기화이므로 null
+                                        null, // editorId는 시스템 자동 동기화이므로 null
+                                        savedHistory.getHistoryId() // bankHistoryId 연결
                         );
                         TransactionLog savedLog = transactionLogRepository.save(log);
                         savedLogs.add(savedLog);
 
                         // 새로 저장된 내역 수집 및 매핑
-                        savedHistories.add(history);
-                        historyToLogMap.put(history.getHistoryId(), savedLog);
+                        savedHistories.add(savedHistory);
+                        historyToLogMap.put(savedHistory.getHistoryId(), savedLog);
                 }
 
                 // 5. 자동 매칭 수행 (새로 저장된 거래내역과 입금요청 매칭)
@@ -260,25 +262,26 @@ public class BankService {
                                         tx.txId(), // uniqueTxKey로 사용
                                         tx.type() // inoutType
                         );
-                        transactionHistoryRepository.save(history);
+                        BankTransactionHistory savedHistory = transactionHistoryRepository.save(history);
 
-                        // 4-2. TransactionLog에 저장 (회계 원장)
-                        // accountId 가 필요, 지금은 모임장 id가 들어감
+                        // 4-2. TransactionLog에 저장 (회계 원장) - bankHistoryId 연결
                         TransactionLog log = new TransactionLog(
                                         clubId,
+                                        null, // scheduleId는 매칭 시점에 설정
                                         account.getAccountId(),
                                         tx.type(), // "DEPOSIT" or "WITHDRAW"
                                         tx.amount(),
                                         tx.balanceAfter(),
                                         tx.printContent(),
-                                        null // editorId는 시스템 자동 동기화이므로 null
+                                        null, // editorId는 시스템 자동 동기화이므로 null
+                                        savedHistory.getHistoryId() // bankHistoryId 연결
                         );
                         TransactionLog savedLog = transactionLogRepository.save(log);
                         savedLogs.add(savedLog);
 
                         // 새로 저장된 내역 수집 및 매핑
-                        savedHistories.add(history);
-                        historyToLogMap.put(history.getHistoryId(), savedLog);
+                        savedHistories.add(savedHistory);
+                        historyToLogMap.put(savedHistory.getHistoryId(), savedLog);
                 }
 
                 // 5. 자동 매칭 수행 (새로 저장된 거래내역과 입금요청 매칭)

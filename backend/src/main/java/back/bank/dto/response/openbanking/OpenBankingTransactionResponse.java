@@ -1,5 +1,7 @@
 package back.bank.dto.response.openbanking;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 /**
  * 오픈뱅킹 API 거래내역 조회 응답
  */
@@ -24,6 +26,7 @@ public record OpenBankingTransactionResponse(
     /**
      * 거래내역 개별 항목
      */
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record TransactionItem(
             String tran_date, // 거래일자 (YYYYMMDD)
             String tran_time, // 거래시간 (HHMMSS)
