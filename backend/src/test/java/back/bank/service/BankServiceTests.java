@@ -109,8 +109,11 @@ class BankServiceTests {
     @DisplayName("거래내역 동기화 - 날짜 지정")
     void syncTransactions_WithDates() {
         // given
-        Banks bank = mock(Banks.class);
-        Long clubId = 1L;
+        Banks bank = new Banks(
+                "STUB",
+                "오픈은행",
+                "back.bank.provider.test.StubBankProvider"
+        );        Long clubId = 1L;
         LocalDate from = LocalDate.of(2026, 1, 1);
         LocalDate to = LocalDate.of(2026, 1, 31);
 
