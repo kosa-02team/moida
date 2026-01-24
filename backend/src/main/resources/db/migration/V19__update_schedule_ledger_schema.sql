@@ -1,28 +1,11 @@
 -- V19: 일정-장부 연동 강화를 위한 스키마 변경
 --
 -- 주요 변경사항:
--- 1. schedules: is_vote_closed 컬럼 추가 (투표 마감 여부)
 -- 2. schedule_participants: 지각 합류 및 승인 상태 관리 컬럼 추가
 -- 3. payment_requests: 일정 연결 및 납부 기간 관리 컬럼 추가
 -- 4. schedule_participants: 결제 매칭 정보 컬럼 추가 (matched_transaction_id)
 
 SET FOREIGN_KEY_CHECKS = 0;
-
--- 1. schedules 테이블에 is_vote_closed 컬럼 추가
-SET @col_exists = (
-    SELECT COUNT(*) 
-    FROM information_schema.COLUMNS 
-    WHERE TABLE_SCHEMA = DATABASE() 
-      AND TABLE_NAME = 'schedules' 
-      AND COLUMN_NAME = 'is_vote_closed'
-);
-
-SET @sql = IF(@col_exists = 0, 
-    'ALTER TABLE schedules ADD COLUMN is_vote_closed BOOLEAN NOT NULL DEFAULT FALSE COMMENT ''투표 마감 여부 (TRUE: 마감됨, FALSE: 진행중)'' AFTER vote_deadline', 
-    'SELECT 1');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
 
 
 -- 2. schedule_participants 테이블 컬럼 추가

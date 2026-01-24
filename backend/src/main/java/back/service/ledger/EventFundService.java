@@ -2,16 +2,19 @@ package back.service.ledger;
 
 import back.bank.domain.BankAccounts;
 import back.bank.repository.BankAccountRepository;
+import back.domain.Notifications;
 import back.domain.Users;
 import back.domain.NotificationType;
 import back.domain.ledger.PaymentRequest;
 import back.domain.ledger.TransactionLog;
 import back.domain.schedule.Schedules;
 import back.domain.schedule.ScheduleParticipants;
+import back.dto.NotificationResponse;
 import back.exception.ScheduleException;
 import back.repository.UserRepository;
 import back.repository.ledger.PaymentRequestRepository;
 import back.repository.ledger.TransactionLogRepository;
+import back.repository.notifications.NotificationsRepository;
 import back.repository.schedule.ScheduleParticipantRepository;
 import back.repository.schedule.ScheduleRepository;
 import back.service.notifications.NotificationService;
@@ -37,6 +40,8 @@ public class EventFundService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final BankAccountRepository bankAccountRepository;
+    private final NotificationsRepository notificationsRepository;
+
 
     @Transactional
     public void collectEntryFees(Long clubId, Long scheduleId) {
@@ -88,14 +93,27 @@ public class EventFundService {
 
             paymentRequestRepository.save(req);
 
-            notificationService.sendNotification(
+            // 알림 발송: "참가비 {금액}을 입금 해주세요"
+            // 숫자 포맷팅 (예: 30000 -> "30000")
+            String formattedAmount = entryFee.stripTrailingZeros().toPlainString();
+            String message = String.format("참가비 %s을 입금 해주세요", formattedAmount);
+            Notifications notification = new Notifications(
                     p.getUserId(),
-                    NotificationType.PAYMENT_REQUEST,
-                    String.format("[%s] 일정이 확정되었습니다. 참가비를 입금해주세요.", schedule.getScheduleName()),
-                    "/group/" + clubId + "/schedule/" + scheduleId);
+                    message,
+                    scheduleId,
+                    NotificationType.SCHEDULE.name()
+            );
+            Notifications savedNotification = notificationsRepository.save(notification);
+
+            // SSE로 실시간 알림 전송
+            NotificationResponse notificationResponse = NotificationResponse.from(savedNotification, clubId);
+            notificationService.send(p.getUserId(), notificationResponse);
         }
+
+
     }
 
+    //수동 처리용
     @Transactional
     public void createFeeRequestForMember(Long clubId, Long scheduleId, Long userId) {
         Schedules schedule = scheduleRepository.findById(scheduleId)
@@ -123,11 +141,19 @@ public class EventFundService {
 
         paymentRequestRepository.save(req);
 
-        notificationService.sendNotification(
-                userId,
-                NotificationType.PAYMENT_REQUEST,
-                String.format("[%s] 일정이 확정되었습니다. 참가비를 입금해주세요.", schedule.getScheduleName()),
-                "/group/" + clubId + "/schedule/" + scheduleId);
+        String formattedAmount = entryFee.stripTrailingZeros().toPlainString();
+        String message = String.format("참가비 %s을 입금 해주세요", formattedAmount);
+        Notifications notification = new Notifications(
+                req.getMemberId(),
+                message,
+                scheduleId,
+                NotificationType.SCHEDULE.name()
+        );
+        Notifications savedNotification = notificationsRepository.save(notification);
+
+        // SSE로 실시간 알림 전송
+        NotificationResponse notificationResponse = NotificationResponse.from(savedNotification, clubId);
+        notificationService.send(req.getMemberId(), notificationResponse);
     }
 
     @Transactional

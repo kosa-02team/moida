@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -56,11 +57,9 @@ public class Schedules extends BaseEntity {
     @Column(name = "cancel_reason", columnDefinition = "TEXT")
     private String cancelReason;
 
+    @Setter
     @Column(name = "vote_deadline")
     private LocalDateTime voteDeadline;
-
-    @Column(name = "is_vote_closed", nullable = false)
-    private Boolean isVoteClosed = false;
 
     // 생성자
     public Schedules(Long clubId, String scheduleName, LocalDateTime eventDate, LocalDateTime endDate, String location,
@@ -108,21 +107,10 @@ public class Schedules extends BaseEntity {
         this.closedAt = LocalDateTime.now();
     }
 
-    public void setVoteDeadline(LocalDateTime voteDeadline) {
-        this.voteDeadline = voteDeadline;
-    }
 
     public void reopen() {
         this.status = "OPEN";
         this.closedAt = null;
-        this.isVoteClosed = false;
     }
 
-    public void closeVote() {
-        this.isVoteClosed = true;
-    }
-
-    public void openVote() {
-        this.isVoteClosed = false;
-    }
 }

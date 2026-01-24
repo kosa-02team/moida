@@ -70,7 +70,7 @@ class EventFundServiceTest {
     }
 
     private Schedules createSchedule(Long id, BigDecimal fee) {
-        Schedules s = new Schedules(1L, "모임", LocalDateTime.now(), LocalDateTime.now(), "장소", "설명", fee);
+        Schedules s = new Schedules(1L, "모임", LocalDateTime.now(), LocalDateTime.now(), "장소", "설명", fee, null);
         ReflectionTestUtils.setField(s, "scheduleId", id);
         return s;
     }

@@ -104,6 +104,16 @@ public class PaymentRequestController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/schedules/{scheduleId}/collect-fee/{userId}")
+    public ResponseEntity<Void> collectScheduleFeeForMember(
+            @PathVariable Long clubId,
+            @PathVariable Long scheduleId,
+            @PathVariable Long userId) {
+
+        eventFundService.createFeeRequestForMember(clubId, scheduleId, userId);
+        return ResponseEntity.ok().build();
+    }
+
     /**
      * [일정] 정산 및 잔액 환급 실행 (자동 계산)
      * POST /clubs/{id}/schedules/{scheduleId}/settle
