@@ -24,4 +24,7 @@ public interface TransactionLogRepository extends JpaRepository<TransactionLog, 
 
     // 일정별 조회
     List<TransactionLog> findByClubIdAndScheduleId(Long clubId, Long scheduleId);
+
+    // 스냅샷 이후의 특정 타입(WITHDRAW) 거래 조회
+    List<TransactionLog> findByClubIdAndTransactionIdGreaterThanAndType(Long clubId, Long transactionId, String type);
 }

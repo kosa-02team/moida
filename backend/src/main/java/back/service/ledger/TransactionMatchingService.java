@@ -274,11 +274,22 @@ public class TransactionMatchingService {
 
         // 거래내역 매칭 상태 업데이트
         if (historyId != null) {
-            transactionHistoryRepository.findById(historyId).ifPresent(transaction -> {
-                transaction.markAsMatched();
-                transaction.updateUnmatchReason(null); // 매칭되었으므로 사유 제거
-                transactionHistoryRepository.save(transaction);
-            });
+            BankTransactionHistory transaction = transactionHistoryRepository.findById(historyId)
+                    .orElseThrow(() -> new IllegalArgumentException("거래내역을 찾을 수 없습니다. historyId: " + historyId));
+
+            if (Boolean.TRUE.equals(transaction.getIsMatched())) {
+                throw new IllegalStateException("이미 매칭된 거래내역입니다. historyId: " + historyId);
+            }
+
+            // [Strict Amount Policy] 수동 매칭이라도 금액 불일치 시 절대 허용 안 함
+            if (transaction.getAmount().abs().compareTo(request.getExpectedAmount().abs()) != 0) {
+                throw new IllegalStateException("금액이 일치하지 않아 매칭할 수 없습니다. (요청: "
+                        + request.getExpectedAmount() + ", 실제: " + transaction.getAmount().abs() + ")");
+            }
+
+            transaction.markAsMatched();
+            transaction.updateUnmatchReason(null); // 매칭되었으므로 사유 제거
+            transactionHistoryRepository.save(transaction);
         }
 
         // 일정 참가자 상태 업데이트

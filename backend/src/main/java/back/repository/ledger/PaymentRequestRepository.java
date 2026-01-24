@@ -45,6 +45,11 @@ public interface PaymentRequestRepository extends JpaRepository<PaymentRequest, 
         List<PaymentRequest> findByScheduleIdAndStatus(Long scheduleId, PaymentRequest.RequestStatus status);
 
         /**
+         * 특정 일정의 모든 입금요청 조회
+         */
+        List<PaymentRequest> findByScheduleId(Long scheduleId);
+
+        /**
          * 특정 일정과 참가자에 대한 참가비 요청 존재 여부 확인
          */
         @Query("SELECT COUNT(pr) > 0 FROM PaymentRequest pr WHERE pr.scheduleId = :scheduleId AND pr.memberId = :memberId")

@@ -61,6 +61,12 @@ public class Schedules extends BaseEntity {
     @Column(name = "vote_deadline")
     private LocalDateTime voteDeadline;
 
+    @Column(name = "snapshot_transaction_id")
+    private Long snapshotTransactionId;
+
+    @Column(name = "attendance_closed_at")
+    private LocalDateTime attendanceClosedAt;
+
     // 생성자
     public Schedules(Long clubId, String scheduleName, LocalDateTime eventDate, LocalDateTime endDate, String location,
             String description, BigDecimal entryFee, LocalDateTime voteDeadline) {
@@ -91,6 +97,10 @@ public class Schedules extends BaseEntity {
         this.refundPerPerson = refundPerPerson;
     }
 
+    public void closeAttendance() {
+        this.attendanceClosedAt = LocalDateTime.now();
+    }
+
     public void close() {
         this.status = "CLOSED";
         this.closedAt = LocalDateTime.now();
@@ -106,7 +116,6 @@ public class Schedules extends BaseEntity {
         this.status = "CANCELLED";
         this.closedAt = LocalDateTime.now();
     }
-
 
     public void reopen() {
         this.status = "OPEN";

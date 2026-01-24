@@ -47,6 +47,9 @@ public class TransactionLog {
     @Column(name = "editor_id")
     private Long editorId;
 
+    @Column(name = "bank_history_id")
+    private Long bankHistoryId;
+
     // 생성자
     public TransactionLog(Long clubId, Long accountId, String type,
             BigDecimal amount, BigDecimal balanceAfter,
@@ -59,6 +62,7 @@ public class TransactionLog {
         this.balanceAfter = balanceAfter;
         this.description = description;
         this.editorId = editorId;
+        this.bankHistoryId = null;
     }
 
     public TransactionLog(Long clubId, Long scheduleId, Long accountId, String type,
@@ -72,6 +76,21 @@ public class TransactionLog {
         this.balanceAfter = balanceAfter;
         this.description = description;
         this.editorId = editorId;
+        this.bankHistoryId = null;
+    }
+
+    public TransactionLog(Long clubId, Long scheduleId, Long accountId, String type,
+            BigDecimal amount, BigDecimal balanceAfter,
+            String description, Long editorId, Long bankHistoryId) {
+        this.clubId = clubId;
+        this.scheduleId = scheduleId;
+        this.accountId = accountId;
+        this.type = type;
+        this.amount = amount;
+        this.balanceAfter = balanceAfter;
+        this.description = description;
+        this.editorId = editorId;
+        this.bankHistoryId = bankHistoryId;
     }
 
     // 도메인 메서드

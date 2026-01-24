@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,7 +42,7 @@ public class EventFundService {
     private final NotificationService notificationService;
     private final BankAccountRepository bankAccountRepository;
     private final NotificationsRepository notificationsRepository;
-
+    private final back.bank.service.BankService bankService;
 
     @Transactional
     public void collectEntryFees(Long clubId, Long scheduleId) {
@@ -69,6 +70,18 @@ public class EventFundService {
         Map<Long, Users> userMap = userRepository.findAllById(userIds).stream()
                 .collect(Collectors.toMap(Users::getUserId, user -> user));
 
+        // 참석 마감 처리
+        schedule.closeAttendance();
+        
+        // 은행 거래내역 동기화 (입금 내역 조회)
+        try {
+            bankService.syncTransactionsStub(clubId, 1L, null, null);
+        } catch (Exception e) {
+            // 동기화 실패 시 로깅만 하고 계속 진행
+            System.err.println("Bank sync failed during attendance closure: " + e.getMessage());
+        }
+        
+        // PaymentRequest 생성
         for (ScheduleParticipants p : attendingParticipants) {
             boolean alreadyRequested = paymentRequestRepository.existsByScheduleIdAndMemberId(
                     scheduleId, p.getParticipantId());
@@ -86,23 +99,21 @@ public class EventFundService {
                     PaymentRequest.RequestType.DEPOSIT,
                     entryFee,
                     schedule.getEventDate().toLocalDate(),
-                    7,
+                    10, // ±10일 범위
                     schedule.getEventDate().plusDays(1),
                     scheduleId,
                     null);
 
             paymentRequestRepository.save(req);
 
-            // 알림 발송: "참가비 {금액}을 입금 해주세요"
-            // 숫자 포맷팅 (예: 30000 -> "30000")
+            // 알림 발송
             String formattedAmount = entryFee.stripTrailingZeros().toPlainString();
             String message = String.format("참가비 %s을 입금 해주세요", formattedAmount);
             Notifications notification = new Notifications(
                     p.getUserId(),
                     message,
                     scheduleId,
-                    NotificationType.SCHEDULE.name()
-            );
+                    NotificationType.SCHEDULE.name());
             Notifications savedNotification = notificationsRepository.save(notification);
 
             // SSE로 실시간 알림 전송
@@ -110,10 +121,10 @@ public class EventFundService {
             notificationService.send(p.getUserId(), notificationResponse);
         }
 
-
+        scheduleRepository.save(schedule);
     }
 
-    //수동 처리용
+    // 수동 처리용
     @Transactional
     public void createFeeRequestForMember(Long clubId, Long scheduleId, Long userId) {
         Schedules schedule = scheduleRepository.findById(scheduleId)
@@ -147,8 +158,7 @@ public class EventFundService {
                 req.getMemberId(),
                 message,
                 scheduleId,
-                NotificationType.SCHEDULE.name()
-        );
+                NotificationType.SCHEDULE.name());
         Notifications savedNotification = notificationsRepository.save(notification);
 
         // SSE로 실시간 알림 전송
@@ -173,33 +183,81 @@ public class EventFundService {
             throw new ScheduleException.AlreadyCancelled();
         }
 
+        // 환급 전 은행 거래내역 동기화 (출금 내역 조회)
+        try {
+            bankService.syncTransactionsStub(clubId, 2L, null, null);
+        } catch (Exception e) {
+            // 동기화 실패 시 로깅만 하고 계속 진행
+            System.err.println("Bank sync failed during settlement: " + e.getMessage());
+        }
+
+        // [1] 실제 납부된 요청(MATCHED)만 조회하여 환급 대상 및 인원 수(N) 확정
         List<PaymentRequest> paidRequests = paymentRequestRepository.findByScheduleIdAndStatus(
                 scheduleId, PaymentRequest.RequestStatus.MATCHED);
 
+        if (paidRequests.isEmpty()) {
+            // 수입이 없으면 정산할 것도 없음
+            schedule.updateSettlement(BigDecimal.ZERO, BigDecimal.ZERO);
+            schedule.close();
+            scheduleRepository.save(schedule);
+            return;
+        }
+
+        // [2] 총 수입 계산 (실제 납부액 기준)
         BigDecimal totalIncome = paidRequests.stream()
                 .map(PaymentRequest::getExpectedAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // [3] 지출 계산
         BigDecimal totalSpent;
         if (inputTotalSpent != null && inputTotalSpent.compareTo(BigDecimal.ZERO) >= 0) {
+            // 수동 입력 지출
             totalSpent = inputTotalSpent;
         } else {
-            List<TransactionLog> expenses = transactionLogRepository.findByScheduleId(scheduleId);
-            totalSpent = expenses.stream()
+            // 자동 계산: 참석 마감 시점 이후 ~ 일정 종료일 + 1일까지의 출금 내역 합산
+            LocalDateTime attendanceClosedAt = schedule.getAttendanceClosedAt();
+            if (attendanceClosedAt == null) {
+                // 참석 마감이 되지 않은 경우, 일정 시작일 사용
+                attendanceClosedAt = schedule.getEventDate();
+            }
+            
+            LocalDateTime settlementEnd = schedule.getEndDate().plusDays(1).with(java.time.LocalTime.MAX);
+
+            // 해당 기간의 TransactionLog 조회 (WITHDRAW만)
+            List<TransactionLog> expenses = transactionLogRepository
+                    .findByClubIdAndCreatedAtBetween(clubId, attendanceClosedAt, settlementEnd)
+                    .stream()
                     .filter(tx -> "WITHDRAW".equalsIgnoreCase(tx.getType()))
+                    .toList();
+
+            // [4] 환급 거래 제외: bankHistoryId를 통해 PaymentRequest(SETTLEMENT)와 매칭된 거래 필터링
+            List<Long> settlementHistoryIds = paymentRequestRepository
+                    .findByClubIdAndStatus(clubId, PaymentRequest.RequestStatus.MATCHED)
+                    .stream()
+                    .filter(req -> req.getRequestType() == PaymentRequest.RequestType.SETTLEMENT)
+                    .map(PaymentRequest::getMatchedHistoryId)
+                    .filter(id -> id != null)
+                    .toList();
+
+            totalSpent = expenses.stream()
+                    .filter(tx -> tx.getBankHistoryId() == null 
+                            || !settlementHistoryIds.contains(tx.getBankHistoryId()))
                     .map(tx -> tx.getAmount().abs())
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
         }
 
+        // [5] 잔액 및 환급액 계산
         BigDecimal balance = totalIncome.subtract(totalSpent);
         BigDecimal refundPerPerson = BigDecimal.ZERO;
         BigDecimal remainder = balance;
 
         if (balance.compareTo(BigDecimal.ZERO) > 0 && !paidRequests.isEmpty()) {
+            // N빵 계산 (소수점 버림)
             refundPerPerson = balance.divide(BigDecimal.valueOf(paidRequests.size()), 0, RoundingMode.FLOOR);
             BigDecimal totalRefund = refundPerPerson.multiply(BigDecimal.valueOf(paidRequests.size()));
             remainder = balance.subtract(totalRefund);
 
+            // [6] 환급 요청 생성 (실제 납부자에게만)
             for (PaymentRequest originalReq : paidRequests) {
                 PaymentRequest refundReq = new PaymentRequest(
                         clubId,
@@ -207,7 +265,7 @@ public class EventFundService {
                         originalReq.getMemberName(),
                         PaymentRequest.RequestType.SETTLEMENT,
                         refundPerPerson,
-                        java.time.LocalDate.now().plusDays(3),
+                        java.time.LocalDate.now().plusDays(3), // 환급 예상일
                         10,
                         null,
                         scheduleId,
@@ -216,6 +274,7 @@ public class EventFundService {
             }
         }
 
+        // [7] 잔액 귀속 처리 (나머지 금액)
         if (remainder.compareTo(BigDecimal.ZERO) > 0) {
             Optional<BankAccounts> accountOpt = bankAccountRepository.findByClubId(clubId);
             Long accountId = accountOpt.map(BankAccounts::getAccountId).orElse(null);
@@ -236,6 +295,7 @@ public class EventFundService {
             transactionLogRepository.save(remainderLog);
         }
 
+        // [8] 일정 정산 완료 처리
         schedule.updateSettlement(totalSpent, refundPerPerson);
         schedule.close();
         scheduleRepository.save(schedule);
