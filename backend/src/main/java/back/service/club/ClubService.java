@@ -14,6 +14,7 @@ import back.exception.response.ErrorCode;
 import back.repository.UserRepository;
 import back.repository.club.ClubMemberRepository;
 import back.repository.club.ClubRepository;
+import back.service.post.ImageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +33,7 @@ public class ClubService {
     private final ClubMemberRepository clubMemberRepository;
     private final UserRepository userRepository;
     private final BankService bankService;
+    private final ImageService imageService;
 
     @Transactional
     public ClubResponse createClub(ClubRequest request, Long ownerId) {
@@ -51,6 +53,13 @@ public class ClubService {
         );
         club.setVisibility(request.getVisibilityEnum());
         club.setCategory(request.getCategoryEnum());
+        
+        // 이미지 저장 처리
+        if (request.getCoverImageUrl() != null && !request.getCoverImageUrl().isEmpty()) {
+            String imageUrl = imageService.saveBase64Image(request.getCoverImageUrl());
+            club.setCoverImageUrl(imageUrl);
+        }
+        
         Clubs savedClub = clubRepository.save(club);
         
         // 모임 생성 시 자동으로 가상 계좌 생성 (실패해도 모임 생성은 계속 진행)
@@ -129,6 +138,18 @@ public class ClubService {
         }
         if (request.getCategory() != null) {
             club.setCategory(request.getCategoryEnum());
+        }
+        
+        // 이미지 업데이트 처리
+        if (request.getCoverImageUrl() != null) {
+            if (request.getCoverImageUrl().isEmpty()) {
+                // 빈 문자열이면 이미지 삭제
+                club.setCoverImageUrl(null);
+            } else {
+                // 새 이미지가 있으면 저장
+                String imageUrl = imageService.saveBase64Image(request.getCoverImageUrl());
+                club.setCoverImageUrl(imageUrl);
+            }
         }
 
         Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE);
@@ -348,8 +369,15 @@ public class ClubService {
     }
 
     // 카테고리별 모임 조회 - ACTIVE 상태만 조회
-    public Page<ClubResponse> getClubsByCategory(Clubs.Category category, Pageable pageable) {
-        return clubRepository.findByCategoryAndStatus(category, Clubs.Status.ACTIVE, pageable)
+    public Page<ClubResponse> getClubsByCategory(String category, Pageable pageable) {
+        Clubs.Category categoryEnum;
+        try {
+            categoryEnum = Clubs.Category.valueOf(category.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new ClubException(ErrorCode.CLUB_INVALID_CATEGORY);
+        }
+        
+        return clubRepository.findByCategoryAndStatus(categoryEnum, Clubs.Status.ACTIVE, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
                             club.getClubId(), ClubMembers.Status.ACTIVE);
@@ -358,8 +386,22 @@ public class ClubService {
     }
 
     // 카테고리 + 상태별 모임 조회
-    public Page<ClubResponse> getClubsByCategoryAndStatus(Clubs.Category category, Clubs.Status status, Pageable pageable) {
-        return clubRepository.findByCategoryAndStatus(category, status, pageable)
+    public Page<ClubResponse> getClubsByCategoryAndStatus(String category, String status, Pageable pageable) {
+        Clubs.Category categoryEnum;
+        try {
+            categoryEnum = Clubs.Category.valueOf(category.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new ClubException(ErrorCode.CLUB_INVALID_CATEGORY);
+        }
+        
+        Clubs.Status statusEnum;
+        try {
+            statusEnum = Clubs.Status.valueOf(status.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new ClubException(ErrorCode.CLUB_INVALID_STATUS);
+        }
+        
+        return clubRepository.findByCategoryAndStatus(categoryEnum, statusEnum, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
                             club.getClubId(), ClubMembers.Status.ACTIVE);
@@ -368,8 +410,15 @@ public class ClubService {
     }
 
     // 카테고리 + 이름 검색 - ACTIVE 상태만 조회
-    public Page<ClubResponse> searchClubsByCategoryAndName(Clubs.Category category, String clubName, Pageable pageable) {
-        return clubRepository.findByCategoryAndStatusAndClubNameContaining(category, Clubs.Status.ACTIVE, clubName, pageable)
+    public Page<ClubResponse> searchClubsByCategoryAndName(String category, String clubName, Pageable pageable) {
+        Clubs.Category categoryEnum;
+        try {
+            categoryEnum = Clubs.Category.valueOf(category.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new ClubException(ErrorCode.CLUB_INVALID_CATEGORY);
+        }
+        
+        return clubRepository.findByCategoryAndStatusAndClubNameContaining(categoryEnum, Clubs.Status.ACTIVE, clubName, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
                             club.getClubId(), ClubMembers.Status.ACTIVE);

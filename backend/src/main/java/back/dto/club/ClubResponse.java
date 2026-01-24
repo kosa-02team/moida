@@ -31,6 +31,7 @@ public class ClubResponse {
     private LocalDateTime closedAt;
     private String deletionRequestStatus;
     private LocalDateTime deletionRequestedAt;
+    private String coverImageUrl;
 
     public static ClubResponse from(Clubs entity, Integer currentMembers) {
         return ClubResponse.builder()
@@ -50,6 +51,7 @@ public class ClubResponse {
                 .closedAt(entity.getClosedAt())
                 .deletionRequestStatus(entity.getDeletionRequestStatus() != null ? entity.getDeletionRequestStatus().name() : null)
                 .deletionRequestedAt(entity.getDeletionRequestedAt())
+                .coverImageUrl(entity.getCoverImageUrl())
                 .build();
     }
 

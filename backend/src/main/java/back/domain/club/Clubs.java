@@ -63,6 +63,9 @@ public class Clubs extends BaseEntity {
     @Column(name = "deletion_requested_at", nullable = true)
     private LocalDateTime deletionRequestedAt;
 
+    @Column(name = "cover_image_url", length = 255, nullable = true)
+    private String coverImageUrl;
+
     public enum Status {
         ACTIVE, INACTIVE
     }
@@ -178,6 +181,10 @@ public class Clubs extends BaseEntity {
         if (category != null) {
             this.category = category;
         }
+    }
+
+    public void setCoverImageUrl(String coverImageUrl) {
+        this.coverImageUrl = coverImageUrl;
     }
 
     private static String generateUUID() {

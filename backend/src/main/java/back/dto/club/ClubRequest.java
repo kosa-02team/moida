@@ -33,6 +33,8 @@ public class ClubRequest {
     @Pattern(regexp = "STUDY|SPORTS|SOCIAL|HOBBY|FINANCE|ETC", message = "카테고리는 STUDY, SPORTS, SOCIAL, HOBBY, FINANCE, ETC 중 선택해주세요. (선택 안할 시 ETC로 설정됩니다.)")
     private String category;
 
+    private String coverImageUrl; // Base64 이미지 데이터 또는 이미 저장된 URL
+
     public Clubs.Visibility getVisibilityEnum() {
         if (visibility == null || visibility.isEmpty()) {
             return Clubs.Visibility.PUBLIC;

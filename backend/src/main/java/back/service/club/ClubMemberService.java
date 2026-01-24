@@ -153,8 +153,15 @@ public class ClubMemberService {
     /**
      * 모임 멤버 목록 조회 (상태별 필터링 가능)
      */
-    public List<ClubMemberResponse> getMembers(Long clubId, ClubMembers.Status status) {
-        List<ClubMembers> members = clubMemberRepository.findByClubIdAndStatus(clubId, status);
+    public List<ClubMemberResponse> getMembers(Long clubId, String status) {
+        ClubMembers.Status statusEnum;
+        try {
+            statusEnum = ClubMembers.Status.valueOf(status.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new ClubException(ErrorCode.CLUB_INVALID_STATUS);
+        }
+        
+        List<ClubMembers> members = clubMemberRepository.findByClubIdAndStatus(clubId, statusEnum);
 
         return members.stream()
                 .map(member -> {
@@ -169,7 +176,14 @@ public class ClubMemberService {
      * 멤버 역할 변경
      */
     @Transactional
-    public ClubMemberResponse updateMemberRole(Long clubId, Long memberId, ClubMembers.Role newRole) {
+    public ClubMemberResponse updateMemberRole(Long clubId, Long memberId, String role) {
+        ClubMembers.Role newRole;
+        try {
+            newRole = ClubMembers.Role.valueOf(role.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new ClubException(ErrorCode.CLUB_INVALID_ROLE);
+        }
+        
         ClubMembers member = clubMemberRepository.findByClubIdAndMemberId(clubId, memberId)
                 .orElseThrow(ClubException.MemberNotFound::new);
 
