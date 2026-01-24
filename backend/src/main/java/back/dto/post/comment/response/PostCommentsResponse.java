@@ -22,7 +22,7 @@ public record PostCommentsResponse(
         public static Item from(Comments c, Long likeCount, Boolean isLiked) {
             return new Item(
                     c.getCommentId(),
-                    c.getWriter().getUserId(),
+                    c.getWriter() != null ? c.getWriter().getUserId() : null,
                     c.getContent(),
                     c.getCreatedAt(),
                     likeCount,

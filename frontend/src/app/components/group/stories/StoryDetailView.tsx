@@ -740,7 +740,7 @@ export function StoryDetailView() {
               {comments.map(comment => {
                 // 댓글 작성자 정보 조회
                 const commentWriter = members.find(m => m.userId === comment.writerId);
-                const commentWriterName = commentWriter?.clubNickname || `사용자${comment.writerId}`;
+                const commentWriterName = commentWriter?.clubNickname || (comment.writerId ? `사용자${comment.writerId}` : '알 수 없음');
                 return (
                   <div key={comment.commentId} className="flex gap-3">
                     <div className="w-8 h-8 rounded-full bg-stone-200 shrink-0 flex items-center justify-center">
