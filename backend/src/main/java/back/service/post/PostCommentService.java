@@ -38,7 +38,7 @@ public class PostCommentService {
                         Long postId,
                         PostCommentRequest request) {
                 clubsAuthorizationService.assertActiveMember(clubId, writerId);
-                Comments comments = postCommentRepository.save(buildPostComment(writerId, postId, request));
+                Comments comments = postCommentRepository.save(buildPostComment(writerId, clubId, postId, request));
 
                 // 알림 이벤트 발행
                 eventPublisher.publishEvent(new back.event.CommentCreatedEvent(
@@ -79,9 +79,9 @@ public class PostCommentService {
                                                 postId, clubId, pageable);
 
                 List<PostCommentsResponse.Item> items = page.getContent().stream().map(comment -> {
-                    Long likeCount = commentLikeService.getLikeCount(comment.getCommentId());
-                    Boolean isLiked = commentLikeService.isLiked(comment.getCommentId(), viewerId);
-                    return PostCommentsResponse.Item.from(comment, likeCount, isLiked);
+                        Long likeCount = commentLikeService.getLikeCount(comment.getCommentId());
+                        Boolean isLiked = commentLikeService.isLiked(comment.getCommentId(), viewerId);
+                        return PostCommentsResponse.Item.from(comment, likeCount, isLiked);
                 }).toList();
 
                 return new PostCommentsResponse(
@@ -119,9 +119,11 @@ public class PostCommentService {
 
         private Comments buildPostComment(
                         Long writerId,
+                        Long clubId,
                         Long postId,
                         PostCommentRequest request) {
-                ClubMembers writerRef = clubMembersRepository.getReferenceById(writerId);
+                ClubMembers writerRef = clubMembersRepository.findByClubIdAndUserId(clubId, writerId)
+                                .orElseThrow(back.exception.ClubException.MemberNotFound::new);
                 Posts postsRef = postRepository.getReferenceById(postId);
 
                 String content = request.content();

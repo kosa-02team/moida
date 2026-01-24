@@ -227,7 +227,7 @@ export function GroupMainView() {
                       {post.imagesUrl && post.imagesUrl.length > 0 && (
                         <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-stone-100">
                           <img 
-                            src={post.imagesUrl[0]} 
+                            src={post.imagesUrl[0].startsWith('http') ? post.imagesUrl[0] : `http://localhost:8080${post.imagesUrl[0]}`} 
                             alt="" 
                             className="w-full h-full object-cover"
                             onError={(e) => {
@@ -238,12 +238,20 @@ export function GroupMainView() {
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-stone-900 text-sm line-clamp-1 mb-1">
-                          {post.title || post.content.substring(0, 30)}
-                        </h4>
-                        <p className="text-xs text-stone-500 line-clamp-2">
-                          {post.content}
-                        </p>
+                        {post.title ? (
+                          <>
+                            <h4 className="font-medium text-stone-900 text-sm line-clamp-1 mb-1">
+                              {post.title}
+                            </h4>
+                            <p className="text-xs text-stone-500 line-clamp-2">
+                              {post.content}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-xs text-stone-500 line-clamp-2">
+                            {post.content}
+                          </p>
+                        )}
                         <div className="flex items-center gap-3 mt-1.5 text-xs text-stone-400">
                           <span>{post.writerName}</span>
                           <span>좋아요 {post.postLikes}</span>

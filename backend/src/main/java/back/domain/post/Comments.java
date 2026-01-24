@@ -23,7 +23,8 @@ public class Comments extends BaseEntity {
     @JoinColumn(name = "post_id", nullable = false)
     private Posts post;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @org.hibernate.annotations.NotFound(action = org.hibernate.annotations.NotFoundAction.IGNORE)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "writer_id", nullable = false)
     private ClubMembers writer;
 
@@ -53,4 +54,3 @@ public class Comments extends BaseEntity {
         this.deletedAt = null;
     }
 }
-

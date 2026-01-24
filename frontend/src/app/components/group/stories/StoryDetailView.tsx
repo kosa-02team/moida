@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getPost, deletePost as deletePostAPI, likePost as likePostAPI, unlikePost as unlikePostAPI, updatePost, type PostDetailResponse, type StoryUpdateRequest } from '../../../../api/post';
+import { API_BASE_URL } from '@/api/client';
 import { ReportDialog } from '../../report/ReportDialog';
 import { getPostComments, createComment, updateComment, deleteComment, likeComment, unlikeComment, type PostCommentItem } from '../../../../api/comment';
 import { getMyInfo } from '../../../../api/user';
@@ -46,7 +47,7 @@ export function StoryDetailView() {
   const { groupId, storyId } = useParams();
   const navigate = useNavigate();
   const permissions = useUserPermissions(groupId || '1');
-  
+
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [newComment, setNewComment] = useState('');
@@ -54,7 +55,7 @@ export function StoryDetailView() {
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<'post' | 'comment'>('post');
   const [selectedComment, setSelectedComment] = useState<PostCommentItem | null>(null);
-  const [ setReportTarget] = useState<'post' | 'comment'>('post');
+  const [setReportTarget] = useState<'post' | 'comment'>('post');
   const [post, setPost] = useState<PostDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [comments, setComments] = useState<PostCommentItem[]>([]);
@@ -72,13 +73,13 @@ export function StoryDetailView() {
   const [members, setMembers] = useState<MemberListResponse[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
   const [hasTaggedMembersChanged, setHasTaggedMembersChanged] = useState(false);
-  
+
   // 투표 관련 상태
   const [linkedVote, setLinkedVote] = useState<VoteDetailResponse | null>(null);
   const [selectedVoteOptions, setSelectedVoteOptions] = useState<number[]>([]);
   const [isVoting, setIsVoting] = useState(false);
   const [isClosingVote, setIsClosingVote] = useState(false);
-  
+
   // AI 채팅 관련 상태
   const [showAIChat, setShowAIChat] = useState(false);
   const [aiQuestion, setAiQuestion] = useState('');
@@ -145,11 +146,11 @@ export function StoryDetailView() {
         const postData = await getPost(Number(groupId), Number(storyId));
         const userInfo = await getMyInfo().catch(() => null); // 실패해도 계속 진행
         const votesData = await getVotes(Number(groupId)).catch(() => [] as VoteListResponse[]);
-        
+
         // 멤버 목록에서 작성자 정보 찾기
         const writerMember = members.find(m => m.userId === postData.writerId);
         const writerName = writerMember?.clubNickname || `사용자${postData.writerId}`;
-        
+
         // 백엔드 응답에 없는 필드들을 보완
         const enrichedPost: PostDetailResponse = {
           ...postData,
@@ -168,16 +169,16 @@ export function StoryDetailView() {
           // taggedMemberIds는 빈 배열 (별도 API 호출 필요 시 추가)
           taggedMemberIds: postData.taggedMemberIds || []
         };
-        
+
         setPost(enrichedPost);
         setLiked(enrichedPost.isLiked || false);
         setLikeCount(enrichedPost.postLikes || 0);
-        
+
         // currentUserId 설정 (아직 설정되지 않은 경우)
         if (userInfo && !currentUserId) {
           setCurrentUserId(userInfo.userId);
         }
-        
+
         // 이 게시글과 연결된 투표 찾기
         const linkedVoteItem = votesData.find((v: VoteListResponse) => v.postId === Number(storyId));
         if (linkedVoteItem) {
@@ -192,7 +193,7 @@ export function StoryDetailView() {
             console.error('투표 상세 조회 실패:', error);
           }
         }
-        
+
         // 댓글 목록 조회
         await fetchComments(0);
       } catch (error) {
@@ -243,7 +244,7 @@ export function StoryDetailView() {
 
   const handleAskAI = async () => {
     if (!aiQuestion.trim() || !groupId || !currentUserId) return;
-    
+
     // 요청 간격 체크 (첫 요청이거나 3초 이상 지났으면 허용)
     const now = Date.now();
     if (lastAIRequestTime > 0) {
@@ -254,15 +255,15 @@ export function StoryDetailView() {
         return;
       }
     }
-    
+
     try {
       setIsAskingAI(true);
       setAiAnswer(null);
       const response = await askAI(Number(groupId), currentUserId, aiQuestion.trim());
-      
+
       // 성공한 경우에만 lastAIRequestTime 업데이트
       setLastAIRequestTime(now);
-      
+
       setAiAnswer(response.answer);
       setAiChatHistory(prev => [...prev, { question: aiQuestion.trim(), answer: response.answer }]);
       setAiQuestion('');
@@ -291,15 +292,15 @@ export function StoryDetailView() {
     try {
       if (comment.isLiked) {
         await unlikeComment(Number(groupId), Number(storyId), comment.commentId);
-        setComments(prev => prev.map(c => 
-          c.commentId === comment.commentId 
+        setComments(prev => prev.map(c =>
+          c.commentId === comment.commentId
             ? { ...c, isLiked: false, likeCount: (c.likeCount || 0) - 1 }
             : c
         ));
       } else {
         await likeComment(Number(groupId), Number(storyId), comment.commentId);
-        setComments(prev => prev.map(c => 
-          c.commentId === comment.commentId 
+        setComments(prev => prev.map(c =>
+          c.commentId === comment.commentId
             ? { ...c, isLiked: true, likeCount: (c.likeCount || 0) + 1 }
             : c
         ));
@@ -355,10 +356,10 @@ export function StoryDetailView() {
       setShowDeleteDialog(false);
     }
   };
-// 투표 옵션 토글
+  // 투표 옵션 토글
   const toggleVoteOption = (optionId: number) => {
     if (!linkedVote || linkedVote.status === 'CLOSED') return;
-    
+
     if (linkedVote.allowMultiple) {
       setSelectedVoteOptions(prev =>
         prev.includes(optionId)
@@ -376,18 +377,18 @@ export function StoryDetailView() {
       toast.error('최소 하나의 항목을 선택해주세요');
       return;
     }
-    
+
     try {
       setIsVoting(true);
       await answerVote(Number(groupId), linkedVote.voteId, { optionIds: selectedVoteOptions });
-      
+
       // 투표 데이터 새로고침
       const updatedVote = await getVote(Number(groupId), linkedVote.voteId);
       setLinkedVote(updatedVote);
       if (updatedVote.mySelectedOptionIds) {
         setSelectedVoteOptions(updatedVote.mySelectedOptionIds);
       }
-      
+
       toast.success('투표가 완료되었습니다!');
     } catch (error: any) {
       console.error('투표 실패:', error);
@@ -400,15 +401,15 @@ export function StoryDetailView() {
   // 투표 종료
   const handleCloseVote = async () => {
     if (!groupId || !linkedVote) return;
-    
+
     try {
       setIsClosingVote(true);
       await closeVote(Number(groupId), linkedVote.voteId);
-      
+
       // 투표 데이터 새로고침
       const updatedVote = await getVote(Number(groupId), linkedVote.voteId);
       setLinkedVote(updatedVote);
-      
+
       toast.success('투표가 종료되었습니다');
     } catch (error) {
       console.error('투표 종료 실패:', error);
@@ -432,7 +433,7 @@ export function StoryDetailView() {
 
   const handleUpdatePost = async () => {
     if (!groupId || !storyId || !post) return;
-    
+
     if (!editContent.trim() && editImages.length === 0) {
       toast.error('내용 또는 이미지를 입력해주세요');
       return;
@@ -446,7 +447,7 @@ export function StoryDetailView() {
         place: editLocation.trim() || null,
         // 백엔드 로직: null이면 변경 없음, 빈 리스트면 전체 삭제, 값 있으면 교체
         // 사용자가 태그를 변경했는지 여부에 따라 처리
-        taggedMemberIds: hasTaggedMembersChanged 
+        taggedMemberIds: hasTaggedMembersChanged
           ? editTaggedMembers  // 변경했으면 현재 배열 전송 (빈 배열이어도 삭제 의미)
           : null,  // 변경하지 않았으면 null (변경 없음)
       };
@@ -568,10 +569,10 @@ export function StoryDetailView() {
       <div className="pb-32">
         {/* Author */}
         <div className="p-4 flex items-center gap-3">
-          <img 
-            src={post.writerProfileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${post.writerName || post.writerId}`} 
-            alt="" 
-            className="w-10 h-10 rounded-full bg-stone-200" 
+          <img
+            src={post.writerProfileImageUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${post.writerName || post.writerId}`}
+            alt=""
+            className="w-10 h-10 rounded-full bg-stone-200"
           />
           <div>
             <p className="font-bold text-stone-900">{post.writerName || `사용자${post.writerId}`}</p>
@@ -584,10 +585,10 @@ export function StoryDetailView() {
           <div className="space-y-2">
             {post.imagesUrl.map((imgUrl, index) => (
               <div key={index} className="aspect-square bg-stone-100">
-                <img 
-                  src={imgUrl} 
-                  alt="" 
-                  className="w-full h-full object-cover" 
+                <img
+                  src={imgUrl.startsWith('http') ? imgUrl : `${API_BASE_URL}${imgUrl}`}
+                  alt=""
+                  className="w-full h-full object-cover"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
                     target.style.display = 'none';
@@ -676,19 +677,17 @@ export function StoryDetailView() {
                       key={option.optionId}
                       onClick={() => toggleVoteOption(option.optionId)}
                       disabled={linkedVote.status === 'CLOSED'}
-                      className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
-                        isSelected
-                          ? 'border-orange-500 bg-orange-50'
-                          : 'border-stone-200 hover:border-stone-300 bg-white'
-                      } ${linkedVote.status === 'CLOSED' ? 'cursor-default opacity-70' : 'cursor-pointer'}`}
+                      className={`w-full text-left p-3 rounded-xl border-2 transition-all ${isSelected
+                        ? 'border-orange-500 bg-orange-50'
+                        : 'border-stone-200 hover:border-stone-300 bg-white'
+                        } ${linkedVote.status === 'CLOSED' ? 'cursor-default opacity-70' : 'cursor-pointer'}`}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                            isSelected
-                              ? 'bg-orange-500 border-orange-500'
-                              : 'border-stone-300'
-                          }`}>
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected
+                            ? 'bg-orange-500 border-orange-500'
+                            : 'border-stone-300'
+                            }`}>
                             {isSelected && <Check className="w-3 h-3 text-white" />}
                           </div>
                           <span className={`font-medium ${isSelected ? 'text-orange-700' : 'text-stone-900'}`}>
@@ -699,8 +698,8 @@ export function StoryDetailView() {
                           {voteCount}표 ({percentage}%)
                         </span>
                       </div>
-                      <Progress 
-                        value={percentage} 
+                      <Progress
+                        value={percentage}
                         className="h-1.5 bg-stone-200"
                       />
                     </button>
@@ -733,7 +732,7 @@ export function StoryDetailView() {
         {/* Comments */}
         <div className="p-4 space-y-4">
           <h3 className="font-bold text-stone-900">댓글 {comments.length}개</h3>
-          
+
           {loadingComments && comments.length === 0 ? (
             <div className="text-center py-8 text-stone-500">댓글을 불러오는 중...</div>
           ) : comments.length > 0 ? (
@@ -741,9 +740,9 @@ export function StoryDetailView() {
               {comments.map(comment => {
                 // 댓글 작성자 정보 조회
                 const commentWriter = members.find(m => m.userId === comment.writerId);
-                const commentWriterName = commentWriter?.clubNickname || `사용자${comment.writerId}`;
+                const commentWriterName = commentWriter?.clubNickname || (comment.writerId ? `사용자${comment.writerId}` : '알 수 없음');
                 return (
-                    <div key={comment.commentId} className="flex gap-3">
+                  <div key={comment.commentId} className="flex gap-3">
                     <div className="w-8 h-8 rounded-full bg-stone-200 shrink-0 flex items-center justify-center">
                       <span className="text-xs font-medium text-stone-600">
                         {commentWriterName[0] || 'U'}
@@ -774,7 +773,7 @@ export function StoryDetailView() {
                             <>
                               {canEditComment(comment) ? (
                                 <>
-                                  <DropdownMenuItem 
+                                  <DropdownMenuItem
                                     onClick={() => handleStartEditComment(comment)}
                                   >
                                     <Edit2 className="w-4 h-4 mr-2" />
@@ -785,7 +784,7 @@ export function StoryDetailView() {
                               ) : null}
                               {canDeleteComment(comment) ? (
                                 <>
-                                  <DropdownMenuItem 
+                                  <DropdownMenuItem
                                     className="text-red-600"
                                     onClick={() => {
                                       setSelectedComment(comment);
@@ -799,7 +798,7 @@ export function StoryDetailView() {
                                   <DropdownMenuSeparator />
                                 </>
                               ) : null}
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 className="text-orange-600"
                                 onClick={() => {
                                   setSelectedComment(comment);
@@ -849,8 +848,8 @@ export function StoryDetailView() {
                               onClick={() => handleCommentLike(comment)}
                               className="flex items-center gap-1 text-stone-500 hover:text-orange-500 transition-colors"
                             >
-                              <Heart 
-                                className={`w-4 h-4 ${comment.isLiked ? 'fill-orange-500 text-orange-500' : ''}`} 
+                              <Heart
+                                className={`w-4 h-4 ${comment.isLiked ? 'fill-orange-500 text-orange-500' : ''}`}
                               />
                               <span className="text-xs font-medium">
                                 {comment.likeCount || 0}
@@ -910,7 +909,7 @@ export function StoryDetailView() {
               </AlertDialogTitle>
             </div>
             <AlertDialogDescription>
-              {deleteTarget === 'post' 
+              {deleteTarget === 'post'
                 ? '이 게시글을 삭제하시겠습니까? 삭제된 게시글은 복구할 수 없습니다.'
                 : '이 댓글을 삭제하시겠습니까?'
               }
@@ -967,7 +966,7 @@ export function StoryDetailView() {
               <div className="grid grid-cols-3 gap-2">
                 {editImages.map((img, index) => (
                   <div key={index} className="relative aspect-square rounded-xl overflow-hidden bg-stone-100">
-                    <img src={img} alt="" className="w-full h-full object-cover" draggable={false} onDragStart={(e) => e.preventDefault()} />
+                    <img src={img.startsWith('http') || img.startsWith('data:') ? img : `${API_BASE_URL}${img}`} alt="" className="w-full h-full object-cover" draggable={false} onDragStart={(e) => e.preventDefault()} />
                     <button
                       onClick={() => removeEditImage(index)}
                       className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center"
@@ -1028,11 +1027,10 @@ export function StoryDetailView() {
                       <button
                         key={member.memberId}
                         onClick={() => toggleEditMember(member.memberId)}
-                        className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
-                          isSelected
-                            ? 'bg-orange-500 text-white'
-                            : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                        }`}
+                        className={`px-3 py-1.5 rounded-full text-sm transition-colors ${isSelected
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                          }`}
                       >
                         @{member.clubNickname || '멤버'}
                       </button>
@@ -1046,8 +1044,8 @@ export function StoryDetailView() {
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
               취소
             </Button>
-            <Button 
-              onClick={handleUpdatePost} 
+            <Button
+              onClick={handleUpdatePost}
               disabled={isUpdating || (!editContent.trim() && editImages.length === 0)}
               className="bg-orange-500 hover:bg-orange-600"
             >
