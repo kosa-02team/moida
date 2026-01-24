@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useOutletContext } from 'react-router-dom';
 import { getRecentPosts, likePost, unlikePost, type PostCardResponse } from '@/api/post';
+import { API_BASE_URL } from '@/api/client';
 import { getVotes, getVote, answerVote, type VoteListResponse, type VoteDetailResponse } from '@/api/vote';
 import { Card, CardContent } from '../../ui/card';
 import { Badge } from '../../ui/badge';
@@ -219,26 +220,26 @@ export function StoriesView() {
   const handlePostLike = async (e: React.MouseEvent, post: PostWithVote) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (!groupId) return;
-    
+
     // 현재 상태 저장 (에러 시 롤백용)
     const previousIsLiked = post.isLiked ?? false;
     const previousPostLikes = post.postLikes ?? 0;
-    
+
     // 낙관적 업데이트 (즉시 UI 업데이트)
-    setAllPosts(posts => posts.map(p => 
-      p.postId === post.postId 
-        ? { 
-            ...p, 
-            isLiked: !previousIsLiked, 
-            postLikes: previousIsLiked 
-              ? Math.max(0, previousPostLikes - 1) 
-              : previousPostLikes + 1
-          }
+    setAllPosts(posts => posts.map(p =>
+      p.postId === post.postId
+        ? {
+          ...p,
+          isLiked: !previousIsLiked,
+          postLikes: previousIsLiked
+            ? Math.max(0, previousPostLikes - 1)
+            : previousPostLikes + 1
+        }
         : p
     ));
-    
+
     try {
       if (previousIsLiked) {
         await unlikePost(Number(groupId), post.postId);
@@ -248,8 +249,8 @@ export function StoriesView() {
     } catch (error) {
       console.error('좋아요 처리 실패:', error);
       // 에러 발생 시 이전 상태로 롤백
-      setAllPosts(posts => posts.map(p => 
-        p.postId === post.postId 
+      setAllPosts(posts => posts.map(p =>
+        p.postId === post.postId
           ? { ...p, isLiked: previousIsLiked, postLikes: previousPostLikes }
           : p
       ));
@@ -434,7 +435,7 @@ export function StoriesView() {
                     {post.imagesUrl.slice(0, 4).map((img, idx) => (
                       <img
                         key={idx}
-                        src={img}
+                        src={img.startsWith('http') ? img : `${API_BASE_URL}${img}`}
                         alt={`${post.title || '게시글'} 이미지 ${idx + 1}`}
                         className="w-full h-32 object-cover rounded-lg"
                       />
@@ -448,103 +449,101 @@ export function StoriesView() {
             <>
               {(post.voteDetail && post.voteId !== undefined) ? (
                 <div className="px-4 pb-4 border-t border-stone-100">
-                <Link
-                  to={`/group/${groupId}/votes/${post.voteId}`}
-                  className="block mb-3 pt-3"
-                  onClick={(e) => {
-                    // 투표 옵션 클릭 시에는 Link 동작 방지
-                    if ((e.target as HTMLElement).closest('.vote-option')) {
-                      e.preventDefault();
-                    }
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="outline" className="text-xs">
-                      투표
-                    </Badge>
-                    <span className="font-medium text-stone-900">{post.voteDetail.title}</span>
-                    {post.voteDetail.deadline && (
-                      <span className="text-xs text-stone-500 ml-auto flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {new Date(post.voteDetail.deadline).toLocaleDateString('ko-KR', {
-                          month: 'short',
-                          day: 'numeric'
-                        })}
-                      </span>
-                    )}
-                  </div>
-                </Link>
-
-                {/* 투표 옵션 (최대 4개) */}
-                <div className="space-y-2">
-                  {post.voteDetail.options.slice(0, 4).map((option) => {
-                    const isSelected = post.mySelectedOptionIds?.includes(option.optionId) || false;
-                    const voteCount = option.voteCount || 0;
-                    const totalCount = post.totalVoteCount || 0;
-                    const percentage = totalCount > 0 ? (voteCount / totalCount) * 100 : 0;
-
-                    return (
-                      <div
-                        key={option.optionId}
-                        className={`vote-option p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                          isSelected
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-stone-200 hover:border-stone-300'
-                        }`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleVoteOptionToggle(post, option.optionId);
-                        }}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-stone-900'}`}>
-                            {option.optionText}
-                          </span>
-                          <span className={`text-xs ${isSelected ? 'text-blue-600' : 'text-stone-500'}`}>
-                            {voteCount}표 ({percentage.toFixed(0)}%)
-                          </span>
-                        </div>
-                        {totalCount > 0 && (
-                          <div className="h-1.5 bg-stone-200 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full transition-all ${
-                                isSelected ? 'bg-blue-500' : 'bg-stone-400'
-                              }`}
-                              style={{ width: `${percentage}%` }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* 4개 이상 옵션이 있으면 상세보기 링크 */}
-                {post.voteDetail.options.length > 4 && post.voteId !== undefined && (
                   <Link
                     to={`/group/${groupId}/votes/${post.voteId}`}
-                    className="mt-3 flex items-center justify-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    className="block mb-3 pt-3"
+                    onClick={(e) => {
+                      // 투표 옵션 클릭 시에는 Link 동작 방지
+                      if ((e.target as HTMLElement).closest('.vote-option')) {
+                        e.preventDefault();
+                      }
+                    }}
                   >
-                    더보기 ({post.voteDetail.options.length - 4}개 옵션 더)
-                    <ChevronRight className="h-4 w-4" />
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant="outline" className="text-xs">
+                        투표
+                      </Badge>
+                      <span className="font-medium text-stone-900">{post.voteDetail.title}</span>
+                      {post.voteDetail.deadline && (
+                        <span className="text-xs text-stone-500 ml-auto flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {new Date(post.voteDetail.deadline).toLocaleDateString('ko-KR', {
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </span>
+                      )}
+                    </div>
                   </Link>
-                )}
 
-                {/* 투표 통계 */}
-                {post.totalVoteCount !== undefined && post.totalVoteCount > 0 ? (
-                  <div className="mt-3 pt-3 border-t border-stone-100 flex items-center gap-2 text-xs text-stone-500">
-                    <Users className="h-3 w-3" />
-                    <span>총 {post.totalVoteCount}명 참여</span>
+                  {/* 투표 옵션 (최대 4개) */}
+                  <div className="space-y-2">
+                    {post.voteDetail.options.slice(0, 4).map((option) => {
+                      const isSelected = post.mySelectedOptionIds?.includes(option.optionId) || false;
+                      const voteCount = option.voteCount || 0;
+                      const totalCount = post.totalVoteCount || 0;
+                      const percentage = totalCount > 0 ? (voteCount / totalCount) * 100 : 0;
+
+                      return (
+                        <div
+                          key={option.optionId}
+                          className={`vote-option p-3 rounded-lg border-2 cursor-pointer transition-colors ${isSelected
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-stone-200 hover:border-stone-300'
+                            }`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleVoteOptionToggle(post, option.optionId);
+                          }}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-stone-900'}`}>
+                              {option.optionText}
+                            </span>
+                            <span className={`text-xs ${isSelected ? 'text-blue-600' : 'text-stone-500'}`}>
+                              {voteCount}표 ({percentage.toFixed(0)}%)
+                            </span>
+                          </div>
+                          {totalCount > 0 && (
+                            <div className="h-1.5 bg-stone-200 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full transition-all ${isSelected ? 'bg-blue-500' : 'bg-stone-400'
+                                  }`}
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                ) : null}
-              </div>
-            ) : null}
+
+                  {/* 4개 이상 옵션이 있으면 상세보기 링크 */}
+                  {post.voteDetail.options.length > 4 && post.voteId !== undefined && (
+                    <Link
+                      to={`/group/${groupId}/votes/${post.voteId}`}
+                      className="mt-3 flex items-center justify-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      더보기 ({post.voteDetail.options.length - 4}개 옵션 더)
+                      <ChevronRight className="h-4 w-4" />
+                    </Link>
+                  )}
+
+                  {/* 투표 통계 */}
+                  {post.totalVoteCount !== undefined && post.totalVoteCount > 0 ? (
+                    <div className="mt-3 pt-3 border-t border-stone-100 flex items-center gap-2 text-xs text-stone-500">
+                      <Users className="h-3 w-3" />
+                      <span>총 {post.totalVoteCount}명 참여</span>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </>
 
             {/* 게시글 하단 (좋아요, 댓글) */}
             <div className="px-4 py-3 border-t border-stone-100 flex items-center gap-4 text-stone-500">
-              <button 
+              <button
                 onClick={(e) => handlePostLike(e, post)}
                 className="flex items-center gap-1 hover:text-red-500 transition-colors"
               >

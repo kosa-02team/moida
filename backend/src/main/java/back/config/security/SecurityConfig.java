@@ -61,7 +61,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable) // JWT 사용 시 CSRF 비활성화 (Stateless)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 세션 미사용
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll() // 인증 제외 경로
+                        .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/uploads/images/**")
+                        .permitAll() // 인증 제외 경로
                         .requestMatchers(HttpMethod.GET, "/api/clubs/**").permitAll() // 모임 조회는 인증 불필요
                         .requestMatchers("/api/admin/**").hasRole("ADMIN") // 관리자 페이지 권한 설정
                         .anyRequest().authenticated() // 그 외 모든 요청은 인증 필요

@@ -18,8 +18,11 @@ public class WebConfig implements WebMvcConfigurer {
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         // uploads 디렉토리 경로 absolute로 변환
         Path path = Paths.get(uploadPath).toAbsolutePath().normalize();
-        String absolutePath = "file:///" + path.toString() + "/";
+        // Windows 경로의 백슬래시를 슬래시로 변환
+        String absolutePath = "file:///" + path.toString().replace("\\", "/") + "/";
 
+        System.out.println("📁 Static resource mapping: /uploads/images/** -> " + absolutePath);
+        
         registry.addResourceHandler("/uploads/images/**")
                 .addResourceLocations(absolutePath);
     }

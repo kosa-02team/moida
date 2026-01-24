@@ -3,7 +3,7 @@
  * 백엔드 API와 통신하기 위한 기본 설정
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 /**
  * JWT 토큰을 로컬 스토리지에서 가져오기
@@ -56,11 +56,11 @@ const refreshAccessToken = async (): Promise<string | null> => {
 
     const { refreshToken: refreshTokenAPI } = await import('./auth');
     const response = await refreshTokenAPI({ refreshToken });
-    
+
     // 새 토큰 저장
     setToken(response.accessToken);
     localStorage.setItem('refreshToken', response.refreshToken);
-    
+
     return response.accessToken;
   } catch (error) {
     // Refresh Token도 만료된 경우
@@ -90,7 +90,7 @@ export const apiClient = async <T>(
   if (requiresAuth) {
     const token = getToken();
     if (token) {
-        (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+      (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
     }
   }
 
@@ -110,13 +110,13 @@ export const apiClient = async <T>(
         const newToken = await refreshAccessToken();
         if (newToken) {
           // 새 토큰으로 재시도 (무한 루프 방지를 위해 retryOn401을 false로)
-            // (headers as any)로 감싸서 유연하게 접근합니다.
-            (headers as Record<string, string>)['Authorization'] = `Bearer ${newToken}`;
+          // (headers as any)로 감싸서 유연하게 접근합니다.
+          (headers as Record<string, string>)['Authorization'] = `Bearer ${newToken}`;
           const retryResponse = await fetch(url, {
             ...fetchOptions,
             headers,
           });
-          
+
           if (!retryResponse.ok) {
             const retryErrorData = await retryResponse.json().catch(() => ({}));
             if (retryResponse.status === 401 || retryResponse.status === 403) {
@@ -126,7 +126,7 @@ export const apiClient = async <T>(
             const errorMessage = retryErrorData.message || retryErrorData.error || `HTTP error! status: ${retryResponse.status}`;
             throw new Error(errorMessage);
           }
-          
+
           const retryData = await retryResponse.json();
           if (retryData.data !== undefined) {
             return retryData.data as T;
@@ -137,10 +137,10 @@ export const apiClient = async <T>(
           throw new AuthenticationError('인증이 필요합니다');
         }
       }
-      
+
       // 에러 응답 한 번만 읽기
       const errorData = await response.json().catch(() => ({}));
-      
+
       // 500 에러는 서버 문제이므로 조용히 처리 (개발 환경에서만 로그 출력)
       const isServerError = response.status >= 500;
       if (!isServerError) {
@@ -154,7 +154,7 @@ export const apiClient = async <T>(
           errorData: errorData
         });
       }
-      
+
       // 401, 403은 인증 에러로 처리 (단, requiresAuth가 false인 경우는 일반 에러로 처리)
       if ((response.status === 401 || response.status === 403) && requiresAuth) {
         const errorMessage = errorData.message || '인증이 필요합니다';
@@ -166,7 +166,7 @@ export const apiClient = async <T>(
       const error = new Error(errorMessage);
       // status 정보를 에러 객체에 추가
       (error as any).status = response.status;
-      (error as any).response = { 
+      (error as any).response = {
         status: response.status,
         data: errorData // 에러 응답 데이터 포함
       };
@@ -176,7 +176,7 @@ export const apiClient = async <T>(
     // 응답 본문이 있는지 확인
     const contentLength = response.headers.get('content-length');
     const contentType = response.headers.get('content-type');
-    
+
     // 본문이 없거나 빈 응답인 경우 (DELETE 성공 등)
     if (contentLength === '0' || !contentType?.includes('application/json')) {
       // void 타입이거나 빈 응답인 경우
@@ -185,7 +185,7 @@ export const apiClient = async <T>(
 
     // 응답 본문 읽기 시도
     const text = await response.text();
-    
+
     // 빈 문자열인 경우
     if (!text || text.trim() === '') {
       return undefined as T;
@@ -205,11 +205,11 @@ export const apiClient = async <T>(
     if (error instanceof AuthenticationError) {
       throw error;
     }
-    
+
     // Error 객체에서 메시지를 확인하여 500 에러인지 판단
     const errorMessage = error instanceof Error ? error.message : String(error);
     const isServerError = errorMessage.includes('500') || errorMessage.includes('Internal Server Error');
-    
+
     // 500 에러는 서버 문제이므로 조용히 처리 (개발 환경에서만 로그 출력)
     if (!isServerError) {
       console.error('API request failed:', {
@@ -218,7 +218,7 @@ export const apiClient = async <T>(
         error: error
       });
     }
-    
+
     throw error;
   }
 };

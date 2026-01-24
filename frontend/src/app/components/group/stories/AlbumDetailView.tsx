@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getRecentAlbums, getRecentPosts, type AlbumCardResponse } from '../../../../api/post';
+import { API_BASE_URL } from '@/api/client';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { ArrowLeft, MoreHorizontal, Heart, MessageCircle, Plus, Grid, List, Calendar, MapPin } from 'lucide-react';
 import { Button } from '../../ui/button';
@@ -93,7 +94,7 @@ export function AlbumDetailView() {
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        
+
         {/* Top Bar */}
         <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
           <Button
@@ -136,17 +137,15 @@ export function AlbumDetailView() {
         <div className="flex gap-1 bg-stone-100 p-1 rounded-lg">
           <button
             onClick={() => setViewMode('list')}
-            className={`p-2 rounded-md transition-colors ${
-              viewMode === 'list' ? 'bg-white shadow-sm' : 'text-stone-500'
-            }`}
+            className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-white shadow-sm' : 'text-stone-500'
+              }`}
           >
             <List className="w-4 h-4" />
           </button>
           <button
             onClick={() => setViewMode('grid')}
-            className={`p-2 rounded-md transition-colors ${
-              viewMode === 'grid' ? 'bg-white shadow-sm' : 'text-stone-500'
-            }`}
+            className={`p-2 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'text-stone-500'
+              }`}
           >
             <Grid className="w-4 h-4" />
           </button>
@@ -176,11 +175,10 @@ export function AlbumDetailView() {
                   {story.images.slice(0, 4).map((img, i) => (
                     <div
                       key={i}
-                      className={`aspect-square bg-stone-100 relative ${
-                        story.images.length === 3 && i === 0 ? 'row-span-2' : ''
-                      }`}
+                      className={`aspect-square bg-stone-100 relative ${story.images.length === 3 && i === 0 ? 'row-span-2' : ''
+                        }`}
                     >
-                      <img src={img} alt="" className="w-full h-full object-cover" />
+                      <img src={img.startsWith('http') ? img : `${API_BASE_URL}${img}`} alt="" className="w-full h-full object-cover" />
                       {i === 3 && story.images.length > 4 && (
                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                           <span className="text-white text-xl font-bold">+{story.images.length - 4}</span>
@@ -202,11 +200,11 @@ export function AlbumDetailView() {
         </div>
       ) : (
         <div className="p-2 grid grid-cols-3 gap-0.5">
-          {stories.flatMap(story => 
+          {stories.flatMap(story =>
             story.images.map((img, i) => (
               <Link to={`../stories/${story.id}`} key={`${story.id}-${i}`}>
                 <div className="aspect-square bg-stone-100">
-                  <img src={img} alt="" className="w-full h-full object-cover" />
+                  <img src={img.startsWith('http') ? img : `${API_BASE_URL}${img}`} alt="" className="w-full h-full object-cover" />
                 </div>
               </Link>
             ))
