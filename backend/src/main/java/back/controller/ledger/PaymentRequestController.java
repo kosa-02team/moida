@@ -8,6 +8,7 @@ import back.repository.schedule.ScheduleRepository;
 import back.service.club.ClubAuthService;
 import back.service.ledger.EventFundService;
 import back.service.ledger.PaymentRequestService;
+import back.service.ledger.TransactionMatchingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,6 +28,7 @@ public class PaymentRequestController {
     private final EventFundService eventFundService;
     private final ScheduleRepository scheduleRepository;
     private final ClubAuthService clubAuthService;
+    private final TransactionMatchingService transactionMatchingService;
 
     // --- 1. 기본 입금 요청 관리 (PaymentRequestService) ---
 
@@ -72,6 +74,36 @@ public class PaymentRequestController {
         Long userId = user.getUserId();
         paymentRequestService.confirmManualPayment(requestId, userId);
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 입금 요청 수동 매칭 (은행 거래내역과 연결)
+     */
+    @PostMapping("/payment-requests/{requestId}/manual-match")
+    public ResponseEntity<Void> manualMatchRequest(
+            @PathVariable Long clubId,
+            @PathVariable Long requestId,
+            @RequestBody ManualMatchRequest request) {
+        transactionMatchingService.manualMatch(requestId, request.historyId(), request.matchedBy());
+        return ResponseEntity.ok().build();
+    }
+
+    public record ManualMatchRequest(Long historyId, Long matchedBy) {
+    }
+
+    /**
+     * 여러 거래를 하나의 입금 요청에 매칭 (분할 입금 등)
+     */
+    @PostMapping("/payment-requests/{requestId}/manual-match-multiple")
+    public ResponseEntity<Void> manualMatchMultipleTransactions(
+            @PathVariable Long clubId,
+            @PathVariable Long requestId,
+            @RequestBody MultipleTransactionsMatchRequest request) {
+        transactionMatchingService.manualMatchMultipleTransactions(requestId, request.historyIds(), request.matchedBy());
+        return ResponseEntity.ok().build();
+    }
+
+    public record MultipleTransactionsMatchRequest(List<Long> historyIds, Long matchedBy) {
     }
 
     /**

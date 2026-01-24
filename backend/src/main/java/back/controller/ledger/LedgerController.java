@@ -4,6 +4,7 @@ import back.config.security.UserPrincipal;
 import back.domain.ledger.TransactionLog;
 import back.service.ledger.LedgerService;
 import back.controller.ledger.ManualTransactionRequest;
+import back.controller.ledger.TransactionLogResponse;
 import back.controller.ledger.TransactionUpdateRequest;
 import back.exception.ClubException;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,7 @@ public class LedgerController {
      * GET /clubs/{clubId}/ledger?startDate=2024-01-01&endDate=2024-01-31
      */
     @GetMapping
-    public ResponseEntity<List<TransactionLog>> getLedger(
+    public ResponseEntity<List<TransactionLogResponse>> getLedger(
             @PathVariable Long clubId,
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate,
@@ -38,7 +39,7 @@ public class LedgerController {
         if (endDate == null)
             endDate = LocalDate.now();
 
-        List<TransactionLog> logs = ledgerService.getTransactions(clubId, startDate, endDate, scheduleId);
+        List<TransactionLogResponse> logs = ledgerService.getTransactions(clubId, startDate, endDate, scheduleId);
         return ResponseEntity.ok(logs);
     }
 

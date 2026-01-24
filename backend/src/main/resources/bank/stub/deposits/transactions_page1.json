@@ -28,7 +28,7 @@
             "tran_time": "094500",
             "inout_type": "입금",
             "tran_type": "이체",
-            "print_content": "이서연",
+            "print_content": "최서연",
             "tran_amt": "30000",
             "after_balance_amt": "60000",
             "comment": "성공: 정상 매칭 2"
@@ -48,7 +48,7 @@
             "tran_time": "101500",
             "inout_type": "입금",
             "tran_type": "이체",
-            "print_content": "최유진",
+            "print_content": "정하준",
             "tran_amt": "30000",
             "after_balance_amt": "120000",
             "comment": "성공: 정상 매칭 4"
@@ -58,17 +58,17 @@
             "tran_time": "103000",
             "inout_type": "입금",
             "tran_type": "이체",
-            "print_content": "한소희",
+            "print_content": "윤아린",
             "tran_amt": "30000",
             "after_balance_amt": "150000",
-            "comment": "성공: 정상 매칭 5"
+            "comment": "예외: 이름 식별 불가 (예: 민수) -> 미매칭 처리. 총무가 '김민수' 회원에게 드롭다운으로 수동 매핑 시나리오용"
         },
         {
             "tran_date": "20260124",
             "tran_time": "110000",
             "inout_type": "입금",
             "tran_type": "이체",
-            "print_content": "동명이인테스트",
+            "print_content": "윤아린",
             "tran_amt": "30000",
             "after_balance_amt": "180000",
             "comment": "예외: 이름 식별 불가 (예: 민수) -> 미매칭 처리. 총무가 '김민수' 회원에게 드롭다운으로 수동 매핑 시나리오용"
@@ -78,9 +78,19 @@
             "tran_time": "111500",
             "inout_type": "입금",
             "tran_type": "이체",
-            "print_content": "정도윤런닝비",
+            "print_content": "장도윤런닝비",
             "tran_amt": "29000",
             "after_balance_amt": "209000",
+            "comment": "예외: 금액 불일치 (3만원 요청인데 2.9만원 입금) -> AMOUNT_MISMATCH"
+        },
+        {
+            "tran_date": "20260124",
+            "tran_time": "111500",
+            "inout_type": "입금",
+            "tran_type": "이체",
+            "print_content": "장도윤런닝비",
+            "tran_amt": "1000",
+            "after_balance_amt": "210000",
             "comment": "예외: 금액 불일치 (3만원 요청인데 2.9만원 입금) -> AMOUNT_MISMATCH"
         }
     ]

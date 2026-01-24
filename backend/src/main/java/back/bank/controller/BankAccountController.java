@@ -11,6 +11,7 @@ import back.dto.ledger.response.RefundResponse;
 import back.bank.repository.BankTransactionHistoryRepository;
 import back.repository.ledger.PaymentRequestRepository;
 import back.repository.ledger.TransactionLogRepository;
+import back.repository.club.ClubMemberRepository;
 import back.bank.dto.response.BankAccountResponseDTO;
 import back.bank.service.BankService;
 import back.domain.ledger.TransactionLog;
@@ -34,17 +35,20 @@ public class BankAccountController {
     private final PaymentRequestRepository paymentRequestRepository;
     private final BankAccountRepository bankAccountRepository;
     private final TransactionLogRepository transactionLogRepository;
+    private final ClubMemberRepository clubMemberRepository;
 
     public BankAccountController(BankService bankService,
             BankTransactionHistoryRepository transactionHistoryRepository,
             PaymentRequestRepository paymentRequestRepository,
             BankAccountRepository bankAccountRepository,
-            TransactionLogRepository transactionLogRepository) {
+            TransactionLogRepository transactionLogRepository,
+            ClubMemberRepository clubMemberRepository) {
         this.bankService = bankService;
         this.transactionHistoryRepository = transactionHistoryRepository;
         this.paymentRequestRepository = paymentRequestRepository;
         this.bankAccountRepository = bankAccountRepository;
         this.transactionLogRepository = transactionLogRepository;
+        this.clubMemberRepository = clubMemberRepository;
     }
 
     /**
@@ -232,7 +236,8 @@ public class BankAccountController {
      */
     @GetMapping("/transactions/unmatched")
     public ResponseEntity<UnmatchedTransactionsResponse> getUnmatchedTransactions(
-            @PathVariable Long clubId) {
+            @PathVariable Long clubId,
+            @RequestParam(required = false, defaultValue = "true") boolean recalculate) {
         // 조회 전 은행 동기화 (최신 거래내역 반영)
         try {
             bankService.syncTransactionsStub(clubId, 1L, null, null); // 입금 내역
@@ -261,15 +266,146 @@ public class BankAccountController {
                 .filter(Objects::nonNull)
                 .toList();
 
-        // 미매칭 거래내역 필터링
+        // 미매칭 거래내역 필터링 - isMatched 필드로 직접 확인
         List<BankTransactionHistory> unmatched = histories.stream()
-                .filter(h -> !matchedHistoryIds.contains(h.getHistoryId()))
+                .filter(h -> !Boolean.TRUE.equals(h.getIsMatched()))
                 .collect(Collectors.toList());
 
         // 매칭 가능한 입금요청 조회
         List<PaymentRequest> availableRequests = paymentRequestRepository.findMatchableRequests(clubId);
+        
+        // PaymentRequest를 DTO로 변환 (닉네임 포함)
+        List<PaymentRequestWithNickname> requestsWithNickname = availableRequests.stream()
+                .map(req -> {
+                    String displayName = req.getMemberName();
+                    var memberView = clubMemberRepository.findNameView(clubId, req.getMemberId());
+                    if (memberView.isPresent()) {
+                        String nickname = memberView.get().getClubNickname();
+                        if (nickname != null && !nickname.isBlank()) {
+                            displayName = req.getMemberName() + " (" + nickname + ")";
+                        }
+                    }
+                    return new PaymentRequestWithNickname(
+                            req.getRequestId(),
+                            req.getClubId(),
+                            req.getMemberId(),
+                            displayName, // 닉네임 포함된 이름
+                            req.getRequestType().name(),
+                            req.getExpectedAmount(),
+                            req.getExpectedDate().toString(),
+                            req.getStatus().name(),
+                            req.getMatchedHistoryId(),
+                            req.getScheduleId()
+                    );
+                })
+                .collect(Collectors.toList());
+        
+        // 미매칭 거래의 실패 사유 재계산 및 업데이트 (recalculate=true인 경우만)
+        if (recalculate) {
+            System.out.println("🔄 미매칭 사유 재계산 시작...");
+            for (BankTransactionHistory tx : unmatched) {
+                String newReason = determineFailureReason(tx, availableRequests);
+                if (!newReason.equals(tx.getUnmatchReason())) {
+                    System.out.println("  → " + tx.getPrintContent() + ": " + tx.getUnmatchReason() + " → " + newReason);
+                    tx.updateUnmatchReason(newReason);
+                    transactionHistoryRepository.save(tx);
+                }
+            }
+        }
 
-        return ResponseEntity.ok(new UnmatchedTransactionsResponse(unmatched, availableRequests));
+        return ResponseEntity.ok(new UnmatchedTransactionsResponse(unmatched, requestsWithNickname));
+    }
+    
+    /**
+     * 매칭 실패 사유 결정 (개선된 버전 - 디버깅 강화)
+     */
+    private String determineFailureReason(BankTransactionHistory tx, List<PaymentRequest> requests) {
+        if (requests.isEmpty())
+            return "NO_PENDING_REQUESTS";
+
+        boolean anyPotentialMatch = false;
+        boolean amountMatchFound = false;
+        boolean dateMatchFound = false;
+
+        System.out.println("  🔍 " + tx.getPrintContent() + " (" + tx.getAmount() + "원) 분석 중...");
+
+        for (PaymentRequest req : requests) {
+            // 금액 확인
+            boolean amountMatch = tx.getAmount().abs().compareTo(req.getExpectedAmount().abs()) == 0;
+            if (amountMatch) {
+                amountMatchFound = true;
+                System.out.println("    ✓ 금액 일치: " + req.getMemberName() + " request와 매칭 가능");
+            }
+
+            // 날짜 확인
+            LocalDate txDate = tx.getBankTransactionAt().toLocalDate();
+            LocalDate expected = req.getExpectedDate();
+            int range = req.getMatchDaysRange() != null ? req.getMatchDaysRange() : 10;
+            boolean dateMatch = !txDate.isBefore(expected.minusDays(range))
+                    && !txDate.isAfter(expected.plusDays(range));
+            if (dateMatch) {
+                dateMatchFound = true;
+                System.out.println("    ✓ 날짜 일치");
+            }
+
+            // 금액과 날짜가 모두 일치하는 경우, 이름도 확인
+            if (amountMatch && dateMatch) {
+                String content = normalize(tx.getPrintContent());
+                System.out.println("    정규화된 거래 내용: [" + content + "]");
+                
+                if (!content.isBlank()) {
+                    System.out.println("    멤버 정보 조회 중: clubId=" + req.getClubId() + ", memberId=" + req.getMemberId());
+                    var viewOpt = clubMemberRepository.findNameView(req.getClubId(), req.getMemberId());
+                    
+                    if (viewOpt.isPresent()) {
+                        String realNameRaw = viewOpt.get().getRealName();
+                        String nickRaw = viewOpt.get().getClubNickname();
+                        
+                        String realName = normalize(realNameRaw);
+                        String nick = normalize(nickRaw);
+                        
+                        System.out.println("    정규화된 실명: [" + realName + "], 닉네임: [" + nick + "]");
+                        
+                        // 거래 내역에 해당 멤버의 이름이 포함되어 있는지 확인
+                        boolean nameIncluded = (!realName.isBlank() && content.contains(realName))
+                                || (!nick.isBlank() && content.contains(nick));
+                        
+                        if (nameIncluded) {
+                            System.out.println("    ✓ 이름 포함 확인! → 잠재적 매칭 후보");
+                            anyPotentialMatch = true;
+                        } else {
+                            System.out.println("    ✗ 이름 불일치 (거래: '" + content + "', 실명: '" + realName + "', 닉: '" + nick + "')");
+                        }
+                    } else {
+                        System.out.println("    ⚠️ 멤버 정보를 찾을 수 없음!");
+                    }
+                } else {
+                    System.out.println("    ⚠️ 거래 내용이 비어있음");
+                }
+            }
+        }
+
+        String result;
+        if (anyPotentialMatch) {
+            result = "NAME_MISMATCH_OR_DUPLICATE";
+        } else if (!amountMatchFound) {
+            result = "AMOUNT_MISMATCH";
+        } else if (!dateMatchFound) {
+            result = "DATE_OUT_OF_RANGE";
+        } else {
+            result = "NO_PENDING_REQUESTS";
+        }
+        
+        System.out.println("    → 최종 사유: " + result);
+        return result;
+    }
+
+    private String normalize(String s) {
+        if (s == null)
+            return "";
+        return s.replaceAll("\\s+", "")
+                .replaceAll("[^0-9a-zA-Z가-힣]", "")
+                .toLowerCase();
     }
 
     /**
@@ -302,7 +438,20 @@ public class BankAccountController {
 
     public record UnmatchedTransactionsResponse(
             List<BankTransactionHistory> unmatchedTransactions,
-            List<PaymentRequest> availableRequests) {
+            List<PaymentRequestWithNickname> availableRequests) {
+    }
+
+    public record PaymentRequestWithNickname(
+            Long requestId,
+            Long clubId,
+            Long memberId,
+            String memberName, // 닉네임 포함된 표시 이름
+            String requestType,
+            java.math.BigDecimal expectedAmount,
+            String expectedDate,
+            String status,
+            Long matchedHistoryId,
+            Long scheduleId) {
     }
 
     public record ScheduleTransactionResponse(

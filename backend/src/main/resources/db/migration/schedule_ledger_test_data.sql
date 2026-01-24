@@ -35,7 +35,7 @@ VALUES
 (5, 'member05@naver.com', '$2a$10$xXF72CHMb65eNebwwe1Qc.M2Mm1tRytvzEJI8aZr1GZBEIhUZEGRy', '최서연', 'USER', NULL, 'ACTIVE', NOW(), NOW(), NULL, NULL),
 (6, 'member06@naver.com', '$2a$10$xXF72CHMb65eNebwwe1Qc.M2Mm1tRytvzEJI8aZr1GZBEIhUZEGRy', '정하준', 'USER', NULL, 'ACTIVE', NOW(), NOW(), NULL, NULL),
 (7, 'member07@naver.com', '$2a$10$xXF72CHMb65eNebwwe1Qc.M2Mm1tRytvzEJI8aZr1GZBEIhUZEGRy', '한지민', 'USER', NULL, 'ACTIVE', NOW(), NOW(), NULL, NULL),
-(8, 'member08@naver.com', '$2a$10$xXF72CHMb65eNebwwe1Qc.M2Mm1tRytvzEJI8aZr1GZBEIhUZEGRy', '오세훈', 'USER', NULL, 'ACTIVE', NOW(), NOW(), NULL, NULL),
+(8, 'member08@naver.com', '$2a$10$xXF72CHMb65eNebwwe1Qc.M2Mm1tRytvzEJI8aZr1GZBEIhUZEGRy', '윤아린', 'USER', NULL, 'ACTIVE', NOW(), NOW(), NULL, NULL),
 (9, 'member09@naver.com', '$2a$10$xXF72CHMb65eNebwwe1Qc.M2Mm1tRytvzEJI8aZr1GZBEIhUZEGRy', '윤아린', 'USER', NULL, 'ACTIVE', NOW(), NOW(), NULL, NULL),
 (10, 'member10@naver.com', '$2a$10$xXF72CHMb65eNebwwe1Qc.M2Mm1tRytvzEJI8aZr1GZBEIhUZEGRy', '장도윤', 'USER', NULL, 'ACTIVE', NOW(), NOW(), NULL, NULL),
 (11, 'member11@naver.com', '$2a$10$xXF72CHMb65eNebwwe1Qc.M2Mm1tRytvzEJI8aZr1GZBEIhUZEGRy', '임수현', 'USER', NULL, 'ACTIVE', NOW(), NOW(), NULL, NULL),
@@ -95,7 +95,7 @@ VALUES
     (5, 'STUB', 5,  10, '110-42-1000005', '최서연', NULL, NOW(), NOW()),
     (6, 'STUB', 6,  10, '110-42-1000006', '정하준', NULL, NOW(), NOW()),
     (7, 'STUB', 7,  10, '110-42-1000007', '한지민', NULL, NOW(), NOW()),
-    (8, 'STUB', 8,  10, '110-42-1000008', '오세훈', NULL, NOW(), NOW()),
+    (8, 'STUB', 8,  10, '110-42-1000008', '윤아린', NULL, NOW(), NOW()),
     (9, 'STUB', 9,  10, '110-42-1000009', '윤아린', NULL, NOW(), NOW()),
     (10,'STUB',10, 10, '110-42-1000010', '장도윤', NULL, NOW(), NOW());
 
@@ -112,11 +112,11 @@ VALUES
     (1, 28, '쭈니', 'STAFF', 'ACTIVE', NOW(), NOW(), NOW()),
     (1, 4, '박지훈', 'MEMBER', 'ACTIVE', NOW(), NOW(), NOW()),
     (1, 5, '최서연', 'MEMBER', 'ACTIVE', NOW(), NOW(), NOW()),
-    (1, 6, '정하준', 'MEMBER', 'PENDING', DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY)),
-    (1, 7, '한지민', 'MEMBER', 'REJECTED', DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 3 DAY)),
-    (1, 8, '오세훈', 'MEMBER', 'LEFT', DATE_SUB(NOW(), INTERVAL 30 DAY), DATE_SUB(NOW(), INTERVAL 30 DAY), DATE_SUB(NOW(), INTERVAL 20 DAY)),
-    (1, 9, '윤아린', 'MEMBER', 'KICKED', DATE_SUB(NOW(), INTERVAL 15 DAY), DATE_SUB(NOW(), INTERVAL 15 DAY), DATE_SUB(NOW(), INTERVAL 10 DAY)),
-(1, 10, '장도윤', 'MEMBER', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 15 DAY), DATE_SUB(NOW(), INTERVAL 15 DAY), DATE_SUB(NOW(), INTERVAL 10 DAY));
+    (1, 6, '정하준', 'MEMBER', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY)),
+    (1, 7, '한지민', 'MEMBER', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 3 DAY)),
+    (1, 8, '윤아린1', 'MEMBER', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 30 DAY), DATE_SUB(NOW(), INTERVAL 30 DAY), DATE_SUB(NOW(), INTERVAL 20 DAY)),
+    (1, 9, '윤아린', 'MEMBER', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 15 DAY), DATE_SUB(NOW(), INTERVAL 15 DAY), DATE_SUB(NOW(), INTERVAL 10 DAY)),
+    (1, 10, '장도윤', 'MEMBER', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 15 DAY), DATE_SUB(NOW(), INTERVAL 15 DAY), DATE_SUB(NOW(), INTERVAL 10 DAY));
 
 -- club_id=2 멤버들
 INSERT INTO club_members
@@ -143,3 +143,4 @@ VALUES
     (8, 16, '홍지수', 'MEMBER', 'ACTIVE', NOW(), NOW(), NOW());
 
 SET FOREIGN_KEY_CHECKS = 1;
+

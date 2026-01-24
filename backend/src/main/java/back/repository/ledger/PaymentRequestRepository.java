@@ -54,4 +54,14 @@ public interface PaymentRequestRepository extends JpaRepository<PaymentRequest, 
          */
         @Query("SELECT COUNT(pr) > 0 FROM PaymentRequest pr WHERE pr.scheduleId = :scheduleId AND pr.memberId = :memberId")
         boolean existsByScheduleIdAndMemberId(@Param("scheduleId") Long scheduleId, @Param("memberId") Long memberId);
+        
+        /**
+         * 특정 은행거래내역 ID들과 매칭된 입금요청 조회
+         */
+        List<PaymentRequest> findByClubIdAndMatchedHistoryIdIn(Long clubId, List<Long> matchedHistoryIds);
+        
+        /**
+         * 특정 은행거래내역 ID와 매칭된 입금요청 조회
+         */
+        List<PaymentRequest> findByClubIdAndMatchedHistoryId(Long clubId, Long matchedHistoryId);
 }
