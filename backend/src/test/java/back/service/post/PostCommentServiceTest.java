@@ -106,7 +106,8 @@ class PostCommentServiceTest {
         given(postRepository.getReferenceById(postId)).willReturn(post);
 
         ClubMembers writer = member(writerId);
-        given(clubMemberRepository.getReferenceById(writerId)).willReturn(writer);
+        given(clubMemberRepository.findByClubIdAndUserId(clubId, writerId))
+                .willReturn(Optional.of(writer));
 
         Comments saved = comment(1L, writerId, post);
         given(postCommentRepository.save(any())).willReturn(saved);
