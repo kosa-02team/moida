@@ -131,8 +131,10 @@ public class PaymentRequestController {
     @PostMapping("/schedules/{scheduleId}/collect-fee")
     public ResponseEntity<Void> collectScheduleFee(
             @PathVariable Long clubId,
-            @PathVariable Long scheduleId) {
-        eventFundService.collectEntryFees(clubId, scheduleId);
+            @PathVariable Long scheduleId,
+            @AuthenticationPrincipal UserPrincipal user) {
+        Long userId = user.getUserId();
+        eventFundService.collectEntryFees(clubId, scheduleId, userId);
         return ResponseEntity.ok().build();
     }
 
@@ -140,9 +142,25 @@ public class PaymentRequestController {
     public ResponseEntity<Void> collectScheduleFeeForMember(
             @PathVariable Long clubId,
             @PathVariable Long scheduleId,
-            @PathVariable Long userId) {
+            @PathVariable Long userId,
+            @AuthenticationPrincipal UserPrincipal user) {
+        Long requestingUserId = user.getUserId();
+        eventFundService.createFeeRequestForMember(clubId, scheduleId, userId, requestingUserId);
+        return ResponseEntity.ok().build();
+    }
 
-        eventFundService.createFeeRequestForMember(clubId, scheduleId, userId);
+    /**
+     * [일정] 추가 회비 요청
+     * POST /clubs/{id}/schedules/{scheduleId}/request-additional-fee
+     */
+    @PostMapping("/schedules/{scheduleId}/request-additional-fee")
+    public ResponseEntity<Void> requestAdditionalFee(
+            @PathVariable Long clubId,
+            @PathVariable Long scheduleId,
+            @RequestBody back.dto.ledger.request.AdditionalFeeRequest request,
+            @AuthenticationPrincipal UserPrincipal user) {
+        Long userId = user.getUserId();
+        eventFundService.requestAdditionalFee(clubId, scheduleId, request, userId);
         return ResponseEntity.ok().build();
     }
 
@@ -153,8 +171,10 @@ public class PaymentRequestController {
     @PostMapping("/schedules/{scheduleId}/settle")
     public ResponseEntity<Void> settleSchedule(
             @PathVariable Long clubId,
-            @PathVariable Long scheduleId) {
-        eventFundService.settleAndRefund(clubId, scheduleId);
+            @PathVariable Long scheduleId,
+            @AuthenticationPrincipal UserPrincipal user) {
+        Long userId = user.getUserId();
+        eventFundService.settleAndRefund(clubId, scheduleId, userId);
         return ResponseEntity.ok().build();
     }
 
@@ -186,7 +206,7 @@ public class PaymentRequestController {
         java.math.BigDecimal totalSpent = (request != null && request.totalSpent() != null)
                 ? request.totalSpent()
                 : null;
-        eventFundService.settleAndRefund(clubId, scheduleId, totalSpent);
+        eventFundService.settleAndRefund(clubId, scheduleId, totalSpent, userId);
         return ResponseEntity.ok().build();
     }
 }

@@ -182,6 +182,21 @@ export const updateParticipantAttendance = async (
 };
 
 /**
+ * userId로 참석 상태 업데이트 (참가자가 없으면 생성)
+ */
+export const updateParticipantAttendanceByUserId = async (
+  clubId: number,
+  scheduleId: number,
+  userId: number,
+  request: ScheduleParticipantUpdateRequest
+): Promise<ScheduleParticipantResponse> => {
+  return patch<ScheduleParticipantResponse>(
+    `/api/clubs/${clubId}/schedules/${scheduleId}/participants/by-user/${userId}`,
+    request
+  );
+};
+
+/**
  * 일정 마무리 (총 지출 입력 → 정산 → 환급 → 마감)
  */
 export const finalizeSchedule = async (

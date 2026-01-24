@@ -672,12 +672,14 @@ export function ScheduleListView() {
                           </p>
                           {bankAccount ? (
                             <div className="mt-2 space-y-1">
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-orange-600">입금 계좌:</span>
+                              <div className="flex text-xs">
+                                <span className="text-orange-600 w-16 text-right">입금 계좌</span>
+                                <span className="text-orange-600 mx-1">:</span>
                                 <span className="font-medium text-orange-700">{getBankName(bankAccount.bankCode)}</span>
                               </div>
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-orange-600">계좌번호:</span>
+                              <div className="flex text-xs">
+                                <span className="text-orange-600 w-16 text-right">계좌번호</span>
+                                <span className="text-orange-600 mx-1">:</span>
                                 <div className="flex items-center gap-1">
                                   <span className="font-mono font-medium text-orange-700">{bankAccount.accountNumber}</span>
                                   <Button
@@ -702,8 +704,9 @@ export function ScheduleListView() {
                                   </Button>
                                 </div>
                               </div>
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-orange-600">예금주:</span>
+                              <div className="flex text-xs">
+                                <span className="text-orange-600 w-16 text-right">예금주</span>
+                                <span className="text-orange-600 mx-1">:</span>
                                 <span className="font-medium text-orange-700">{bankAccount.depositorName}</span>
                               </div>
                               <p className="text-xs text-orange-500 mt-1">

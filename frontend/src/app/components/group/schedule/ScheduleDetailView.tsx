@@ -26,7 +26,7 @@ import { getRecentPosts } from '../../../../api/post';
 import { getPostComments, createComment, deleteComment, type PostCommentItem } from '../../../../api/comment';
 import { getMembers, type MemberListResponse } from '../../../../api/member';
 import { getBankAccount, type BankAccounts } from '../../../../api/bank';
-import { useUserPermissions } from '../../../data/userRoles';
+import { requestAdditionalFee } from '../../../../api/payment-request';
 import {
   Dialog,
   DialogContent,
@@ -39,7 +39,6 @@ import {
 export function ScheduleDetailView() {
   const navigate = useNavigate();
   const { groupId, scheduleId } = useParams();
-  const permissions = useUserPermissions(groupId || '1');
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
   const [participants, setParticipants] = useState<ScheduleParticipantResponse[]>([]);
   const [vote, setVote] = useState<VoteDetailResponse | null>(null);
@@ -52,7 +51,19 @@ export function ScheduleDetailView() {
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [loadingComments, setLoadingComments] = useState(false);
   const [members, setMembers] = useState<MemberListResponse[]>([]);
+  const [userRoles, setUserRoles] = useState<string[]>([]);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  
+  // 동적으로 계산된 권한
+  const permissions = useMemo(() => {
+    const hasRole = (role: string) => userRoles.includes(role);
+    return {
+      canManageGroup: hasRole('OWNER') || hasRole('ACCOUNTANT') || hasRole('STAFF'),
+      canWithdraw: hasRole('OWNER') || hasRole('ACCOUNTANT'),
+      canManageMembers: hasRole('OWNER') || hasRole('ACCOUNTANT') || hasRole('STAFF'),
+      canFinalizeSchedule: hasRole('OWNER') || hasRole('ACCOUNTANT') || hasRole('STAFF'),
+    };
+  }, [userRoles]);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editStartDate, setEditStartDate] = useState('');
@@ -73,7 +84,11 @@ export function ScheduleDetailView() {
   const [finalizeParticipantIds, setFinalizeParticipantIds] = useState<Set<number>>(new Set());
   const [bankAccount, setBankAccount] = useState<BankAccounts | null>(null);
   const [copied, setCopied] = useState(false);
-  const [, setLoadingBankAccount] = useState(false);
+  const [loadingBankAccount, setLoadingBankAccount] = useState(false);
+  const [showAdditionalFeeDialog, setShowAdditionalFeeDialog] = useState(false);
+  const [additionalFeeAmount, setAdditionalFeeAmount] = useState('');
+  const [additionalFeeReason, setAdditionalFeeReason] = useState('');
+  const [isRequestingFee, setIsRequestingFee] = useState(false);
 
   // 은행 코드를 은행 이름으로 변환
   const getBankName = (bankCode: string): string => {
@@ -90,18 +105,30 @@ export function ScheduleDetailView() {
     return bankMap[bankCode] || bankCode;
   };
 
-  // 현재 사용자 정보 조회
-  useEffect(() => {
-    async function fetchMyInfo() {
-      try {
-        const userInfo = await getMyInfo();
-        setCurrentUserId(userInfo.userId);
-      } catch (error) {
-        console.error('사용자 정보 조회 실패:', error);
-      }
-    }
-    fetchMyInfo();
-  }, []);
+  // 참가자 목록 병합 함수 (participants + members)
+  const mergeParticipantsWithMembers = useCallback((participantsData: ScheduleParticipantResponse[], membersToMerge?: MemberListResponse[]): ScheduleParticipantResponse[] => {
+    if (!scheduleId) return participantsData;
+    
+    const membersList = membersToMerge || members;
+    const participantUserIds = new Set(participantsData.map(p => p.userId));
+    const allParticipants: ScheduleParticipantResponse[] = [
+      ...participantsData,
+      ...membersList
+        .filter(member => !participantUserIds.has(member.userId))
+        .map(member => ({
+          participantId: 0,
+          scheduleId: Number(scheduleId),
+          userId: member.userId,
+          userName: member.realName || 'Unknown',
+          attendanceStatus: 'UNDECIDED' as const,
+          feeStatus: 'PENDING' as const,
+          isRefunded: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }))
+    ];
+    return allParticipants;
+  }, [members, scheduleId]);
 
   // 일정과 연결된 게시글 찾기 및 댓글 조회
   const fetchLinkedPostComments = useCallback(async () => {
@@ -136,11 +163,12 @@ export function ScheduleDetailView() {
       try {
         setLoading(true);
 
-        // 핵심 데이터를 병렬로 가져오기 (투표 정보 포함)
+        // 핵심 데이터를 병렬로 가져오기 (투표 정보 포함, myInfo 추가)
         const schedulePromise = getSchedule(Number(groupId), Number(scheduleId));
         const participantsPromise = getScheduleParticipants(Number(groupId), Number(scheduleId));
         const votesPromise = getVotes(Number(groupId)).catch(() => [] as VoteListResponse[]);
         const membersPromise = getMembers(Number(groupId), 'ACTIVE').catch(() => [] as MemberListResponse[]);
+        const myInfoPromise = getMyInfo();
         const accountPromise = getBankAccount(Number(groupId)).catch((error: any) => {
           // 에러 발생 시 null 반환 (나중에 별도로 재시도)
           const errorMessage = error?.message || String(error) || '';
@@ -159,44 +187,38 @@ export function ScheduleDetailView() {
           return null as BankAccounts | null;
         });
 
-        const [scheduleData, participantsData, votesData, membersData, accountData] = await Promise.all([
+        const [scheduleData, participantsData, votesData, membersData, myInfo, accountData] = await Promise.all([
           schedulePromise,
           participantsPromise,
           votesPromise,
           membersPromise,
+          myInfoPromise,
           accountPromise
         ] as any) as [
             ScheduleResponse,
             ScheduleParticipantResponse[],
             VoteListResponse[],
             MemberListResponse[],
+            { userId: number },
             BankAccounts | null
           ];
 
         setSchedule(scheduleData);
+        setCurrentUserId(myInfo.userId);
         
         // 모임의 모든 ACTIVE 멤버를 포함하도록 participants 확장
-        // 투표를 안 한 멤버들은 UNDECIDED 상태로 추가
-        const participantUserIds = new Set(participantsData.map(p => p.userId));
-        const allParticipants: ScheduleParticipantResponse[] = [
-          ...participantsData,
-          ...membersData
-            .filter(member => !participantUserIds.has(member.userId))
-            .map(member => ({
-              participantId: 0, // 아직 participant가 생성되지 않음
-              scheduleId: scheduleData.scheduleId,
-              userId: member.userId,
-              userName: member.realName || 'Unknown',
-              attendanceStatus: 'UNDECIDED' as const,
-              feeStatus: 'PENDING' as const,
-              isRefunded: false,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            }))
-        ];
-        
-        setParticipants(allParticipants);
         setMembers(membersData);
+        
+        // 현재 사용자의 역할 설정
+        const currentMember = membersData.find(m => m.userId === myInfo.userId);
+        if (currentMember && currentMember.roles) {
+          setUserRoles(currentMember.roles);
+        } else {
+          setUserRoles([]);
+        }
+        
+        const allParticipants = mergeParticipantsWithMembers(participantsData, membersData);
+        setParticipants(allParticipants);
         setBankAccount(accountData);
 
         // votes를 명시적으로 VoteListResponse[] 타입으로 지정
@@ -329,23 +351,9 @@ export function ScheduleDetailView() {
         (response === 'not_attending' && myResponse === 'not_attending');
 
       if (isToggling) {
-        // 이미 선택된 옵션을 다시 클릭하면 취소 (미정으로 변경)
-        if (!currentUserId) {
-          toast.error('사용자 정보를 찾을 수 없습니다');
-          return;
-        }
-
-        // 현재 사용자의 participant 찾기
-        const myParticipant = participants.find(p => p.userId === currentUserId);
-        if (!myParticipant) {
-          toast.error('참가자 정보를 찾을 수 없습니다');
-          return;
-        }
-
-        // 직접 참가자 상태를 UNDECIDED로 변경
-        await updateParticipantAttendance(Number(groupId), Number(scheduleId), myParticipant.participantId, {
-          attendanceStatus: 'UNDECIDED'
-        });
+        // 이미 선택된 옵션을 다시 클릭하면 선택 해제
+        // 선택한 옵션 ID를 빈 배열로 전송하여 투표 취소
+        await answerVote(Number(groupId), vote.voteId, { optionIds: [] });
 
         // 약간의 딜레이 후 서버 데이터로 동기화
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -354,23 +362,7 @@ export function ScheduleDetailView() {
         const updatedVote = await getVote(Number(groupId), vote.voteId);
 
         // 참가자 목록 새로고침 (멤버 전체를 다시 합쳐야 함)
-        const participantUserIds = new Set(participantsData.map(p => p.userId));
-        const allParticipants: ScheduleParticipantResponse[] = [
-          ...participantsData,
-          ...members
-            .filter(member => !participantUserIds.has(member.userId))
-            .map(member => ({
-              participantId: 0,
-              scheduleId: Number(scheduleId),
-              userId: member.userId,
-              userName: member.realName || 'Unknown',
-              attendanceStatus: 'UNDECIDED' as const,
-              feeStatus: 'PENDING' as const,
-              isRefunded: false,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            }))
-        ];
+        const allParticipants = mergeParticipantsWithMembers(participantsData, members);
         setParticipants(allParticipants);
         setVote(updatedVote);
         setMyResponse(null);
@@ -400,23 +392,7 @@ export function ScheduleDetailView() {
         const updatedVote = await getVote(Number(groupId), vote.voteId);
 
         // 참가자 목록 새로고침 (멤버 전체를 다시 합쳐야 함)
-        const participantUserIds = new Set(participantsData.map(p => p.userId));
-        const allParticipants: ScheduleParticipantResponse[] = [
-          ...participantsData,
-          ...members
-            .filter(member => !participantUserIds.has(member.userId))
-            .map(member => ({
-              participantId: 0,
-              scheduleId: Number(scheduleId),
-              userId: member.userId,
-              userName: member.realName || 'Unknown',
-              attendanceStatus: 'UNDECIDED' as const,
-              feeStatus: 'PENDING' as const,
-              isRefunded: false,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            }))
-        ];
+        const allParticipants = mergeParticipantsWithMembers(participantsData, members);
 
         // 상태 업데이트
         setParticipants(allParticipants);
@@ -507,6 +483,46 @@ export function ScheduleDetailView() {
     toast.success('링크가 복사되었습니다');
   };
 
+  // 추가 회비 요청 핸들러
+  const handleRequestAdditionalFee = async () => {
+    if (!groupId || !scheduleId) return;
+
+    const amount = parseFloat(additionalFeeAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('올바른 금액을 입력해주세요');
+      return;
+    }
+
+    const attendingCount = participants.filter(p => p.attendanceStatus === 'ATTENDING').length;
+    if (attendingCount === 0) {
+      toast.error('참석자가 없습니다');
+      return;
+    }
+
+    try {
+      setIsRequestingFee(true);
+      await requestAdditionalFee(Number(groupId), Number(scheduleId), {
+        amountPerPerson: amount,
+        reason: additionalFeeReason.trim() || undefined
+      });
+
+      toast.success(`${attendingCount}명에게 추가 회비 요청을 전송했습니다`);
+      setShowAdditionalFeeDialog(false);
+      setAdditionalFeeAmount('');
+      setAdditionalFeeReason('');
+      
+      // 참가자 목록 새로고침 (members와 병합)
+      const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
+      const allParticipants = mergeParticipantsWithMembers(participantsData, members);
+      setParticipants(allParticipants);
+    } catch (error) {
+      console.error('추가 회비 요청 실패:', error);
+      toast.error('추가 회비 요청에 실패했습니다');
+    } finally {
+      setIsRequestingFee(false);
+    }
+  };
+
 
   // 일정 마무리 다이얼로그 열기
   const handleOpenFinalizeDialog = () => {
@@ -547,23 +563,7 @@ export function ScheduleDetailView() {
       const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
       setSchedule(scheduleData);
       // 참가자 목록 새로고침 (멤버 전체를 다시 합쳐야 함)
-      const participantUserIds = new Set(participantsData.map(p => p.userId));
-      const allParticipants: ScheduleParticipantResponse[] = [
-        ...participantsData,
-        ...members
-          .filter(member => !participantUserIds.has(member.userId))
-          .map(member => ({
-            participantId: 0,
-            scheduleId: scheduleData.scheduleId,
-            userId: member.userId,
-            userName: member.realName || 'Unknown',
-            attendanceStatus: 'UNDECIDED' as const,
-            feeStatus: 'PENDING' as const,
-            isRefunded: false,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }))
-      ];
+      const allParticipants = mergeParticipantsWithMembers(participantsData, members);
       setParticipants(allParticipants);
     } catch (error) {
       console.error('일정 마무리 실패:', error);
@@ -623,23 +623,7 @@ export function ScheduleDetailView() {
       toast.success(isRefunded ? '환급 완료 처리되었습니다.' : '환급 상태가 초기화되었습니다.');
       // 참가자 목록 새로고침 (멤버 전체를 다시 합쳐야 함)
       const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
-      const participantUserIds = new Set(participantsData.map(p => p.userId));
-      const allParticipants: ScheduleParticipantResponse[] = [
-        ...participantsData,
-        ...members
-          .filter(member => !participantUserIds.has(member.userId))
-          .map(member => ({
-            participantId: 0,
-            scheduleId: Number(scheduleId),
-            userId: member.userId,
-            userName: member.realName || 'Unknown',
-            attendanceStatus: 'UNDECIDED' as const,
-            feeStatus: 'PENDING' as const,
-            isRefunded: false,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }))
-      ];
+      const allParticipants = mergeParticipantsWithMembers(participantsData);
       setParticipants(allParticipants);
     } catch (error) {
       console.error('환급 상태 변경 실패:', error);
@@ -648,8 +632,63 @@ export function ScheduleDetailView() {
   };
 
   // 참가자 참석 상태 변경 (총무 이상)
-  const handleUpdateAttendanceStatus = async (participantId: number, newStatus: 'ATTENDING' | 'NOT_ATTENDING' | 'UNDECIDED') => {
+  const handleUpdateAttendanceStatus = async (participantId: number, newStatus: 'ATTENDING' | 'NOT_ATTENDING' | 'UNDECIDED', userId?: number) => {
     if (!groupId || !scheduleId) return;
+
+    // participantId가 0이면 먼저 투표를 통해 participant 생성
+    if (participantId === 0) {
+      // userId로 participant 찾기
+      const participant = userId ? participants.find(p => p.userId === userId) : participants.find(p => p.participantId === 0);
+      if (!participant) {
+        toast.error('참가자 정보를 찾을 수 없습니다.');
+        return;
+      }
+
+      // 투표 옵션 찾기
+      if (!vote) {
+        toast.error('투표 정보를 찾을 수 없습니다.');
+        return;
+      }
+
+      const attendingOption = vote.options.find(opt =>
+        opt.optionText === '참석' || opt.optionText.includes('참석')
+      );
+      const notAttendingOption = vote.options.find(opt =>
+        opt.optionText === '불참' || opt.optionText.includes('불참')
+      );
+
+      const selectedOptionId = newStatus === 'ATTENDING' 
+        ? attendingOption?.optionId 
+        : newStatus === 'NOT_ATTENDING'
+        ? notAttendingOption?.optionId
+        : null;
+
+      if (!selectedOptionId) {
+        toast.error('투표 옵션을 찾을 수 없습니다.');
+        return;
+      }
+
+      try {
+        // 투표 API 호출하여 participant 생성 (운영진은 투표 마감 후에도 가능)
+        const request: VoteAnswerRequest = {
+          optionIds: [selectedOptionId]
+        };
+        await answerVote(Number(groupId), vote.voteId, request);
+        
+        const statusLabel = newStatus === 'ATTENDING' ? '참석' : '불참';
+        toast.success(`참석 상태가 '${statusLabel}'으로 변경되었습니다.`);
+        
+        // 참가자 목록 새로고침
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
+        const allParticipants = mergeParticipantsWithMembers(participantsData, members);
+        setParticipants(allParticipants);
+      } catch (error) {
+        console.error('참석 상태 변경 실패:', error);
+        toast.error('참석 상태 변경에 실패했습니다.');
+      }
+      return;
+    }
 
     try {
       await updateParticipantAttendance(Number(groupId), Number(scheduleId), participantId, { attendanceStatus: newStatus });
@@ -657,23 +696,7 @@ export function ScheduleDetailView() {
       toast.success(`참석 상태가 '${statusLabel}'으로 변경되었습니다.`);
       // 참가자 목록 새로고침 (멤버 전체를 다시 합쳐야 함)
       const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
-      const participantUserIds = new Set(participantsData.map(p => p.userId));
-      const allParticipants: ScheduleParticipantResponse[] = [
-        ...participantsData,
-        ...members
-          .filter(member => !participantUserIds.has(member.userId))
-          .map(member => ({
-            participantId: 0,
-            scheduleId: Number(scheduleId),
-            userId: member.userId,
-            userName: member.realName || 'Unknown',
-            attendanceStatus: 'UNDECIDED' as const,
-            feeStatus: 'PENDING' as const,
-            isRefunded: false,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }))
-      ];
+      const allParticipants = mergeParticipantsWithMembers(participantsData);
       setParticipants(allParticipants);
     } catch (error) {
       console.error('참석 상태 변경 실패:', error);
@@ -781,9 +804,15 @@ export function ScheduleDetailView() {
       toast.success('일정이 취소되었습니다');
       setShowCancelDialog(false);
       setCancelReason('');
+      
       // 일정 정보 새로고침
       const scheduleData = await getSchedule(Number(groupId), Number(scheduleId));
       setSchedule(scheduleData);
+      
+      // 참가자 목록 새로고침 (members와 병합)
+      const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
+      const allParticipants = mergeParticipantsWithMembers(participantsData, members);
+      setParticipants(allParticipants);
     } catch (error) {
       console.error('일정 취소 실패:', error);
       toast.error('일정 취소에 실패했습니다.');
@@ -818,6 +847,11 @@ export function ScheduleDetailView() {
           console.error('투표 정보 새로고침 실패:', error);
         }
       }
+      
+      // 참가자 목록 새로고침 (members와 병합)
+      const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
+      const allParticipants = mergeParticipantsWithMembers(participantsData, members);
+      setParticipants(allParticipants);
     } catch (error) {
       console.error('일정 마감 실패:', error);
       toast.error('일정 마감에 실패했습니다.');
@@ -848,7 +882,9 @@ export function ScheduleDetailView() {
             </Button>
             {/* 수정 버튼: 운영진 이상 또는 참가비 변경 시 총무 이상 */}
             {schedule && (schedule.status === 'OPEN' || schedule.status === 'PENDING') && (
-              (permissions.canManageGroup || (schedule.entryFee && schedule.entryFee > 0 ? permissions.canWithdraw : true)) && (
+              (schedule.entryFee && schedule.entryFee > 0
+                ? permissions.canWithdraw
+                : permissions.canManageGroup) && (
                 <Button variant="ghost" size="icon" onClick={handleStartEdit}>
                   <Edit3 className="w-5 h-5 text-stone-600" />
                 </Button>
@@ -1016,6 +1052,23 @@ export function ScheduleDetailView() {
                 </div>
               )
             )}
+            {/* 추가 회비 요청 버튼 (OPEN 상태, 일정 시작 후, 총무 이상, 참가비 있는 일정) */}
+            {schedule.status === 'OPEN' && isEventStarted && permissions.canWithdraw &&
+             (schedule.entryFee && schedule.entryFee > 0) && (
+              <div className="pt-3 border-t border-stone-100">
+                <Button
+                  onClick={() => setShowAdditionalFeeDialog(true)}
+                  size="sm"
+                  variant="outline"
+                  className="w-full border-blue-300 text-blue-600 hover:bg-blue-50"
+                >
+                  추가 회비 요청
+                </Button>
+                <p className="text-xs text-stone-500 mt-2 text-center">
+                  참석자들에게 추가 비용을 요청할 수 있습니다
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -1040,7 +1093,7 @@ export function ScheduleDetailView() {
                 </div>
               );
             })()}
-            <div className={`grid grid-cols-2 gap-3 ${(vote.status !== 'OPEN' && !permissions.canWithdraw) || schedule.status === 'CLOSED' ? 'opacity-60' : ''}`}>
+            <div className={`grid grid-cols-2 gap-3 ${vote.status !== 'OPEN' || schedule.status === 'CLOSED' ? 'opacity-60' : ''}`}>
               {(() => {
                 const attendingVariant: 'default' | 'outline' = myResponse === 'attending' ? 'default' : 'outline';
                 return (
@@ -1051,7 +1104,7 @@ export function ScheduleDetailView() {
                         : 'border-stone-200'
                       }`}
                     onClick={() => handleResponse('attending')}
-                    disabled={(vote.status !== 'OPEN' && !permissions.canWithdraw) || schedule.status === 'CLOSED'}
+                    disabled={vote.status !== 'OPEN' || schedule.status === 'CLOSED'}
                   >
                     <Check className="w-5 h-5 mr-2" />
                     참석
@@ -1068,7 +1121,7 @@ export function ScheduleDetailView() {
                         : 'border-stone-200'
                       }`}
                     onClick={() => handleResponse('not_attending')}
-                    disabled={(vote.status !== 'OPEN' && !permissions.canWithdraw) || schedule.status === 'CLOSED'}
+                    disabled={vote.status !== 'OPEN' || schedule.status === 'CLOSED'}
                   >
                     <X className="w-5 h-5 mr-2" />
                     불참
@@ -1191,7 +1244,7 @@ export function ScheduleDetailView() {
                               }`}
                             onClick={() => {
                               const newStatus = participant.attendanceStatus === 'ATTENDING' ? 'UNDECIDED' : 'ATTENDING';
-                              handleUpdateAttendanceStatus(participant.participantId, newStatus);
+                              handleUpdateAttendanceStatus(participant.participantId, newStatus, participant.userId);
                             }}
                           >
                             참석
@@ -1205,7 +1258,7 @@ export function ScheduleDetailView() {
                               }`}
                             onClick={() => {
                               const newStatus = participant.attendanceStatus === 'NOT_ATTENDING' ? 'UNDECIDED' : 'NOT_ATTENDING';
-                              handleUpdateAttendanceStatus(participant.participantId, newStatus);
+                              handleUpdateAttendanceStatus(participant.participantId, newStatus, participant.userId);
                             }}
                           >
                             불참
@@ -1217,6 +1270,7 @@ export function ScheduleDetailView() {
                               size="sm"
                               className={`h-6 px-1.5 text-xs ${isPaid ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}
                               onClick={() => handleUpdateFeeStatus(participant.participantId, isPaid ? 'PENDING' : 'PAID')}
+                              disabled={participant.participantId === 0}
                             >
                               {isPaid ? '납부취소' : '납부확인'}
                             </Button>
@@ -1228,6 +1282,7 @@ export function ScheduleDetailView() {
                               size="sm"
                               className={`h-6 px-1.5 text-xs ${isRefunded ? 'text-stone-600 hover:text-stone-700' : 'text-blue-600 hover:text-blue-700'}`}
                               onClick={() => handleUpdateRefundStatus(participant.participantId, !isRefunded)}
+                              disabled={participant.participantId === 0}
                             >
                               {isRefunded ? '환급취소' : '환급완료'}
                             </Button>
@@ -1249,7 +1304,7 @@ export function ScheduleDetailView() {
           // 참가비 여부에 따른 권한 체크
           const hasPermission = (schedule.entryFee ?? 0) > 0 
             ? permissions.canWithdraw  // 참가비 있으면 총무 이상 필요
-            : true;                     // 참가비 없으면 운영진(이미 canManageGroup 통과) OK
+            : permissions.canManageGroup;  // 참가비 없으면 운영진 이상
           
           // 권한 없으면 전체 섹션 숨김
           if (!hasPermission) return null;
@@ -1311,32 +1366,40 @@ export function ScheduleDetailView() {
                   <Check className="w-5 h-5 text-stone-600" />
                   <h3 className="font-bold text-stone-700">투표가 마감된 일정입니다</h3>
                 </div>
-                {schedule.status === 'OPEN' && permissions.canManageGroup && (
+                {schedule.status === 'OPEN' && (
                   <>
-                    <div className="flex gap-3">
-                      {/* 참가비 여부에 따라 권한 체크 후 렌더링 */}
-                      {((schedule.entryFee ?? 0) > 0 ? permissions.canWithdraw : true) && (
-                        <Button
-                          variant="outline"
-                          className="flex-1 h-12 rounded-xl border-orange-300 text-orange-600 hover:bg-orange-50"
-                          onClick={() => navigate(`/group/${groupId}/schedule/${scheduleId}/finalize`)}
-                        >
-                          <Check className="w-5 h-5 mr-2" />
-                          일정 종료
-                        </Button>
-                      )}
-                      {((schedule.entryFee ?? 0) > 0 ? permissions.canWithdraw : true) && (
-                        <Button
-                          variant="outline"
-                          className="flex-1 h-12 rounded-xl border-red-300 text-red-600 hover:bg-red-50"
-                          onClick={() => setShowCancelDialog(true)}
-                        >
-                          <X className="w-5 h-5 mr-2" />
-                          일정 취소
-                        </Button>
-                      )}
-                    </div>
-                    {(schedule.entryFee ?? 0) > 0 && (
+                    {/* 일정 종료 또는 일정 취소 버튼이 하나라도 보이는 경우에만 div 표시 */}
+                    {((schedule.entryFee && schedule.entryFee > 0 ? permissions.canWithdraw : permissions.canManageGroup)) && (
+                      <div className="flex gap-3">
+                        {/* 일정 종료: 참가비 있으면 총무 이상, 없으면 운영진 이상 */}
+                        {(schedule.entryFee && schedule.entryFee > 0
+                          ? permissions.canWithdraw
+                          : permissions.canManageGroup) && (
+                          <Button
+                            variant="outline"
+                            className="flex-1 h-12 rounded-xl border-orange-300 text-orange-600 hover:bg-orange-50"
+                            onClick={() => navigate(`/group/${groupId}/schedule/${scheduleId}/finalize`)}
+                          >
+                            <Check className="w-5 h-5 mr-2" />
+                            일정 종료
+                          </Button>
+                        )}
+                        {/* 일정 취소: 참가비 있으면 총무 이상, 없으면 운영진 이상 */}
+                        {(schedule.entryFee && schedule.entryFee > 0
+                          ? permissions.canWithdraw
+                          : permissions.canManageGroup) && (
+                          <Button
+                            variant="outline"
+                            className="flex-1 h-12 rounded-xl border-red-300 text-red-600 hover:bg-red-50"
+                            onClick={() => setShowCancelDialog(true)}
+                          >
+                            <X className="w-5 h-5 mr-2" />
+                            일정 취소
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    {(schedule.entryFee ?? 0) > 0 && permissions.canWithdraw && (
                       <p className="text-xs text-stone-500 mt-2">
                         * 참가비가 설정된 일정의 마감/취소는 총무 이상만 가능합니다. 환급은 일정 마무리에서 진행하세요.
                       </p>
@@ -1758,6 +1821,69 @@ export function ScheduleDetailView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 추가 회비 요청 다이얼로그 */}
+      <AlertDialog open={showAdditionalFeeDialog} onOpenChange={setShowAdditionalFeeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>추가 회비 요청</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>참석자 {participants.filter(p => p.attendanceStatus === 'ATTENDING').length}명에게 추가 회비를 요청합니다.</p>
+
+                <div className="space-y-2">
+                  <Label htmlFor="additionalAmount">1인당 금액 (필수)</Label>
+                  <Input
+                    id="additionalAmount"
+                    type="number"
+                    placeholder="예: 10000"
+                    value={additionalFeeAmount}
+                    onChange={(e) => setAdditionalFeeAmount(e.target.value)}
+                    min="0"
+                    className="text-right"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="additionalReason">사유 (선택)</Label>
+                  <Textarea
+                    id="additionalReason"
+                    placeholder="예: 식사비 추가, 교통비 증가"
+                    value={additionalFeeReason}
+                    onChange={(e) => setAdditionalFeeReason(e.target.value)}
+                    rows={2}
+                  />
+                </div>
+
+                {additionalFeeAmount && !isNaN(parseFloat(additionalFeeAmount)) && (
+                  <div className="bg-blue-50 rounded-lg p-3 text-sm">
+                    <p className="font-medium text-blue-900">
+                      총 요청 금액: {(parseFloat(additionalFeeAmount) * participants.filter(p => p.attendanceStatus === 'ATTENDING').length).toLocaleString()}원
+                    </p>
+                    <p className="text-blue-700 text-xs mt-1">
+                      {parseFloat(additionalFeeAmount).toLocaleString()}원 × {participants.filter(p => p.attendanceStatus === 'ATTENDING').length}명
+                    </p>
+                  </div>
+                )}
+
+                <p className="text-xs text-amber-600">
+                  ⚠️ 참석자들에게 알림이 전송되고 입금 요청이 생성됩니다.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRequestAdditionalFee}
+              disabled={isRequestingFee || !additionalFeeAmount || parseFloat(additionalFeeAmount) <= 0}
+              className="bg-blue-500 hover:bg-blue-600"
+            >
+              {isRequestingFee ? '요청 중...' : '요청하기'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

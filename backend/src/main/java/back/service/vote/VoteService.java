@@ -352,8 +352,20 @@ public class VoteService {
         }
 
         // 2. 투표 종료 여부 확인
+        // 투표가 마감되었지만 운영진 이상 권한이 있으면 투표 가능 (뒤늦게 참석하는 사람 추가)
         if ("CLOSED".equals(vote.getStatus())) {
-            throw new VoteException.AlreadyClosed();
+            boolean hasManagerPermission = false;
+            try {
+                clubsAuthorizationService.assertAtLeastManager(clubId, userId);
+                hasManagerPermission = true;
+            } catch (back.exception.ClubException e) {
+                // 운영진 권한이 없음 - ClubException의 모든 하위 예외 처리
+                hasManagerPermission = false;
+            }
+            
+            if (!hasManagerPermission) {
+                throw new VoteException.AlreadyClosed();
+            }
         }
 
         // ATTENDANCE 타입인데 scheduleId가 NULL인 경우 체크

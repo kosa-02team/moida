@@ -17,6 +17,7 @@ import back.repository.ledger.TransactionLogRepository;
 import back.repository.notifications.NotificationsRepository;
 import back.repository.schedule.ScheduleParticipantRepository;
 import back.repository.schedule.ScheduleRepository;
+import back.service.club.ClubAuthService;
 import back.service.notifications.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -43,15 +46,26 @@ public class EventFundService {
     private final BankAccountRepository bankAccountRepository;
     private final NotificationsRepository notificationsRepository;
     private final back.bank.service.BankService bankService;
+    private final ClubAuthService clubAuthService;
+    private final ClubMemberRepository clubMemberRepository;
+
 
     @Transactional
-    public void collectEntryFees(Long clubId, Long scheduleId) {
+    public void collectEntryFees(Long clubId, Long scheduleId, Long userId) {
+        // 권한 체크: 총무 이상
+        clubAuthService.assertAtLeastAccountant(clubId, userId);
+
         Schedules schedule = scheduleRepository.findById(scheduleId)
-                .orElseThrow(() -> new IllegalArgumentException("일정을 찾을 수 없습니다."));
+                .orElseThrow(ScheduleException.NotFound::new);
+
+        // clubId 일치 검증
+        if (!schedule.getClubId().equals(clubId)) {
+            throw new ScheduleException.NotFound();
+        }
 
         BigDecimal entryFee = schedule.getEntryFee();
         if (entryFee == null || entryFee.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("설정된 참가비가 없습니다.");
+            throw new ScheduleException.NotFound();
         }
 
         List<ScheduleParticipants> attendingParticipants = participantRepository.findByScheduleId(scheduleId)
@@ -72,7 +86,7 @@ public class EventFundService {
 
         // 참석 마감 처리
         schedule.closeAttendance();
-        
+
         // 은행 거래내역 동기화 (입금 내역 조회)
         try {
             bankService.syncTransactionsStub(clubId, 1L, null, null);
@@ -80,11 +94,11 @@ public class EventFundService {
             // 동기화 실패 시 로깅만 하고 계속 진행
             System.err.println("Bank sync failed during attendance closure: " + e.getMessage());
         }
-        
+
         // PaymentRequest 생성
         for (ScheduleParticipants p : attendingParticipants) {
             boolean alreadyRequested = paymentRequestRepository.existsByScheduleIdAndMemberId(
-                    scheduleId, p.getParticipantId());
+                    scheduleId, p.getUserId());
             if (alreadyRequested) {
                 continue;
             }
@@ -126,9 +140,17 @@ public class EventFundService {
 
     // 수동 처리용
     @Transactional
-    public void createFeeRequestForMember(Long clubId, Long scheduleId, Long userId) {
+    public void createFeeRequestForMember(Long clubId, Long scheduleId, Long userId, Long requestingUserId) {
+        // 권한 체크: 총무 이상
+        clubAuthService.assertAtLeastAccountant(clubId, requestingUserId);
+
         Schedules schedule = scheduleRepository.findById(scheduleId)
-                .orElseThrow(() -> new IllegalArgumentException("일정을 찾을 수 없습니다."));
+                .orElseThrow(ScheduleException.NotFound::new);
+
+        // clubId 일치 검증
+        if (!schedule.getClubId().equals(clubId)) {
+            throw new ScheduleException.NotFound();
+        }
 
         BigDecimal entryFee = schedule.getEntryFee();
         if (entryFee == null || entryFee.compareTo(BigDecimal.ZERO) <= 0) {
@@ -136,7 +158,7 @@ public class EventFundService {
         }
 
         Users user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(ScheduleException.NotFound::new);
 
         PaymentRequest req = new PaymentRequest(
                 clubId,
@@ -167,16 +189,16 @@ public class EventFundService {
     }
 
     @Transactional
-    public void settleAndRefund(Long clubId, Long scheduleId, BigDecimal inputTotalSpent) {
+    public void settleAndRefund(Long clubId, Long scheduleId, BigDecimal inputTotalSpent, Long userId) {
+        // 권한 체크: 총무 이상
+        clubAuthService.assertAtLeastAccountant(clubId, userId);
+
         Schedules schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(ScheduleException.NotFound::new);
 
+        // clubId 일치 검증
         if (!schedule.getClubId().equals(clubId)) {
             throw new ScheduleException.NotFound();
-        }
-
-        if ("CLOSED".equals(schedule.getStatus())) {
-            throw new ScheduleException.AlreadyClosed();
         }
 
         if ("CANCELLED".equals(schedule.getStatus())) {
@@ -220,7 +242,7 @@ public class EventFundService {
                 // 참석 마감이 되지 않은 경우, 일정 시작일 사용
                 attendanceClosedAt = schedule.getEventDate();
             }
-            
+
             LocalDateTime settlementEnd = schedule.getEndDate().plusDays(1).with(java.time.LocalTime.MAX);
 
             // 해당 기간의 TransactionLog 조회 (WITHDRAW만)
@@ -240,7 +262,7 @@ public class EventFundService {
                     .toList();
 
             totalSpent = expenses.stream()
-                    .filter(tx -> tx.getBankHistoryId() == null 
+                    .filter(tx -> tx.getBankHistoryId() == null
                             || !settlementHistoryIds.contains(tx.getBankHistoryId()))
                     .map(tx -> tx.getAmount().abs())
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -302,7 +324,99 @@ public class EventFundService {
     }
 
     @Transactional
-    public void settleAndRefund(Long clubId, Long scheduleId) {
-        settleAndRefund(clubId, scheduleId, null);
+    public void settleAndRefund(Long clubId, Long scheduleId, Long userId) {
+        settleAndRefund(clubId, scheduleId, null, userId);
+    }
+
+    @Transactional
+    public void requestAdditionalFee(
+            Long clubId,
+            Long scheduleId,
+            AdditionalFeeRequest request,
+            Long userId) {
+
+        // 1. 권한 체크: 총무 이상
+        clubAuthService.assertAtLeastAccountant(clubId, userId);
+
+        // 2. 일정 조회 및 상태 확인
+        Schedules schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(ScheduleException.NotFound::new);
+
+        // clubId 일치 검증
+        if (!schedule.getClubId().equals(clubId)) {
+            throw new ScheduleException.NotFound();
+        }
+
+        if (!"OPEN".equals(schedule.getStatus())) {
+            throw new ScheduleException.NotOpen();
+        }
+
+        LocalDate now = LocalDate.now();
+        LocalDate eventDate = schedule.getEventDate().toLocalDate();
+        if (now.isBefore(eventDate)) {
+            throw new ScheduleException.NotStarted();
+        }
+
+        // 3. 참석자 조회 (ATTENDING만)
+        List<ScheduleParticipants> attendees = participantRepository
+                .findByScheduleId(scheduleId)
+                .stream()
+                .filter(p -> "ATTENDING".equals(p.getAttendanceStatus()))
+                .toList();
+
+        if (attendees.isEmpty()) {
+            throw new ScheduleException.NoAttendees();
+        }
+
+        // 4. 각 참석자에 대해 PaymentRequest 생성
+        LocalDate expectedDate = now.plusDays(7); // 7일 후까지
+        List<PaymentRequest> requests = new ArrayList<>();
+
+        for (ScheduleParticipants attendee : attendees) {
+            Users user = userRepository.findById(attendee.getUserId())
+                    .orElseThrow(ScheduleException.NotFound::new);
+
+            PaymentRequest paymentRequest = new PaymentRequest(
+                    clubId,
+                    user.getUserId(),
+                    user.getRealName(),
+                    PaymentRequest.RequestType.SETTLEMENT,
+                    request.amountPerPerson(),
+                    expectedDate,
+                    10,
+                    null,
+                    scheduleId,
+                    null);
+
+            requests.add(paymentRequest);
+        }
+
+        paymentRequestRepository.saveAll(requests);
+
+        // 5. 알림 전송
+        String reason = request.reason() != null && !request.reason().isBlank()
+                ? request.reason()
+                : "추가 회비";
+
+        String formattedAmount = request.amountPerPerson().stripTrailingZeros().toPlainString();
+
+        for (ScheduleParticipants attendee : attendees) {
+            String message = String.format("[%s] %s 요청: %s원",
+                    schedule.getScheduleName(),
+                    reason,
+                    formattedAmount);
+
+            Notifications notification = new Notifications(
+                    attendee.getUserId(),
+                    message,
+                    scheduleId,
+                    NotificationType.PAYMENT_REQUEST.name()
+            );
+            Notifications savedNotification = notificationsRepository.save(notification);
+
+            // SSE로 실시간 알림 전송
+            NotificationResponse notificationResponse = NotificationResponse.from(savedNotification, clubId);
+            notificationService.send(attendee.getUserId(), notificationResponse);
+        }
     }
 }

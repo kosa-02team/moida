@@ -41,4 +41,22 @@ public class ScheduleException extends CustomGlobalException {
             super(ErrorCode.SCHEDULE_ALREADY_CANCELLED);
         }
     }
+
+    public static class NotOpen extends ScheduleException {
+        public NotOpen() {
+            super(ErrorCode.SCHEDULE_NOT_OPEN, "일정이 진행 중이 아닙니다");
+        }
+    }
+
+    public static class NotStarted extends ScheduleException {
+        public NotStarted() {
+            super(ErrorCode.SCHEDULE_NOT_STARTED, "일정이 아직 시작되지 않았습니다");
+        }
+    }
+
+    public static class NoAttendees extends ScheduleException {
+        public NoAttendees() {
+            super(ErrorCode.SCHEDULE_NO_ATTENDEES, "참석자가 없습니다");
+        }
+    }
 }

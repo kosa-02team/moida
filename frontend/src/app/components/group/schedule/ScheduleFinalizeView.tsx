@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, X, UserCheck, UserX, AlertTriangle, Calculator, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -8,7 +8,7 @@ import { Label } from '../../ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
 import { Badge } from '../../ui/badge';
-import { getSchedule, getScheduleParticipants, updateParticipantAttendance, finalizeSchedule, type ScheduleResponse, type ScheduleParticipantResponse, type ScheduleParticipantUpdateRequest } from '../../../../api/schedule';
+import { getSchedule, getScheduleParticipants, updateParticipantAttendance, updateParticipantAttendanceByUserId, finalizeSchedule, type ScheduleResponse, type ScheduleParticipantResponse, type ScheduleParticipantUpdateRequest } from '../../../../api/schedule';
 import { getMembers, type MemberListResponse } from '../../../../api/member';
 import { useUserPermissions } from '../../../data/userRoles';
 import {
@@ -38,12 +38,38 @@ export function ScheduleFinalizeView() {
   const permissions = useUserPermissions(groupId || '1');
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
   const [participants, setParticipants] = useState<ScheduleParticipantResponse[]>([]);
+  const [members, setMembers] = useState<MemberListResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [totalSpent, setTotalSpent] = useState(0);
   const [refundPerPerson, setRefundPerPerson] = useState(0);
-  const [updatingParticipantId, setUpdatingParticipantId] = useState<number | null>(null);
+  const [updatingUserId, setUpdatingUserId] = useState<number | null>(null);
+
+  // 참가자 목록 병합 함수 (participants + members)
+  const mergeParticipantsWithMembers = useCallback((participantsData: ScheduleParticipantResponse[], membersToMerge?: MemberListResponse[]): ScheduleParticipantResponse[] => {
+    if (!scheduleId) return participantsData;
+    
+    const membersList = membersToMerge || members;
+    const participantUserIds = new Set(participantsData.map(p => p.userId));
+    const allParticipants: ScheduleParticipantResponse[] = [
+      ...participantsData,
+      ...membersList
+        .filter(member => !participantUserIds.has(member.userId))
+        .map(member => ({
+          participantId: 0,
+          scheduleId: Number(scheduleId),
+          userId: member.userId,
+          userName: member.realName || 'Unknown',
+          attendanceStatus: 'UNDECIDED' as const,
+          feeStatus: 'PENDING' as const,
+          isRefunded: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }))
+    ];
+    return allParticipants;
+  }, [members, scheduleId]);
 
   useEffect(() => {
     async function fetchData() {
@@ -59,24 +85,8 @@ export function ScheduleFinalizeView() {
         setSchedule(scheduleData);
         
         // 모든 ACTIVE 멤버를 포함하도록 participants 확장
-        const participantUserIds = new Set(participantsData.map(p => p.userId));
-        const allParticipants: ScheduleParticipantResponse[] = [
-          ...participantsData,
-          ...membersData
-            .filter(member => !participantUserIds.has(member.userId))
-            .map(member => ({
-              participantId: 0, // 아직 participant가 생성되지 않음
-              scheduleId: scheduleData.scheduleId,
-              userId: member.userId,
-              userName: member.realName || 'Unknown',
-              attendanceStatus: 'UNDECIDED' as const,
-              feeStatus: 'PENDING' as const,
-              isRefunded: false,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            }))
-        ];
-        
+        setMembers(membersData);
+        const allParticipants = mergeParticipantsWithMembers(participantsData, membersData);
         setParticipants(allParticipants);
         setTotalSpent(scheduleData.totalSpent || 0);
         
@@ -170,41 +180,33 @@ export function ScheduleFinalizeView() {
     const attendanceStatus = status === 'attended' ? 'ATTENDING' : 'NOT_ATTENDING';
     
     try {
-      setUpdatingParticipantId(participant.participantId);
+      setUpdatingUserId(participant.userId);
       const updateRequest: ScheduleParticipantUpdateRequest = {
         attendanceStatus: attendanceStatus as 'ATTENDING' | 'NOT_ATTENDING'
       };
-      await updateParticipantAttendance(
-        Number(groupId),
-        Number(scheduleId),
-        participant.participantId,
-        updateRequest
-      );
+      
+      // participantId가 0이면 userId로 업데이트 (참가자 자동 생성)
+      if (participant.participantId === 0) {
+        await updateParticipantAttendanceByUserId(
+          Number(groupId),
+          Number(scheduleId),
+          participant.userId,
+          updateRequest
+        );
+      } else {
+        await updateParticipantAttendance(
+          Number(groupId),
+          Number(scheduleId),
+          participant.participantId,
+          updateRequest
+        );
+      }
       
       // 참여자 목록 다시 불러오기 (members와 병합)
-      const [participantsData, membersData] = await Promise.all([
-        getScheduleParticipants(Number(groupId), Number(scheduleId)),
-        getMembers(Number(groupId), 'ACTIVE').catch(() => [] as MemberListResponse[])
-      ]);
-
-      const participantUserIds = new Set(participantsData.map(p => p.userId));
-      const allParticipants: ScheduleParticipantResponse[] = [
-        ...participantsData,
-        ...membersData
-          .filter(member => !participantUserIds.has(member.userId))
-          .map(member => ({
-            participantId: 0,
-            scheduleId: Number(scheduleId),
-            userId: member.userId,
-            userName: member.realName || 'Unknown',
-            attendanceStatus: 'UNDECIDED' as const,
-            feeStatus: 'PENDING' as const,
-            isRefunded: false,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }))
-      ];
-
+      const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
+      const updatedMembers = await getMembers(Number(groupId), 'ACTIVE').catch(() => [] as MemberListResponse[]);
+      setMembers(updatedMembers);
+      const allParticipants = mergeParticipantsWithMembers(participantsData, updatedMembers);
       setParticipants(allParticipants);
       
       toast.success('참석 상태가 업데이트되었습니다');
@@ -212,7 +214,7 @@ export function ScheduleFinalizeView() {
       console.error('참석 상태 업데이트 실패:', error);
       toast.error('참석 상태 업데이트에 실패했습니다');
     } finally {
-      setUpdatingParticipantId(null);
+      setUpdatingUserId(null);
     }
   };
 
@@ -416,7 +418,7 @@ export function ScheduleFinalizeView() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => toggleActualStatus(p.id, 'attended')}
-                        disabled={updatingParticipantId === Number(p.id)}
+                        disabled={updatingUserId === Number(p.id)}
                         className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
                           p.actualStatus === 'attended' 
                             ? 'bg-green-500 text-white' 
@@ -427,7 +429,7 @@ export function ScheduleFinalizeView() {
                       </button>
                       <button
                         onClick={() => toggleActualStatus(p.id, 'absent')}
-                        disabled={updatingParticipantId === Number(p.id)}
+                        disabled={updatingUserId === Number(p.id)}
                         className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
                           p.actualStatus === 'absent' 
                             ? 'bg-red-500 text-white' 
