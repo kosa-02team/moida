@@ -133,7 +133,7 @@ class EventFundServiceTest {
                         // 실명이 잘 들어갔는지 확인
                         assertThat(capturedRequests).extracting("memberName")
                                         .containsExactlyInAnyOrder("홍길동", "김철수");
-                        
+
                         // ±10일 범위 확인
                         assertThat(capturedRequests.get(0).getMatchDaysRange()).isEqualTo(10);
                 }
@@ -150,7 +150,7 @@ class EventFundServiceTest {
                         Long clubId = 1L;
                         Long scheduleId = 100L;
                         Schedules schedule = createSchedule(scheduleId, BigDecimal.valueOf(10000));
-                        
+
                         // 참석 마감 시간 설정
                         ReflectionTestUtils.setField(schedule, "attendanceClosedAt", LocalDateTime.now().minusDays(2));
 

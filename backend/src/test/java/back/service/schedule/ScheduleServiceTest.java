@@ -568,7 +568,7 @@ class ScheduleServiceTest {
             assertThat(vote.getStatus()).isEqualTo("CLOSED");
             then(clubsAuthorizationService).should(times(1)).assertAtLeastAccountant(clubId, userId);
             then(voteRepository).should(times(1)).save(vote);
-            then(eventFundService).should(times(1)).collectEntryFees(clubId, scheduleId);
+            then(eventFundService).should(times(1)).collectEntryFees(clubId, scheduleId, userId);
         }
 
         @Test
