@@ -63,4 +63,13 @@ public class ClubMemberController {
         clubMemberService.kickMember(clubId, memberId);
         return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK));
     }
+
+    @PatchMapping("/{clubId}/leave")
+    public ResponseEntity<SuccessResponse<Void>> leave(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long clubId) {
+        Long userId = clubAuthorization.requireUserId(principal);
+        clubMemberService.leaveClub(clubId, userId);
+        return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK));
+    }
 }

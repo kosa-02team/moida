@@ -75,6 +75,15 @@ export const kickMember = async (
 };
 
 /**
+ * 모임 탈퇴
+ */
+export const leaveClub = async (
+  clubId: number
+): Promise<void> => {
+  return patch<void>(`/api/club-member/${clubId}/leave`, {});
+};
+
+/**
  * 모임 가입 요청
  */
 export interface JoinClubRequest {

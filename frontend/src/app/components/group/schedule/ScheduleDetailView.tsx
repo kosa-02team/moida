@@ -107,7 +107,7 @@ export function ScheduleDetailView() {
       // 일정과 연결된 게시글 찾기
       const posts = await getRecentPosts(Number(groupId), 0, 100);
       const linkedPost = posts.find(p => p.scheduleId === Number(scheduleId));
-
+      
       if (linkedPost) {
         setLinkedPostId(linkedPost.postId);
         // 댓글 조회
@@ -132,7 +132,7 @@ export function ScheduleDetailView() {
       if (!groupId || !scheduleId) return;
       try {
         setLoading(true);
-
+        
         // 핵심 데이터를 병렬로 가져오기 (투표 정보 포함)
         const schedulePromise = getSchedule(Number(groupId), Number(scheduleId));
         const participantsPromise = getScheduleParticipants(Number(groupId), Number(scheduleId));
@@ -155,7 +155,7 @@ export function ScheduleDetailView() {
           }
           return null as BankAccounts | null;
         });
-
+        
         const [scheduleData, participantsData, votesData, membersData, accountData] = await Promise.all([
           schedulePromise,
           participantsPromise,
@@ -174,10 +174,10 @@ export function ScheduleDetailView() {
         setParticipants(participantsData);
         setMembers(membersData);
         setBankAccount(accountData);
-
+        
         // votes를 명시적으로 VoteListResponse[] 타입으로 지정
         const votes: VoteListResponse[] = Array.isArray(votesData) ? votesData : [];
-
+        
         // 계좌 정보가 없으면 재시도 (계좌가 방금 생성되었을 수 있음)
         if (!accountData && scheduleData.entryFee && scheduleData.entryFee > 0) {
           // 즉시 재시도
@@ -193,12 +193,12 @@ export function ScheduleDetailView() {
             }
           })();
         }
-
+        
         // 일정의 ATTENDANCE 투표 조회 (scheduleId로 바로 필터링 가능)
         const attendanceVote = votes.find(v =>
           v.voteType === 'ATTENDANCE' && v.scheduleId === Number(scheduleId)
         );
-
+        
         // 투표 상세 정보를 병렬로 가져오기 (로딩 완료 전에 가져와야 투표 창이 바로 표시됨)
         if (attendanceVote) {
           try {
@@ -208,7 +208,7 @@ export function ScheduleDetailView() {
             console.error('투표 상세 조회 실패:', error);
           }
         }
-
+        
         // 일정과 연결된 게시글 및 댓글 조회 (비동기로 처리하여 블로킹 방지)
         fetchLinkedPostComments();
       } catch (error) {
@@ -220,7 +220,7 @@ export function ScheduleDetailView() {
       }
     }
     fetchData();
-
+    
     // 실시간 업데이트를 위한 인터벌 (5초마다)
     const interval = setInterval(async () => {
       if (groupId && scheduleId) {
@@ -229,7 +229,7 @@ export function ScheduleDetailView() {
           const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
           setSchedule(scheduleData);
           setParticipants(participantsData);
-
+          
           // 투표 정보 업데이트 (상태와 관계없이 해당 일정의 투표 찾기)
           try {
             const votes = await getVotes(Number(groupId));
@@ -246,7 +246,7 @@ export function ScheduleDetailView() {
           } catch (error) {
             console.error('투표 정보 갱신 실패:', error);
           }
-
+          
           // 연결된 게시글 댓글 업데이트
           await fetchLinkedPostComments();
         } catch (error) {
@@ -254,19 +254,19 @@ export function ScheduleDetailView() {
         }
       }
     }, 5000);
-
+    
     return () => clearInterval(interval);
   }, [groupId, scheduleId, navigate, fetchLinkedPostComments]);
-
+  
   // currentUserId가 설정되면 투표 상태 업데이트
   useEffect(() => {
     if (!currentUserId || !vote || !participants.length) return;
-
+    
     // 내 투표 확인 (optionText가 "참석" 또는 "불참"인 옵션 찾기)
     const mySelectedOptions = vote.options.filter(opt =>
       opt.voters?.some(v => v.userId === currentUserId)
     );
-
+    
     if (mySelectedOptions.length > 0) {
       const selectedOption = mySelectedOptions[0];
       if (selectedOption.optionText === '참석' || selectedOption.optionText.includes('참석')) {
@@ -1178,7 +1178,7 @@ export function ScheduleDetailView() {
                   // 댓글 작성자 정보 조회
                   const commentWriter = members.find(m => m.userId === c.writerId);
                   const commentWriterName = commentWriter?.clubNickname || commentWriter?.realName || `사용자${c.writerId}`;
-
+                  
                   return (
                     <div key={c.commentId} className="flex gap-3">
                       <Avatar className="w-8 h-8" draggable={false}>

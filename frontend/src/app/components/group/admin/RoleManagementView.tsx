@@ -1,14 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Shield, Crown, Wallet, Users, UserCircle, ChevronRight, Search, Check, Info } from 'lucide-react';
+import { ArrowLeft, Shield, Crown, Wallet, UserCircle, ChevronRight, Search, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
 import { Badge } from '../../ui/badge';
 import { Card, CardContent } from '../../ui/card';
-import { Checkbox } from '../../ui/checkbox';
-import { Label } from '../../ui/label';
+import { RadioGroup, RadioGroupItem } from '../../ui/radio-group';
 import {
   Dialog,
   DialogContent,
@@ -29,9 +28,10 @@ import {
 } from '../../ui/alert-dialog';
 import { getMembers, MemberListResponse, updateMemberRole } from '@/api/member';
 import { transferOwnership } from '@/api/club-full';
+import { getMyInfo } from '@/api/user';
 
-// 역할 타입 (중복 가능)
-type RoleType = 'treasurer' | 'manager';
+// 역할 타입 (단일 선택)
+type RoleType = 'treasurer' | 'manager' | 'member';
 
 interface Member {
   id: string;
@@ -62,10 +62,24 @@ function mapApiToMember(apiMember: MemberListResponse): Member {
   if (apiMember.roles.includes('ACCOUNTANT')) roles.push('treasurer');
   if (apiMember.roles.includes('STAFF')) roles.push('manager');
 
+  const isOwner = apiMember.roles.includes('OWNER');
+  
+  // 멤버 관리 탭에서는 모든 멤버를 "실명(닉네임)" 형식으로 표시
+  let displayName: string;
+  if (apiMember.realName && apiMember.clubNickname) {
+    displayName = `${apiMember.realName}(${apiMember.clubNickname})`;
+  } else if (apiMember.realName) {
+    displayName = apiMember.realName;
+  } else if (apiMember.clubNickname) {
+    displayName = apiMember.clubNickname;
+  } else {
+    displayName = '회원';
+  }
+
   return {
     id: apiMember.memberId.toString(),
-    name: apiMember.realName || apiMember.clubNickname || '회원',
-    isOwner: apiMember.roles.includes('OWNER'),
+    name: displayName,
+    isOwner,
     roles,
     joinedDate: new Date(apiMember.joinedAt).toLocaleDateString('ko-KR'),
   };
@@ -79,21 +93,44 @@ export function RoleManagementView() {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [showRoleDialog, setShowRoleDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
-  const [selectedRoles, setSelectedRoles] = useState<RoleType[]>([]);
+  const [selectedRole, setSelectedRole] = useState<RoleType | 'member'>('member');
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState<Member[]>([]);
+  const [isOwner, setIsOwner] = useState(false);
 
   // API로 멤버 목록 불러오기
-  const fetchMembers = async () => {
-    if (!clubId) return;
+  const fetchMembers = async (): Promise<boolean> => {
+    if (!clubId) return false;
     
     try {
       setLoading(true);
       const activeMembers = await getMembers(clubId, 'ACTIVE');
-      setMembers(activeMembers.map(mapApiToMember));
+      const mappedMembers = activeMembers.map(mapApiToMember);
+      setMembers(mappedMembers);
+      
+      // 현재 사용자 정보 확인
+      try {
+        const myInfo = await getMyInfo();
+        // 현재 사용자가 모임장인지 확인 (userId로 정확히 매칭)
+        const currentApiMember = activeMembers.find(am => am.userId === myInfo.userId);
+        if (currentApiMember) {
+          const currentMember = mappedMembers.find(m => m.id === currentApiMember.memberId.toString());
+          const isCurrentUserOwner = currentMember?.isOwner || false;
+          setIsOwner(isCurrentUserOwner);
+          return isCurrentUserOwner;
+        } else {
+          setIsOwner(false);
+          return false;
+        }
+      } catch (error) {
+        console.error('사용자 정보 조회 실패:', error);
+        setIsOwner(false);
+        return false;
+      }
     } catch (error) {
       console.error('멤버 목록 조회 실패:', error);
       toast.error('멤버 목록을 불러오는데 실패했습니다.');
+      return false;
     } finally {
       setLoading(false);
     }
@@ -103,7 +140,7 @@ export function RoleManagementView() {
     fetchMembers();
   }, [clubId]);
 
-  const roleIcons: Record<RoleType | 'owner' | 'member', React.ReactNode> = {
+  const roleIcons: Record<RoleType | 'owner' | 'member', ReactNode> = {
     owner: <Crown className="w-4 h-4" />,
     treasurer: <Wallet className="w-4 h-4" />,
     manager: <Shield className="w-4 h-4" />,
@@ -113,6 +150,7 @@ export function RoleManagementView() {
   const roleDescriptions: Record<RoleType, string> = {
     treasurer: '회비 채우기/보내기, 정산 관리, 지분 확인',
     manager: '멤버 관리, 게시글 삭제, 일정 마무리',
+    member: '일반 멤버',
   };
 
   const filteredMembers = members.filter(m => 
@@ -128,36 +166,39 @@ export function RoleManagementView() {
   });
 
   const handleMemberClick = (member: Member) => {
+    // 모임장만 권한 관리 가능
+    if (!isOwner) return;
+    
+    // 모임장 본인은 클릭 불가
+    if (member.isOwner) return;
+    
     setSelectedMember(member);
-    setSelectedRoles([...member.roles]);
+    // 현재 멤버의 역할을 단일 값으로 설정 (가장 높은 권한)
+    if (member.roles.includes('treasurer')) {
+      setSelectedRole('treasurer');
+    } else if (member.roles.includes('manager')) {
+      setSelectedRole('manager');
+    } else {
+      setSelectedRole('member');
+    }
     setShowRoleDialog(true);
-  };
-
-  const handleRoleToggle = (role: RoleType) => {
-    setSelectedRoles(prev => 
-      prev.includes(role) 
-        ? prev.filter(r => r !== role)
-        : [...prev, role]
-    );
   };
 
   const handleSaveRoles = async () => {
     if (!selectedMember) return;
 
-    // 현재 백엔드는 단일 역할만 지원하므로 가장 높은 권한을 적용
+    // 단일 역할만 지원
     let newRole = 'MEMBER';
-    if (selectedRoles.includes('treasurer')) {
+    if (selectedRole === 'treasurer') {
       newRole = 'ACCOUNTANT';
-    } else if (selectedRoles.includes('manager')) {
+    } else if (selectedRole === 'manager') {
       newRole = 'STAFF';
     }
 
     try {
       await updateMemberRole(clubId, parseInt(selectedMember.id), newRole);
-      const roleNames = selectedRoles.length > 0 
-        ? selectedRoles.map(r => ROLE_LABELS[r]).join(', ')
-        : '일반 회원';
-      toast.success(`${selectedMember.name}님의 권한이 ${roleNames}(으)로 변경되었습니다`);
+      const roleName = selectedRole === 'member' ? '일반 회원' : ROLE_LABELS[selectedRole];
+      toast.success(`${selectedMember.name}님의 권한이 ${roleName}(으)로 변경되었습니다`);
       setShowRoleDialog(false);
       fetchMembers(); // 목록 새로고침
     } catch (error) {
@@ -176,8 +217,12 @@ export function RoleManagementView() {
       toast.success(`${selectedMember.name}님에게 모임장을 위임했습니다`);
       setShowTransferDialog(false);
       setSelectedMember(null);
-      // 멤버 목록 다시 불러오기
-      await fetchMembers();
+      // 멤버 목록 다시 불러오기 (현재 사용자 정보도 업데이트됨)
+      const isStillOwner = await fetchMembers();
+      // 모임장 위임 후 더 이상 모임장이 아니므로 관리 페이지로 리다이렉트
+      if (!isStillOwner) {
+        navigate(`/group/${groupId}`);
+      }
     } catch (error) {
       console.error('모임장 위임 실패:', error);
       toast.error('모임장 위임에 실패했습니다');
@@ -221,20 +266,21 @@ export function RoleManagementView() {
 
       <div className="p-5 space-y-6">
         {/* Info */}
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <Info className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-blue-800">권한 중복 가능</p>
-                <p className="text-xs text-blue-700 mt-1">
-                  한 멤버가 총무와 운영진 권한을 동시에 가질 수 있습니다.
-                  모임장은 모든 권한을 자동으로 보유합니다.
-                </p>
+        {isOwner && (
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <Info className="w-5 h-5 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800">모임장 위임</p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    모임장을 다른 멤버에게 위임할 수 있습니다. 위임 후에는 일반 회원이 되며, 모든 관리 권한을 잃게 됩니다.
+                  </p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Role Legend */}
         <div className="bg-white rounded-2xl p-4 border border-stone-100 space-y-3">
@@ -262,6 +308,9 @@ export function RoleManagementView() {
               <p className="text-xs text-stone-600 flex-1">{roleDescriptions.manager}</p>
             </div>
           </div>
+          <p className="text-xs text-stone-500 pt-2 border-t border-stone-100">
+            💡 권한은 계층 구조로 관리되며, 한 멤버는 하나의 권한만 가질 수 있습니다.
+          </p>
         </div>
 
         {/* Search */}
@@ -287,9 +336,10 @@ export function RoleManagementView() {
               <button
                 key={member.id}
                 onClick={() => handleMemberClick(member)}
+                disabled={!isOwner || member.isOwner}
                 className={`w-full p-4 flex items-center gap-3 text-left transition-colors ${
-                  member.isOwner ? 'bg-orange-50' : 'hover:bg-stone-50'
-                }`}
+                  member.isOwner ? 'bg-orange-50' : isOwner ? 'hover:bg-stone-50 cursor-pointer' : 'cursor-default'
+                } ${!isOwner || member.isOwner ? 'opacity-60' : ''}`}
               >
                 <Avatar className="w-12 h-12">
                   <AvatarImage src={member.avatar} />
@@ -311,25 +361,17 @@ export function RoleManagementView() {
                     ))}
                   </div>
                 </div>
-                <ChevronRight className="w-5 h-5 text-stone-300 shrink-0" />
+                {isOwner && !member.isOwner && (
+                  <ChevronRight className="w-5 h-5 text-stone-300 shrink-0" />
+                )}
+                {member.isOwner && (
+                  <span className="text-xs text-stone-400">모임장</span>
+                )}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Transfer Ownership Button */}
-        <Button
-          variant="outline"
-          onClick={() => {
-            setSelectedMember(null);
-            // 모임장이 아닌 멤버 선택 다이얼로그 표시
-            setShowTransferDialog(true);
-          }}
-          className="w-full h-12 border-orange-200 text-orange-600 hover:bg-orange-50"
-        >
-          <Crown className="w-5 h-5 mr-2" />
-          모임장 위임하기
-        </Button>
       </div>
 
       {/* Role Change Dialog */}
@@ -338,90 +380,95 @@ export function RoleManagementView() {
           <DialogHeader>
             <DialogTitle>권한 변경</DialogTitle>
             <DialogDescription>
-              {selectedMember?.name}님에게 부여할 권한을 선택하세요 (중복 가능)
+              {selectedMember?.name}님에게 부여할 권한을 선택하세요
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-4 space-y-4">
-            {/* 모임장인 경우 */}
-            {selectedMember?.isOwner && (
-              <Card className="border-orange-200 bg-orange-50">
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-2 text-orange-700">
-                    <Crown className="w-4 h-4" />
-                    <span className="text-sm font-medium">모임장은 모든 권한을 자동으로 보유합니다</span>
+            {/* 권한 선택 (단일 선택) */}
+            <RadioGroup value={selectedRole} onValueChange={(v) => setSelectedRole(v as RoleType | 'member')}>
+              <div className="space-y-3">
+                {/* 일반 회원 */}
+                <label
+                  className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors ${
+                    selectedRole === 'member'
+                      ? 'border-stone-500 bg-stone-50'
+                      : 'border-stone-100 hover:border-stone-200'
+                  }`}
+                >
+                  <RadioGroupItem 
+                    value="member" 
+                    className="mt-1 data-[state=checked]:border-stone-500 data-[state=checked]:bg-stone-500" 
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <UserCircle className="w-4 h-4 text-stone-600" />
+                      <span className="font-medium text-stone-900">일반 회원</span>
+                    </div>
+                    <p className="text-xs text-stone-500 mt-1">기본 권한</p>
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                </label>
 
-            {/* 추가 권한 선택 */}
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-stone-700">추가 권한 부여</p>
-              
-              {/* 총무 */}
-              <div 
-                onClick={() => handleRoleToggle('treasurer')}
-                className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors ${
-                  selectedRoles.includes('treasurer')
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-stone-100 hover:border-stone-200'
-                }`}
-              >
-                <Checkbox
-                  checked={selectedRoles.includes('treasurer')}
-                  className="data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <Wallet className="w-4 h-4 text-green-600" />
-                    <span className="font-medium text-stone-900">총무</span>
+                {/* 총무 */}
+                <label
+                  className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors ${
+                    selectedRole === 'treasurer'
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-stone-100 hover:border-stone-200'
+                  }`}
+                >
+                  <RadioGroupItem 
+                    value="treasurer" 
+                    className="mt-1 data-[state=checked]:border-green-500 data-[state=checked]:bg-green-500" 
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Wallet className="w-4 h-4 text-green-600" />
+                      <span className="font-medium text-stone-900">총무</span>
+                    </div>
+                    <p className="text-xs text-stone-500 mt-1">{roleDescriptions.treasurer}</p>
                   </div>
-                  <p className="text-xs text-stone-500 mt-1">{roleDescriptions.treasurer}</p>
-                </div>
-              </div>
+                </label>
 
-              {/* 운영진 */}
-              <div 
-                onClick={() => handleRoleToggle('manager')}
-                className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors ${
-                  selectedRoles.includes('manager')
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-stone-100 hover:border-stone-200'
-                }`}
-              >
-                <Checkbox
-                  checked={selectedRoles.includes('manager')}
-                  className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-blue-600" />
-                    <span className="font-medium text-stone-900">운영진</span>
+                {/* 운영진 */}
+                <label
+                  className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors ${
+                    selectedRole === 'manager'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-stone-100 hover:border-stone-200'
+                  }`}
+                >
+                  <RadioGroupItem 
+                    value="manager" 
+                    className="mt-1 data-[state=checked]:border-blue-500 data-[state=checked]:bg-blue-500" 
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-blue-600" />
+                      <span className="font-medium text-stone-900">운영진</span>
+                    </div>
+                    <p className="text-xs text-stone-500 mt-1">{roleDescriptions.manager}</p>
                   </div>
-                  <p className="text-xs text-stone-500 mt-1">{roleDescriptions.manager}</p>
-                </div>
+                </label>
               </div>
-            </div>
+            </RadioGroup>
 
             {/* 모임장 위임 */}
-            {!selectedMember?.isOwner && (
-              <div className="pt-2 border-t border-stone-100">
-                <button
-                  onClick={() => {
-                    setShowRoleDialog(false);
-                    setShowTransferDialog(true);
-                  }}
-                  className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-dashed border-orange-200 hover:bg-orange-50 transition-colors"
-                >
-                  <Crown className="w-5 h-5 text-orange-600" />
-                  <div className="flex-1 text-left">
-                    <p className="font-medium text-orange-600">모임장 위임</p>
-                    <p className="text-xs text-orange-500">이 멤버에게 모임장을 위임합니다</p>
-                  </div>
-                </button>
-              </div>
-            )}
+            <div className="pt-2 border-t border-stone-100">
+              <button
+                onClick={() => {
+                  setShowRoleDialog(false);
+                  setShowTransferDialog(true);
+                }}
+                className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-dashed border-orange-200 hover:bg-orange-50 transition-colors"
+              >
+                <Crown className="w-5 h-5 text-orange-600" />
+                <div className="flex-1 text-left">
+                  <p className="font-medium text-orange-600">모임장 위임</p>
+                  <p className="text-xs text-orange-500">이 멤버에게 모임장을 위임합니다</p>
+                </div>
+              </button>
+            </div>
           </div>
 
           <DialogFooter>

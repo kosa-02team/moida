@@ -90,7 +90,7 @@ export const apiClient = async <T>(
   if (requiresAuth) {
     const token = getToken();
     if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+        (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
     }
   }
 
@@ -110,7 +110,8 @@ export const apiClient = async <T>(
         const newToken = await refreshAccessToken();
         if (newToken) {
           // 새 토큰으로 재시도 (무한 루프 방지를 위해 retryOn401을 false로)
-          headers['Authorization'] = `Bearer ${newToken}`;
+            // (headers as any)로 감싸서 유연하게 접근합니다.
+            (headers as Record<string, string>)['Authorization'] = `Bearer ${newToken}`;
           const retryResponse = await fetch(url, {
             ...fetchOptions,
             headers,
@@ -165,7 +166,10 @@ export const apiClient = async <T>(
       const error = new Error(errorMessage);
       // status 정보를 에러 객체에 추가
       (error as any).status = response.status;
-      (error as any).response = { status: response.status };
+      (error as any).response = { 
+        status: response.status,
+        data: errorData // 에러 응답 데이터 포함
+      };
       throw error;
     }
 

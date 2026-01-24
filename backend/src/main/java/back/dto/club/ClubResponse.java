@@ -29,6 +29,8 @@ public class ClubResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime closedAt;
+    private String deletionRequestStatus;
+    private LocalDateTime deletionRequestedAt;
 
     public static ClubResponse from(Clubs entity, Integer currentMembers) {
         return ClubResponse.builder()
@@ -46,6 +48,8 @@ public class ClubResponse {
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .closedAt(entity.getClosedAt())
+                .deletionRequestStatus(entity.getDeletionRequestStatus() != null ? entity.getDeletionRequestStatus().name() : null)
+                .deletionRequestedAt(entity.getDeletionRequestedAt())
                 .build();
     }
 

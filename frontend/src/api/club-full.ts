@@ -14,13 +14,15 @@ export interface ClubDetailResponse {
   inviteCode: string;
   status: string;
   visibility: string;
-  type?: string;
-  category?: string;
-  maxMembers?: number;
-  currentMembers?: number;
+  type: string;
+  category: string;
+  maxMembers: number;
+  currentMembers: number;
   closedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  deletionRequestStatus?: string | null; // 'NONE' | 'PENDING' | 'APPROVED'
+  deletionRequestedAt?: string | null;
 }
 
 export interface ClubListResponse {
@@ -29,23 +31,27 @@ export interface ClubListResponse {
   visibility: string;
   status: string;
   memberCount: number;
-  inviteCode: string;
+  //inviteCode: string;
   createdAt: string;
   // ownerName은 백엔드에 없음
 }
 
+// 공통 타입으로 분리
+export type VisibilityType = 'PUBLIC' | 'PRIVATE';
+export type CategoryType = 'STUDY' | 'SPORTS' | 'SOCIAL' | 'HOBBY' | 'FINANCE' | 'ETC';
+
 export interface ClubCreateRequest {
-  clubName: string;
-  visibility?: 'PUBLIC' | 'PRIVATE';
-  type?: 'OPERATION_FEE' | 'FAIR_SETTLEMENT';
-  maxMembers?: number;
-  category?: 'STUDY' | 'SPORTS' | 'SOCIAL' | 'HOBBY' | 'FINANCE' | 'ETC';
+    clubName: string;
+    visibility?: VisibilityType; // 분리한 타입 사용
+    type?: 'OPERATION_FEE' | 'FAIR_SETTLEMENT';
+    maxMembers?: number;
+    category?: CategoryType;    // 분리한 타입 사용
 }
 
 export interface ClubUpdateRequest {
-  clubName?: string;
-  visibility?: 'PUBLIC' | 'PRIVATE';
-  category?: 'STUDY' | 'SPORTS' | 'SOCIAL' | 'HOBBY' | 'FINANCE' | 'ETC';
+    clubName?: string;
+    visibility?: VisibilityType;
+    category?: CategoryType;
 }
 
 // ==================== API Functions ====================
@@ -61,11 +67,12 @@ export const createClub = async (
 
 /**
  * 모임 정보 조회
+ * 비공개 모임도 조회 가능하므로 requiresAuth는 false로 설정
  */
 export const getClub = async (
   clubId: number
 ): Promise<ClubDetailResponse> => {
-  return get<ClubDetailResponse>(`/api/clubs/${clubId}`);
+  return get<ClubDetailResponse>(`/api/clubs/${clubId}`, false);
 };
 
 /**
@@ -79,12 +86,48 @@ export const updateClub = async (
 };
 
 /**
- * 모임 삭제/폐쇄
+ * 모임 삭제/폐쇄 (운영진 동의 완료 후)
  */
 export const closeClub = async (
   clubId: number
 ): Promise<void> => {
   return patch<void>(`/api/clubs/${clubId}/close`, {});
+};
+
+/**
+ * 모임 삭제 요청 시작 (모임장만)
+ */
+export const requestClubDeletion = async (
+  clubId: number
+): Promise<void> => {
+  return patch<void>(`/api/clubs/${clubId}/request-deletion`, {});
+};
+
+/**
+ * 모임 삭제 동의 (운영진만)
+ */
+export const approveClubDeletion = async (
+  clubId: number
+): Promise<void> => {
+  return patch<void>(`/api/clubs/${clubId}/approve-deletion`, {});
+};
+
+/**
+ * 모임 삭제 거부 (운영진만)
+ */
+export const rejectClubDeletion = async (
+  clubId: number
+): Promise<void> => {
+  return patch<void>(`/api/clubs/${clubId}/reject-deletion`, {});
+};
+
+/**
+ * 모임 삭제 요청 취소 (모임장만)
+ */
+export const cancelDeletionRequest = async (
+  clubId: number
+): Promise<void> => {
+  return patch<void>(`/api/clubs/${clubId}/cancel-deletion-request`, {});
 };
 
 /**
@@ -144,6 +187,7 @@ export const getClubsByCategoryAndStatus = async (
 
 /**
  * 모임 검색 (카테고리, 이름)
+ * 백엔드 API: GET /api/clubs/search?category=...&clubName=...
  */
 export const searchClubs = async (
   category?: string,
@@ -186,10 +230,11 @@ export const joinClub = async (
 
 /**
  * 모임장 위임
+ * 백엔드 API: PATCH /api/clubs/{clubId}/transfer-ownership
  */
 export const transferOwnership = async (
   clubId: number,
   request: TransferOwnershipRequest
 ): Promise<void> => {
-  return patch<void>(`/api/club-member/${clubId}/transfer-ownership`, request);
+  return patch<void>(`/api/clubs/${clubId}/transfer-ownership`, request);
 };

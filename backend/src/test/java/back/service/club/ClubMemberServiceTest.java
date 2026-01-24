@@ -64,7 +64,9 @@ class ClubMemberServiceTest {
                         given(clubRepository.findById(clubId)).willReturn(Optional.of(club));
                         given(clubMemberRepository.countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE))
                                         .willReturn(10L);
-                        given(clubMemberRepository.existsByClubIdAndNickname(clubId, request.getNickname()))
+                        given(clubMemberRepository.existsByClubIdAndNicknameAndStatus(clubId, request.getNickname(), ClubMembers.Status.ACTIVE))
+                                        .willReturn(false);
+                        given(clubMemberRepository.existsByClubIdAndNicknameAndStatus(clubId, request.getNickname(), ClubMembers.Status.PENDING))
                                         .willReturn(false);
 
                         ClubMembers newMember = ClubMembers.builder()
@@ -108,7 +110,9 @@ class ClubMemberServiceTest {
                         given(clubRepository.findById(clubId)).willReturn(Optional.of(club));
                         given(clubMemberRepository.countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE))
                                         .willReturn(10L);
-                        given(clubMemberRepository.existsByClubIdAndNickname(clubId, request.getNickname()))
+                        given(clubMemberRepository.existsByClubIdAndNicknameAndStatus(clubId, request.getNickname(), ClubMembers.Status.ACTIVE))
+                                        .willReturn(false);
+                        given(clubMemberRepository.existsByClubIdAndNicknameAndStatus(clubId, request.getNickname(), ClubMembers.Status.PENDING))
                                         .willReturn(false);
 
                         ClubMembers existingMember = ClubMembers.builder()
@@ -149,7 +153,9 @@ class ClubMemberServiceTest {
                         given(clubRepository.findById(clubId)).willReturn(Optional.of(club));
                         given(clubMemberRepository.countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE))
                                         .willReturn(10L);
-                        given(clubMemberRepository.existsByClubIdAndNickname(clubId, request.getNickname()))
+                        given(clubMemberRepository.existsByClubIdAndNicknameAndStatus(clubId, request.getNickname(), ClubMembers.Status.ACTIVE))
+                                        .willReturn(false);
+                        given(clubMemberRepository.existsByClubIdAndNicknameAndStatus(clubId, request.getNickname(), ClubMembers.Status.PENDING))
                                         .willReturn(false);
 
                         ClubMembers existingMember = ClubMembers.builder()
@@ -170,6 +176,48 @@ class ClubMemberServiceTest {
                         assertThat(response).isNotNull();
                         assertThat(existingMember.getStatus()).isEqualTo(ClubMembers.Status.PENDING);
 
+                        then(clubMemberRepository).should(times(1)).findByClubIdAndUserId(clubId, userId);
+                }
+
+                @Test
+                @DisplayName("재가입 실패 - 이미 PENDING 상태")
+                void join_club_fail_already_pending() {
+                        // given
+                        Long clubId = 1L;
+                        Long userId = 10L;
+                        Long ownerId = 999L;
+                        ClubMemberRequest request = ClubMemberRequest.builder()
+                                        .nickname("테스트닉네임")
+                                        .build();
+
+                        Clubs club = createClub(clubId, ownerId);
+                        given(clubRepository.findById(clubId)).willReturn(Optional.of(club));
+                        given(clubMemberRepository.countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE))
+                                        .willReturn(10L);
+                        given(clubMemberRepository.existsByClubIdAndNicknameAndStatus(clubId, request.getNickname(), ClubMembers.Status.ACTIVE))
+                                        .willReturn(false);
+                        given(clubMemberRepository.existsByClubIdAndNicknameAndStatus(clubId, request.getNickname(), ClubMembers.Status.PENDING))
+                                        .willReturn(false);
+
+                        ClubMembers existingMember = ClubMembers.builder()
+                                        .clubId(clubId)
+                                        .userId(userId)
+                                        .nickname("테스트닉네임")
+                                        .build();
+                        ReflectionTestUtils.setField(existingMember, "memberId", 1L);
+                        ReflectionTestUtils.setField(existingMember, "status", ClubMembers.Status.PENDING);
+
+                        given(clubMemberRepository.findByClubIdAndUserId(clubId, userId))
+                                        .willReturn(Optional.of(existingMember));
+
+                        // when & then
+                        assertThatThrownBy(() -> clubMemberService.joinClub(clubId, userId, request))
+                                        .isInstanceOf(ClubException.MemberAlreadyPending.class);
+
+                        then(clubRepository).should(times(1)).findById(clubId);
+                        then(clubMemberRepository).should(times(1)).countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE);
+                        then(clubMemberRepository).should(times(1)).existsByClubIdAndNicknameAndStatus(clubId, request.getNickname(), ClubMembers.Status.ACTIVE);
+                        then(clubMemberRepository).should(times(1)).existsByClubIdAndNicknameAndStatus(clubId, request.getNickname(), ClubMembers.Status.PENDING);
                         then(clubMemberRepository).should(times(1)).findByClubIdAndUserId(clubId, userId);
                 }
         }

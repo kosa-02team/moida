@@ -63,12 +63,22 @@ public class ClubAuthService {
         Clubs club = getClubOrThrow(clubId);
 
         boolean isOwner = club.getOwnerId().equals(userId);
+        if (isOwner) {
+            return;
+        }
         
         ClubMembers.Role role = clubMemberRepository.findActiveRole(clubId, userId)
                 .orElseThrow(ClubException.AuthNotActive::new);
-        boolean isManagerLevel = role.isAtLeast(ClubMembers.Role.STAFF);
+        // STAFF 이상 또는 ACCOUNTANT 이상 권한 체크
+        // priority: OWNER(0) < ACCOUNTANT(1) < STAFF(2) < MEMBER(3)
+        // isAtLeast는 priority <= targetRole.priority로 체크
+        // 따라서 isAtLeast(STAFF)는 STAFF, ACCOUNTANT, OWNER 모두 포함 (priority <= 2)
+        // isAtLeast(ACCOUNTANT)는 ACCOUNTANT, OWNER만 포함 (priority <= 1)
+        // STAFF 또는 ACCOUNTANT 이상이면 통과
+        boolean isStaffOrAbove = role.isAtLeast(ClubMembers.Role.STAFF);
+        boolean isAccountantOrAbove = role.isAtLeast(ClubMembers.Role.ACCOUNTANT);
         
-        if (!isOwner && !isManagerLevel) {
+        if (!isStaffOrAbove && !isAccountantOrAbove) {
             throw new ClubException.AuthStaffRequired();
         }
     }

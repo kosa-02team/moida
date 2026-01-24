@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Search, MoreVertical, UserCheck, UserX, Crown, Shield, Flag, Wallet, Ban, PauseCircle, PlayCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -35,8 +35,8 @@ import {
   DialogTitle,
 } from '../../ui/dialog';
 import { ReportDialog } from '../../report/ReportDialog';
-import { useUserPermissions } from '../../../data/userRoles';
 import { getMembers, MemberListResponse, updateMemberRole, approveMember, rejectMember, kickMember } from '@/api/member';
+import { getMyInfo } from '@/api/user';
 
 type SuspendDuration = '1day' | '3days' | '7days' | '30days' | 'permanent';
 
@@ -72,9 +72,21 @@ function mapApiToMember(apiMember: MemberListResponse): Member {
     role = 'manager';
   }
 
+  // 멤버 관리 탭에서는 모든 멤버를 "실명(닉네임)" 형식으로 표시
+  let displayName: string;
+  if (apiMember.realName && apiMember.clubNickname) {
+    displayName = `${apiMember.realName}(${apiMember.clubNickname})`;
+  } else if (apiMember.realName) {
+    displayName = apiMember.realName;
+  } else if (apiMember.clubNickname) {
+    displayName = apiMember.clubNickname;
+  } else {
+    displayName = '회원';
+  }
+
   return {
     id: apiMember.memberId.toString(),
-    name: apiMember.realName || apiMember.clubNickname || '회원',
+    name: displayName,
     role,
     joinedDate: new Date(apiMember.joinedAt).toLocaleDateString('ko-KR'),
     status: apiMember.status === 'ACTIVE' ? 'active' : 
@@ -88,7 +100,7 @@ export function MemberManagementView() {
   const navigate = useNavigate();
   const { groupId } = useParams();
   const clubId = groupId ? parseInt(groupId) : 0;
-  const permissions = useUserPermissions(groupId || '1');
+  const [allRoles, setAllRoles] = useState<Array<'owner' | 'treasurer' | 'manager' | 'member'>>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [showKickDialog, setShowKickDialog] = useState(false);
@@ -100,6 +112,58 @@ export function MemberManagementView() {
   const [suspendReason, setSuspendReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState<Member[]>([]);
+
+  // 실제 API에서 사용자 역할 조회
+  useEffect(() => {
+    async function fetchUserRole() {
+      if (!groupId) return;
+      try {
+        const myInfo = await getMyInfo();
+        const activeMembers = await getMembers(Number(groupId), 'ACTIVE');
+        const currentMember = activeMembers.find(m => m.userId === myInfo.userId);
+        
+        if (currentMember) {
+          const roles = currentMember.roles || [];
+          const roleArray: Array<'owner' | 'treasurer' | 'manager' | 'member'> = [];
+          
+          if (roles.includes('OWNER')) {
+            roleArray.push('owner');
+          }
+          if (roles.includes('ACCOUNTANT')) {
+            roleArray.push('treasurer');
+          }
+          if (roles.includes('STAFF')) {
+            roleArray.push('manager');
+          }
+          if (roleArray.length === 0) {
+            roleArray.push('member');
+          }
+          
+          setAllRoles(roleArray);
+        } else {
+          setAllRoles(['member']);
+        }
+      } catch (error) {
+        console.error('사용자 역할 조회 실패:', error);
+        setAllRoles(['member']);
+      }
+    }
+    fetchUserRole();
+  }, [groupId]);
+
+  // 권한 계산 (실제 역할 기반)
+  const permissions = useMemo(() => ({
+    canManageGroup: allRoles.includes('owner') || allRoles.includes('manager') || allRoles.includes('treasurer'),
+    canManageDues: allRoles.includes('owner') || allRoles.includes('treasurer'),
+    canWithdraw: allRoles.includes('owner') || allRoles.includes('treasurer'),
+    canManageShares: allRoles.includes('owner') || allRoles.includes('treasurer'),
+    canManageMembers: allRoles.includes('owner') || allRoles.includes('manager') || allRoles.includes('treasurer'),
+    canDeletePosts: allRoles.includes('owner') || allRoles.includes('manager'),
+    canDeleteComments: allRoles.includes('owner') || allRoles.includes('manager'),
+    canFinalizeSchedule: allRoles.includes('owner') || allRoles.includes('treasurer') || allRoles.includes('manager'),
+    canChangeManagementType: allRoles.includes('owner') || allRoles.includes('treasurer'),
+    canAssignRoles: allRoles.includes('owner'),
+  }), [allRoles]);
 
   // API로 멤버 목록 불러오기
   const fetchMembers = async () => {
@@ -445,96 +509,21 @@ export function MemberManagementView() {
                     <p className="text-xs text-stone-500">가입일: {member.joinedDate}</p>
                   </div>
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreVertical className="w-5 h-5 text-stone-400" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    {/* 권한 변경 - 모임장만 & owner는 변경 불가 */}
-                    {permissions.canAssignRoles && member.role !== 'owner' && (
-                      <>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setSelectedMember(member);
-                            setNewRole(member.role === 'member' ? 'manager' : 'member');
-                            setShowRoleDialog(true);
-                          }}
-                        >
-                          <Shield className="w-4 h-4 mr-2" />
-                          권한 변경
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                      </>
-                    )}
-                    
-                    {/* 정지/차단 - 운영진/모임장만 & owner는 불가 */}
-                    {permissions.canManageMembers && member.role !== 'owner' && (
-                      <>
-                        <DropdownMenuItem
-                          className="text-amber-600"
-                          onClick={() => {
-                            setSelectedMember(member);
-                            setShowSuspendDialog(true);
-                          }}
-                        >
-                          <PauseCircle className="w-4 h-4 mr-2" />
-                          일시정지
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={() => {
-                            setSelectedMember(member);
-                            setSuspendDuration('permanent');
-                            setShowSuspendDialog(true);
-                          }}
-                        >
-                          <Ban className="w-4 h-4 mr-2" />
-                          영구차단
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                      </>
-                    )}
-
-                    {/* 추방 - 운영진/모임장만 & owner는 추방 불가 */}
-                    {permissions.canManageMembers && member.role !== 'owner' && (
-                      <>
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={() => {
-                            setSelectedMember(member);
-                            setShowKickDialog(true);
-                          }}
-                        >
-                          <UserX className="w-4 h-4 mr-2" />
-                          추방하기
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                      </>
-                    )}
-                    
-                    {/* 신고 - 모두 가능 & owner는 신고 불가 */}
-                    {member.role !== 'owner' && (
-                      <DropdownMenuItem
-                        className="text-orange-600"
-                        onClick={() => {
-                          setSelectedMember(member);
-                          setShowReportDialog(true);
-                        }}
-                      >
-                        <Flag className="w-4 h-4 mr-2" />
-                        신고하기
-                      </DropdownMenuItem>
-                    )}
-                    
-                    {member.role === 'owner' && (
-                      <DropdownMenuItem disabled className="text-stone-400">
-                        모임장은 변경할 수 없습니다
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {/* 강퇴 버튼 - 운영진/모임장만 & owner는 강퇴 불가 */}
+                {permissions.canManageMembers && member.role !== 'owner' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedMember(member);
+                      setShowKickDialog(true);
+                    }}
+                    className="h-8 border-red-300 text-red-600 hover:bg-red-50"
+                  >
+                    <UserX className="w-4 h-4 mr-1" />
+                    강퇴
+                  </Button>
+                )}
               </div>
             ))}
           </div>
@@ -545,9 +534,11 @@ export function MemberManagementView() {
       <AlertDialog open={showKickDialog} onOpenChange={setShowKickDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>멤버 추방</AlertDialogTitle>
+            <AlertDialogTitle>멤버 강퇴</AlertDialogTitle>
             <AlertDialogDescription>
-              {selectedMember?.name}님을 정말 추방하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+              정말 <span className="font-bold text-stone-900">{selectedMember?.name}</span>님을 강퇴시키겠습니까?
+              <br /><br />
+              이 작업은 되돌릴 수 없으며, 강퇴된 멤버는 다시 가입할 수 없습니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -556,7 +547,7 @@ export function MemberManagementView() {
               onClick={handleKickMember}
               className="bg-red-500 hover:bg-red-600"
             >
-              추방하기
+              강퇴하기
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

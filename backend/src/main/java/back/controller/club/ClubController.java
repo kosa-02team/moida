@@ -94,6 +94,46 @@ public class ClubController {
         return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK));
     }
 
+    @PatchMapping("/{clubId}/request-deletion")
+    @PreAuthorize("@clubSecurity.isOwner(#clubId)")
+    public ResponseEntity<SuccessResponse<Void>> requestDeletion(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long clubId) {
+        Long ownerId = clubAuthorization.requireOwner(clubId, principal);
+        clubService.requestClubDeletion(clubId, ownerId);
+        return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK));
+    }
+
+    @PatchMapping("/{clubId}/approve-deletion")
+    @PreAuthorize("@clubSecurity.isAtLeastStaff(#clubId)")
+    public ResponseEntity<SuccessResponse<Void>> approveDeletion(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long clubId) {
+        Long userId = clubAuthorization.requireUserId(principal);
+        clubService.approveClubDeletion(clubId, userId);
+        return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK));
+    }
+
+    @PatchMapping("/{clubId}/reject-deletion")
+    @PreAuthorize("@clubSecurity.isAtLeastStaff(#clubId)")
+    public ResponseEntity<SuccessResponse<Void>> rejectDeletion(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long clubId) {
+        Long userId = clubAuthorization.requireUserId(principal);
+        clubService.rejectClubDeletion(clubId, userId);
+        return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK));
+    }
+
+    @PatchMapping("/{clubId}/cancel-deletion-request")
+    @PreAuthorize("@clubSecurity.isOwner(#clubId)")
+    public ResponseEntity<SuccessResponse<Void>> cancelDeletionRequest(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long clubId) {
+        Long ownerId = clubAuthorization.requireOwner(clubId, principal);
+        clubService.cancelClubDeletionRequest(clubId, ownerId);
+        return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK));
+    }
+
     @PatchMapping("/{clubId}/activate")
     @PreAuthorize("@clubSecurity.isOwner(#clubId)")
     public ResponseEntity<SuccessResponse<Void>> activateClub(

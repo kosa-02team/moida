@@ -148,7 +148,7 @@ export function StoryDetailView() {
         
         // 멤버 목록에서 작성자 정보 찾기
         const writerMember = members.find(m => m.userId === postData.writerId);
-        const writerName = writerMember?.clubNickname || writerMember?.realName || `사용자${postData.writerId}`;
+        const writerName = writerMember?.clubNickname || `사용자${postData.writerId}`;
         
         // 백엔드 응답에 없는 필드들을 보완
         const enrichedPost: PostDetailResponse = {
@@ -741,7 +741,7 @@ export function StoryDetailView() {
               {comments.map(comment => {
                 // 댓글 작성자 정보 조회
                 const commentWriter = members.find(m => m.userId === comment.writerId);
-                const commentWriterName = commentWriter?.clubNickname || commentWriter?.realName || `사용자${comment.writerId}`;
+                const commentWriterName = commentWriter?.clubNickname || `사용자${comment.writerId}`;
                 return (
                     <div key={comment.commentId} className="flex gap-3">
                     <div className="w-8 h-8 rounded-full bg-stone-200 shrink-0 flex items-center justify-center">
@@ -1034,7 +1034,7 @@ export function StoryDetailView() {
                             : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                         }`}
                       >
-                        @{member.clubNickname || member.realName}
+                        @{member.clubNickname || '멤버'}
                       </button>
                     );
                   })}

@@ -34,6 +34,9 @@ public enum ErrorCode {
     CLUB_INVALID_CATEGORY(BAD_REQUEST, "C05", "유효하지 않은 카테고리입니다."),
     CLUB_INVALID_STATUS(BAD_REQUEST, "C06", "유효하지 않은 상태값입니다."),
     CLUB_INVALID_ROLE(BAD_REQUEST, "C07", "유효하지 않은 역할입니다."),
+    CLUB_DELETION_NOT_APPROVED(BAD_REQUEST, "C08", "모든 운영진의 동의가 필요합니다."),
+    CLUB_DELETION_ALREADY_REQUESTED(BAD_REQUEST, "C09", "이미 삭제 요청이 진행 중입니다."),
+    CLUB_DELETION_NOT_REQUESTED(BAD_REQUEST, "C10", "진행 중인 삭제 요청이 없습니다."),
 
     //ClubAuth Error
     CLUB_AUTH_NOT_ACTIVE(FORBIDDEN, "CA01", "활성 멤버가 아닙니다."),
