@@ -10,6 +10,7 @@ import back.dto.ledger.response.ProcessedTransactionResponse;
 import back.dto.ledger.response.RefundResponse;
 import back.bank.repository.BankTransactionHistoryRepository;
 import back.repository.ledger.PaymentRequestRepository;
+import back.repository.ledger.TransactionLogRepository;
 import back.bank.dto.response.BankAccountResponseDTO;
 import back.bank.service.BankService;
 import back.domain.ledger.TransactionLog;
@@ -32,15 +33,18 @@ public class BankAccountController {
     private final BankTransactionHistoryRepository transactionHistoryRepository;
     private final PaymentRequestRepository paymentRequestRepository;
     private final BankAccountRepository bankAccountRepository;
+    private final TransactionLogRepository transactionLogRepository;
 
     public BankAccountController(BankService bankService,
             BankTransactionHistoryRepository transactionHistoryRepository,
             PaymentRequestRepository paymentRequestRepository,
-            BankAccountRepository bankAccountRepository) {
+            BankAccountRepository bankAccountRepository,
+            TransactionLogRepository transactionLogRepository) {
         this.bankService = bankService;
         this.transactionHistoryRepository = transactionHistoryRepository;
         this.paymentRequestRepository = paymentRequestRepository;
         this.bankAccountRepository = bankAccountRepository;
+        this.transactionLogRepository = transactionLogRepository;
     }
 
     /**
@@ -165,12 +169,79 @@ public class BankAccountController {
     }
 
     /**
+     * 일정별 거래내역 조회 (TransactionLog 기준)
+     * GET /clubs/{clubId}/schedules/{scheduleId}/transactions
+     */
+    @GetMapping("/schedules/{scheduleId}/transactions")
+    public ResponseEntity<ScheduleTransactionResponse> getScheduleTransactions(
+            @PathVariable Long clubId,
+            @PathVariable Long scheduleId) {
+        // 조회 전 은행 동기화 (최신 거래내역 반영)
+        try {
+            bankService.syncTransactionsStub(clubId, 1L, null, null); // 입금 내역
+            bankService.syncTransactionsStub(clubId, 2L, null, null); // 출금 내역
+        } catch (Exception e) {
+            // 동기화 실패 시 로깅만 하고 계속 진행
+            System.err.println("Bank sync failed during transaction query: " + e.getMessage());
+        }
+        
+        // 일정과 연결된 TransactionLog 조회
+        List<TransactionLog> scheduleLogs = transactionLogRepository.findByScheduleId(scheduleId);
+        
+        // 일정의 모든 PaymentRequest 조회
+        List<PaymentRequest> requests = paymentRequestRepository.findByScheduleId(scheduleId);
+        
+        // 매칭 여부 확인을 위한 Map
+        Map<Long, PaymentRequest> historyIdToRequest = requests.stream()
+                .filter(r -> r.getMatchedHistoryId() != null)
+                .collect(Collectors.toMap(PaymentRequest::getMatchedHistoryId, r -> r));
+        
+        // TransactionLog를 상세 정보로 변환
+        List<TransactionDetail> details = new ArrayList<>();
+        for (TransactionLog log : scheduleLogs) {
+            BankTransactionHistory history = null;
+            PaymentRequest matchedRequest = null;
+            
+            if (log.getBankHistoryId() != null) {
+                history = transactionHistoryRepository.findById(log.getBankHistoryId()).orElse(null);
+                if (history != null) {
+                    matchedRequest = historyIdToRequest.get(history.getHistoryId());
+                }
+            }
+            
+            details.add(new TransactionDetail(
+                    log.getTransactionId(),
+                    log.getType(),
+                    log.getAmount(),
+                    log.getBalanceAfter(),
+                    log.getDescription(),
+                    log.getCreatedAt(),
+                    history != null ? history.getHistoryId() : null,
+                    history != null ? history.getPrintContent() : null,
+                    matchedRequest != null ? matchedRequest.getMemberName() : null,
+                    matchedRequest != null ? matchedRequest.getStatus().name() : null
+            ));
+        }
+        
+        return ResponseEntity.ok(new ScheduleTransactionResponse(scheduleId, details));
+    }
+
+    /**
      * 미매칭 거래내역 조회
      * GET /clubs/{clubId}/bank/transactions/unmatched
      */
     @GetMapping("/transactions/unmatched")
     public ResponseEntity<UnmatchedTransactionsResponse> getUnmatchedTransactions(
             @PathVariable Long clubId) {
+        // 조회 전 은행 동기화 (최신 거래내역 반영)
+        try {
+            bankService.syncTransactionsStub(clubId, 1L, null, null); // 입금 내역
+            bankService.syncTransactionsStub(clubId, 2L, null, null); // 출금 내역
+        } catch (Exception e) {
+            // 동기화 실패 시 로깅만 하고 계속 진행
+            System.err.println("Bank sync failed during unmatched query: " + e.getMessage());
+        }
+        
         // 미매칭 거래내역 조회 (최근 30일)
         LocalDate to = LocalDate.now();
         LocalDate from = to.minusDays(30);
@@ -232,5 +303,23 @@ public class BankAccountController {
     public record UnmatchedTransactionsResponse(
             List<BankTransactionHistory> unmatchedTransactions,
             List<PaymentRequest> availableRequests) {
+    }
+
+    public record ScheduleTransactionResponse(
+            Long scheduleId,
+            List<TransactionDetail> transactions) {
+    }
+
+    public record TransactionDetail(
+            Long transactionId,
+            String type,
+            java.math.BigDecimal amount,
+            java.math.BigDecimal balanceAfter,
+            String description,
+            java.time.LocalDateTime createdAt,
+            Long bankHistoryId,
+            String printContent,
+            String matchedMemberName,
+            String matchStatus) {
     }
 }
