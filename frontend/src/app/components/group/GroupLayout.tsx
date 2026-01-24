@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useParams, Link, useLocation } from 'react-router-dom';
+import { Outlet, NavLink, useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Menu } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useState, useEffect } from 'react';
@@ -10,7 +10,6 @@ import { Badge } from '../ui/badge';
 export function GroupLayout() {
   const { groupId } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const [club, setClub] = useState<ClubDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string>('회원');

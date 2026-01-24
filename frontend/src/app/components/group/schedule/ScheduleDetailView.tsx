@@ -84,7 +84,7 @@ export function ScheduleDetailView() {
   const [finalizeParticipantIds, setFinalizeParticipantIds] = useState<Set<number>>(new Set());
   const [bankAccount, setBankAccount] = useState<BankAccounts | null>(null);
   const [copied, setCopied] = useState(false);
-  const [loadingBankAccount, setLoadingBankAccount] = useState(false);
+  const [, setLoadingBankAccount] = useState(false);
   const [showAdditionalFeeDialog, setShowAdditionalFeeDialog] = useState(false);
   const [additionalFeeAmount, setAdditionalFeeAmount] = useState('');
   const [additionalFeeReason, setAdditionalFeeReason] = useState('');
