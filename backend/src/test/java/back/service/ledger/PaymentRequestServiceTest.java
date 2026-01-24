@@ -19,13 +19,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.times;
+import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentRequestServiceTest {
 
     @Mock
     private PaymentRequestRepository paymentRequestRepository;
-
+    @Mock
+    private TransactionMatchingService transactionMatchingService;
     @InjectMocks
     private PaymentRequestService paymentRequestService;
 
@@ -36,23 +38,39 @@ class PaymentRequestServiceTest {
         Long clubId = 1L;
         Long scheduleId = 123L;
 
-        PaymentRequestCreateRequest.RequestItem item = new PaymentRequestCreateRequest.RequestItem(
-                10L, "홍길동", "DEPOSIT", BigDecimal.valueOf(10000), LocalDate.now(), 7, 7,
-                scheduleId, // ✨ scheduleId
-                null        // billingPeriod
-        );
-        PaymentRequestCreateRequest request = new PaymentRequestCreateRequest(List.of(item));
+        PaymentRequestCreateRequest.RequestItem item =
+                new PaymentRequestCreateRequest.RequestItem(
+                        10L,
+                        "홍길동",
+                        "DEPOSIT",
+                        BigDecimal.valueOf(10000),
+                        LocalDate.now(),
+                        7,
+                        7,
+                        scheduleId,
+                        null
+                );
+
+        PaymentRequestCreateRequest request =
+                new PaymentRequestCreateRequest(List.of(item));
+
+        // 🔑 핵심: save() stub
+        given(paymentRequestRepository.save(any(PaymentRequest.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
 
         // when
         paymentRequestService.createPaymentRequests(clubId, request);
 
         // then
-        ArgumentCaptor<PaymentRequest> captor = ArgumentCaptor.forClass(PaymentRequest.class);
+        ArgumentCaptor<PaymentRequest> captor =
+                ArgumentCaptor.forClass(PaymentRequest.class);
+
         then(paymentRequestRepository).should(times(1)).save(captor.capture());
 
         PaymentRequest saved = captor.getValue();
         assertThat(saved.getScheduleId()).isEqualTo(scheduleId);
-        assertThat(saved.getExpectedAmount()).isEqualByComparingTo(BigDecimal.valueOf(10000));
+        assertThat(saved.getExpectedAmount())
+                .isEqualByComparingTo(BigDecimal.valueOf(10000));
         assertThat(saved.getMemberName()).isEqualTo("홍길동");
     }
 }

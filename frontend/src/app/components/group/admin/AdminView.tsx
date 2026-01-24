@@ -34,12 +34,12 @@ export function AdminView() {
   const navigate = useNavigate();
   const { groupId } = useParams();
   const { club, loading: clubLoading } = useOutletContext<GroupContextType>();
-  
+
   // 실제 API에서 역할 정보 가져오기
   const [userRole, setUserRole] = useState<'owner' | 'treasurer' | 'manager' | 'member'>('member');
   const [allRoles, setAllRoles] = useState<Array<'owner' | 'treasurer' | 'manager' | 'member'>>([]);
   const [loadingRole, setLoadingRole] = useState(true);
-  
+
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [pendingCount, setPendingCount] = useState(0);
@@ -63,11 +63,11 @@ export function AdminView() {
         const myInfo = await getMyInfo();
         const members = await getMembers(Number(groupId), 'ACTIVE');
         const currentMember = members.find(m => m.userId === myInfo.userId);
-        
+
         if (currentMember) {
           const roles = currentMember.roles || [];
           const roleArray: Array<'owner' | 'treasurer' | 'manager' | 'member'> = [];
-          
+
           if (roles.includes('OWNER')) {
             roleArray.push('owner');
             setUserRole('owner');
@@ -84,7 +84,7 @@ export function AdminView() {
             roleArray.push('member');
             setUserRole('member');
           }
-          
+
           setAllRoles(roleArray);
         } else {
           setUserRole('member');
@@ -135,12 +135,12 @@ export function AdminView() {
   useEffect(() => {
     async function fetchAccount() {
       if (!groupId) return;
-      
+
       // 여러 번 재시도
       let retryCount = 0;
       const maxRetries = 2;
       const retryDelay = 1000;
-      
+
       const attemptFetch = async (): Promise<void> => {
         try {
           const account = await getBankAccount(Number(groupId));
@@ -150,15 +150,15 @@ export function AdminView() {
           // 에러 메시지에서 404, 400 또는 "not found", "찾을 수 없습니다" 확인
           const errorMessage = error?.message || String(error) || '';
           const status = error?.status || error?.response?.status;
-          const isNotFound = status === 404 || 
-                            status === 400 ||
-                            errorMessage.toLowerCase().includes('404') || 
-                            errorMessage.toLowerCase().includes('400') ||
-                            errorMessage.toLowerCase().includes('not found') ||
-                            errorMessage.toLowerCase().includes('존재하지') ||
-                            errorMessage.includes('찾을 수 없습니다') ||
-                            errorMessage.includes('계좌를 찾을 수 없습니다');
-          
+          const isNotFound = status === 404 ||
+            status === 400 ||
+            errorMessage.toLowerCase().includes('404') ||
+            errorMessage.toLowerCase().includes('400') ||
+            errorMessage.toLowerCase().includes('not found') ||
+            errorMessage.toLowerCase().includes('존재하지') ||
+            errorMessage.includes('찾을 수 없습니다') ||
+            errorMessage.includes('계좌를 찾을 수 없습니다');
+
           if (isNotFound) {
             // 404/400이면 계좌가 없는 것이므로 재시도하지 않음
             console.log('계좌 정보 없음 (정상):', { status, message: errorMessage });
@@ -171,7 +171,7 @@ export function AdminView() {
               status,
               message: errorMessage
             });
-            
+
             if (retryCount < maxRetries) {
               setTimeout(attemptFetch, retryDelay);
             } else {
@@ -181,12 +181,12 @@ export function AdminView() {
           }
         }
       };
-      
+
       attemptFetch();
     }
     fetchAccount();
   }, [groupId]);
-  
+
   // 로딩 중일 때는 권한 체크를 하지 않음
   if (loadingRole) {
     return (
@@ -197,9 +197,9 @@ export function AdminView() {
   }
 
   const groupName = club?.clubName || '모임';
-  const currentVisibility = club?.visibility === 'PUBLIC' ? 'public' : 
-                           club?.visibility === 'PRIVATE' ? 'private' : 'searchable';
-  
+  const currentVisibility = club?.visibility === 'PUBLIC' ? 'public' :
+    club?.visibility === 'PRIVATE' ? 'private' : 'searchable';
+
   // 모임이 닫혔는지 확인 (status가 INACTIVE이거나 closedAt이 null이 아닌 경우)
   const isClosed = club?.status === 'INACTIVE' || club?.closedAt !== null;
   const isOwner = userRole === 'owner';
@@ -214,7 +214,7 @@ export function AdminView() {
       'HANA': '하나은행',
       'KAKAO': '카카오뱅크',
       'TOSS': '토스뱅크',
-      'STUB': '테스트은행',
+      'STUB': '오픈은행',
     };
     return bankMap[bankCode] || bankCode;
   };
@@ -222,18 +222,18 @@ export function AdminView() {
   // 계좌 정보 조회
   const handleShowAccount = async () => {
     if (!groupId) return;
-    
+
     // 이미 조회된 계좌 정보가 있으면 바로 표시
     if (bankAccount) {
       setShowAccountDialog(true);
       return;
     }
-    
+
     // 계좌 정보를 여러 번 재시도하여 조회
     let retryCount = 0;
     const maxRetries = 3;
     const retryDelay = 500;
-    
+
     const attemptFetch = async (): Promise<void> => {
       try {
         setLoadingAccount(true);
@@ -246,15 +246,15 @@ export function AdminView() {
         // 에러 메시지에서 404, 400 또는 "not found", "찾을 수 없습니다" 확인
         const errorMessage = error?.message || String(error) || '';
         const status = error?.status || error?.response?.status;
-        const isNotFound = status === 404 || 
-                          status === 400 ||
-                          errorMessage.toLowerCase().includes('404') || 
-                          errorMessage.toLowerCase().includes('400') ||
-                          errorMessage.toLowerCase().includes('not found') ||
-                          errorMessage.toLowerCase().includes('존재하지') ||
-                          errorMessage.includes('찾을 수 없습니다') ||
-                          errorMessage.includes('계좌를 찾을 수 없습니다');
-        
+        const isNotFound = status === 404 ||
+          status === 400 ||
+          errorMessage.toLowerCase().includes('404') ||
+          errorMessage.toLowerCase().includes('400') ||
+          errorMessage.toLowerCase().includes('not found') ||
+          errorMessage.toLowerCase().includes('존재하지') ||
+          errorMessage.includes('찾을 수 없습니다') ||
+          errorMessage.includes('계좌를 찾을 수 없습니다');
+
         if (isNotFound && retryCount === 0) {
           // 첫 번째 시도에서 404/400이면 계좌가 없는 것이므로 생성 다이얼로그 표시
           setLoadingAccount(false);
@@ -271,7 +271,7 @@ export function AdminView() {
         }
       }
     };
-    
+
     attemptFetch();
   };
 
@@ -281,7 +281,7 @@ export function AdminView() {
     try {
       setCreatingAccount(true);
       const myInfo = await getMyInfo();
-      
+
       const request: AccountCreateRequest = {
         userId: myInfo.userId,
         bankCode: bankCode || 'STUB',
@@ -290,13 +290,13 @@ export function AdminView() {
       };
 
       const account = await createBankAccount(Number(groupId), request);
-      
+
       // 계좌 정보를 상태에 저장
       setBankAccount(account);
       setShowCreateAccountDialog(false);
       setShowAccountDialog(true);
       toast.success('계좌가 생성되었습니다');
-      
+
       // 계좌 생성 후 즉시 다시 조회하여 확인 (1회만)
       setTimeout(async () => {
         try {
@@ -420,7 +420,7 @@ export function AdminView() {
           <div className="px-4 py-3 bg-stone-50">
             <h3 className="font-medium text-stone-700">모임 관리</h3>
           </div>
-          
+
           <Link to="edit-group" className="block">
             <div className="p-4 flex items-center justify-between hover:bg-stone-50 cursor-pointer">
               <div className="flex items-center gap-3">
@@ -508,7 +508,7 @@ export function AdminView() {
           <div className="px-4 py-3 bg-stone-50">
             <h3 className="font-medium text-stone-700">멤버 관리</h3>
           </div>
-          
+
           {permissions.canManageMembers && (
             <Link to="members" className="block">
               <div className="p-4 flex items-center justify-between hover:bg-stone-50 cursor-pointer">
@@ -557,7 +557,7 @@ export function AdminView() {
       {permissions.canManageGroup && (
         <div className="bg-white rounded-xl border border-stone-100 p-4 space-y-6">
           <h3 className="font-bold text-stone-900">알림 설정</h3>
-          
+
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label className="text-base text-stone-900">새 멤버 가입 알림</Label>
@@ -569,7 +569,7 @@ export function AdminView() {
 
       {/* 위험 영역 - 모임장만 */}
       {userRole === 'owner' && (
-        <button 
+        <button
           onClick={() => setShowDeleteDialog(true)}
           className="w-full p-4 rounded-xl border border-red-100 bg-red-50 text-red-600 font-medium flex items-center justify-center gap-2 hover:bg-red-100 transition-colors"
         >
@@ -690,7 +690,7 @@ export function AdminView() {
                   />
                 </div>
                 <p className="text-xs text-stone-500">
-                  💡 기본값으로 STUB 은행 계좌가 자동 생성됩니다.
+                  💡 기본값으로 오픈은행 계좌가 자동 생성됩니다.
                 </p>
               </div>
             </AlertDialogDescription>
@@ -722,7 +722,7 @@ export function AdminView() {
             </div>
             <AlertDialogDescription className="space-y-4">
               <p>
-                이 작업은 되돌릴 수 없습니다. 모든 일정, 회비 내역, 앨범이 
+                이 작업은 되돌릴 수 없습니다. 모든 일정, 회비 내역, 앨범이
                 영구적으로 삭제됩니다.
               </p>
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">

@@ -4,7 +4,6 @@ import back.domain.ledger.PaymentRequest;
 import back.dto.ledger.request.PaymentRequestCreateRequest;
 import back.repository.ledger.PaymentRequestRepository;
 import back.exception.ResourceException;
-import back.exception.response.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,6 +50,11 @@ public class PaymentRequestService {
             createdRequests.add(paymentRequestRepository.save(paymentRequest));
         }
 
+        // 새로운 요청들을 기존 미매칭 거래내역과 매칭 시도
+        if (!createdRequests.isEmpty()) {
+            transactionMatchingService.matchRequestsWithExistingTransactions(clubId, createdRequests);
+        }
+
         return createdRequests;
     }
 
@@ -65,11 +69,28 @@ public class PaymentRequestService {
 
         // 매칭 이력 ID 등은 null로 처리하거나 별도 생성 필요
         request.confirmMatch(null, adminId);
+        paymentRequestRepository.save(request);
+    }
+
+    /**
+     * 입금 확인 취소
+     */
+    @Transactional
+    public void cancelPayment(Long requestId, Long adminId) {
+        transactionMatchingService.cancelMatch(requestId, adminId);
     }
 
     @Transactional
     public void confirmManualPayment(Long requestId, Long matchedBy) {
         transactionMatchingService.confirmPaymentWithoutHistory(requestId, matchedBy);
+    }
+
+    /**
+     * 다중 입금 확인 (하나의 거래내역에 여러 요청 매칭)
+     */
+    @Transactional
+    public void confirmMultiMatch(List<Long> requestIds, Long historyId, Long adminId) {
+        transactionMatchingService.manualMatchMultipleRequests(requestIds, historyId, adminId);
     }
 
     /**

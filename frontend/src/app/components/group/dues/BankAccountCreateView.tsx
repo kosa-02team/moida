@@ -23,6 +23,7 @@ const BANK_CODES: Record<string, string> = {
   '088': '신한은행',
   '090': '카카오뱅크',
   '092': '토스뱅크',
+  'STUB': '오픈은행',
 };
 
 export function BankAccountCreateView() {

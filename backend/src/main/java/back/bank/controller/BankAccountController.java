@@ -10,6 +10,7 @@ import back.dto.ledger.response.ProcessedTransactionResponse;
 import back.dto.ledger.response.RefundResponse;
 import back.bank.repository.BankTransactionHistoryRepository;
 import back.repository.ledger.PaymentRequestRepository;
+import back.bank.dto.response.BankAccountResponseDTO;
 import back.bank.service.BankService;
 import back.domain.ledger.TransactionLog;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -47,10 +48,10 @@ public class BankAccountController {
      * GET /clubs/{clubId}/bank/account
      */
     @GetMapping("/account")
-    public ResponseEntity<BankAccounts> getAccount(@PathVariable Long clubId) {
+    public ResponseEntity<BankAccountResponseDTO> getAccount(@PathVariable Long clubId) {
         BankAccounts account = bankAccountRepository.findByClubId(clubId)
                 .orElseThrow(() -> new IllegalArgumentException("모임 계좌를 찾을 수 없습니다."));
-        return ResponseEntity.ok(account);
+        return ResponseEntity.ok(BankAccountResponseDTO.from(account));
     }
 
     /**
@@ -58,11 +59,11 @@ public class BankAccountController {
      * POST /clubs/{clubId}/bank/accounts
      */
     @PostMapping("/accounts")
-    public ResponseEntity<BankAccounts> createAccount(
+    public ResponseEntity<BankAccountResponseDTO> createAccount(
             @PathVariable Long clubId,
             @RequestBody AccountCreateRequest request) {
         BankAccounts account = bankService.createAccount(clubId, request);
-        return ResponseEntity.ok(account);
+        return ResponseEntity.ok(BankAccountResponseDTO.from(account));
     }
 
     /**

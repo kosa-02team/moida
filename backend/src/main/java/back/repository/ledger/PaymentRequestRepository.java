@@ -35,7 +35,8 @@ public interface PaymentRequestRepository extends JpaRepository<PaymentRequest, 
         @Query("SELECT pr FROM PaymentRequest pr WHERE pr.clubId = :clubId " +
                         "AND pr.status = 'PENDING' " +
                         "AND pr.expectedDate BETWEEN :fromDate AND :toDate " +
-                        "AND (pr.expiresAt IS NULL OR pr.expiresAt > CURRENT_TIMESTAMP)")
+                        "AND (pr.expiresAt IS NULL OR pr.expiresAt > CURRENT_TIMESTAMP) " +
+                        "ORDER BY pr.expectedDate ASC")
         List<PaymentRequest> findMatchableRequestsByDateRange(
                         @Param("clubId") Long clubId,
                         @Param("fromDate") LocalDate fromDate,

@@ -64,6 +64,7 @@ public class PostService {
     private final VoteOptionRepository voteOptionRepository;
 
     private final Optional<PostVectorService> postVectorService;
+    private final ImageService imageService;
     // 알림 전송을 위해 추가
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
@@ -72,53 +73,55 @@ public class PostService {
         try {
             clubAuthorizationService.assertActiveMember(clubId, userId);
 
-        // userId를 memberId로 변환 (posts.writer_id는 club_members.member_id를 참조)
-        ClubMembers writer = clubMemberRepository.findByClubIdAndUserId(clubId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 모임의 멤버를 찾을 수 없습니다."));
-        Long writerId = writer.getMemberId();
+            // userId를 memberId로 변환 (posts.writer_id는 club_members.member_id를 참조)
+            ClubMembers writer = clubMemberRepository.findByClubIdAndUserId(clubId, userId)
+                    .orElseThrow(() -> new IllegalArgumentException("해당 모임의 멤버를 찾을 수 없습니다."));
+            Long writerId = writer.getMemberId();
 
-        // 투표 게시글인지 확인 (voteOptions가 있으면 투표 게시글)
-        boolean isVotePost = request.voteOptions() != null && !request.voteOptions().isEmpty();
-        
-        // 투표 게시글일 때는 title 필수, 일반 게시글일 때는 content 필수
-        if (isVotePost) {
-            if (request.title() == null || request.title().trim().isEmpty()) {
-                throw new VoteException.OptionInvalid(); // title이 필수
-            }
-        } else {
-            if (request.content() == null || request.content().trim().isEmpty()) {
-                throw new IllegalArgumentException("content는 필수입니다."); // content가 필수
-            }
-        }
-        
-        Posts saved;
-        if (isVotePost) {
-            // 투표 게시글 생성
-            saved = postRepository.save(buildVotePost(clubId, writerId, request));
-            
-            // 투표 생성
-            createVoteForPost(clubId, userId, saved, request);
-        } else {
-            // 일반 게시글 생성
-            saved = postRepository.save(buildStoryPost(clubId, writerId, request));
-            applyOptionalUpdatesOnCreate(saved, request);
-        }
+            // 투표 게시글인지 확인 (voteOptions가 있으면 투표 게시글)
+            boolean isVotePost = request.voteOptions() != null && !request.voteOptions().isEmpty();
 
-        // 벡터 서비스 호출 (실패해도 게시글 생성은 성공)
-        postVectorService.ifPresent(service -> {
-            try {
-                service.savePost(saved);
-            } catch (Exception e) {
-                // 벡터 DB 연결 실패 등으로 인한 에러는 로그만 남기고 게시글 생성은 계속 진행
-                log.warn("벡터 서비스 저장 실패 (게시글 생성은 성공): {}", e.getMessage());
+            // 투표 게시글일 때는 title 필수, 일반 게시글일 때는 content 필수
+            if (isVotePost) {
+                if (request.title() == null || request.title().trim().isEmpty()) {
+                    throw new VoteException.OptionInvalid(); // title이 필수
+                }
+            } else {
+                if (request.content() == null || request.content().trim().isEmpty()) {
+                    throw new IllegalArgumentException("content는 필수입니다."); // content가 필수
+                }
             }
-        });
-        
+
+            Posts saved;
+            if (isVotePost) {
+                // 투표 게시글 생성
+                saved = postRepository.save(buildVotePost(clubId, writerId, request));
+
+                // 투표 생성
+                createVoteForPost(clubId, userId, saved, request);
+            } else {
+                // 일반 게시글 생성
+
+                saved = postRepository.save(buildStoryPost(clubId, writerId, request));
+                applyOptionalUpdatesOnCreate(saved, request);
+            }
+
+            // 벡터 서비스 호출 (실패해도 게시글 생성은 성공)
+            postVectorService.ifPresent(service -> {
+                try {
+                    service.savePost(saved);
+                } catch (Exception e) {
+                    // 벡터 DB 연결 실패 등으로 인한 에러는 로그만 남기고 게시글 생성은 계속 진행
+                    log.warn("벡터 서비스 저장 실패 (게시글 생성은 성공): {}", e.getMessage());
+                }
+            });
+
             // 알림 이벤트 발행
             eventPublisher.publishEvent(new back.event.PostCreatedEvent(
                     clubId,
                     saved.getPostId(),
-                    saved.getContent() != null ? saved.getContent() : (saved.getTitle() != null ? saved.getTitle() : ""),
+                    saved.getContent() != null ? saved.getContent()
+                            : (saved.getTitle() != null ? saved.getTitle() : ""),
                     userId));
 
             return PostIdResponse.from(saved);
@@ -168,17 +171,15 @@ public class PostService {
             likedMap = postIds.stream()
                     .collect(Collectors.toMap(
                             postId -> postId,
-                            postId -> postLikeRepository.existsByPostIdAndUserId(postId, viewerId)
-                    ));
+                            postId -> postLikeRepository.existsByPostIdAndUserId(postId, viewerId)));
         }
 
         final Map<Long, Boolean> finalLikedMap = likedMap;
         return page.getContent().stream()
                 .map(p -> PostCardResponse.of(
-                        p, 
+                        p,
                         imageMap.getOrDefault(p.postId(), List.of()),
-                        finalLikedMap.getOrDefault(p.postId(), false)
-                ))
+                        finalLikedMap.getOrDefault(p.postId(), false)))
                 .toList();
     }
 
@@ -274,12 +275,13 @@ public class PostService {
     private Posts buildVotePost(Long clubId, Long writerId, StoryCreateRequest request) {
         Clubs clubRef = clubsRepository.getReferenceById(clubId);
         ClubMembers writerRef = clubMemberRepository.getReferenceById(writerId);
-        Schedules scheduleRef = getScheduleRefOrNull(request.scheduleId());
+        // 일반 투표 게시글은 일정과 연결하지 않음
+        Schedules scheduleRef = null;
 
         // 투표 게시글: title은 request.title(), description은 request.content()
-        String voteTitle = request.title() != null && !request.title().trim().isEmpty() 
-            ? request.title().trim() 
-            : "";
+        String voteTitle = request.title() != null && !request.title().trim().isEmpty()
+                ? request.title().trim()
+                : "";
         String voteDescription = request.content() != null ? request.content().trim() : null;
 
         return Posts.vote(clubRef, writerRef, scheduleRef, voteTitle, voteDescription);
@@ -299,22 +301,21 @@ public class PostService {
         // title이 null이거나 빈 문자열이면 안 됨 (Votes 엔티티의 title은 nullable = false)
         String voteTitle = post.getTitle();
         if (voteTitle == null || voteTitle.trim().isEmpty()) {
-            voteTitle = request.title() != null && !request.title().trim().isEmpty() 
-                ? request.title().trim() 
-                : "투표";
+            voteTitle = request.title() != null && !request.title().trim().isEmpty()
+                    ? request.title().trim()
+                    : "투표";
         }
 
         Votes vote = new Votes(
-            post.getPostId(),
-            "GENERAL",
-            null, // scheduleId는 null (GENERAL 타입)
-            userId, // creatorId는 user_id를 참조
-            voteTitle,
-            post.getContent(),
-            isAnonymous,
-            allowMultiple,
-            deadline
-        );
+                post.getPostId(),
+                "GENERAL",
+                null, // scheduleId는 null (GENERAL 타입)
+                userId, // creatorId는 user_id를 참조
+                voteTitle,
+                post.getContent(),
+                isAnonymous,
+                allowMultiple,
+                deadline);
         Votes savedVote = voteRepository.save(vote);
 
         // 투표 옵션 생성
@@ -323,12 +324,11 @@ public class PostService {
                 continue; // 빈 옵션은 건너뛰기
             }
             VoteOptions option = new VoteOptions(
-                savedVote.getVoteId(),
-                optionRequest.optionText().trim(),
-                optionRequest.order(),
-                optionRequest.eventDate(),
-                optionRequest.location()
-            );
+                    savedVote.getVoteId(),
+                    optionRequest.optionText().trim(),
+                    optionRequest.order(),
+                    optionRequest.eventDate(),
+                    optionRequest.location());
             voteOptionRepository.save(option);
         }
     }
@@ -400,6 +400,7 @@ public class PostService {
             return;
 
         List<PostImages> images = imagesUrl.stream()
+                .map(imageService::saveBase64Image)
                 .map(url -> PostImages.of(post, url))
                 .toList();
 
@@ -419,6 +420,5 @@ public class PostService {
 
         postMemberTagRepository.saveAll(tags);
     }
-
 
 }

@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -56,11 +57,13 @@ public class Schedules extends BaseEntity {
     @Column(name = "cancel_reason", columnDefinition = "TEXT")
     private String cancelReason;
 
+    @Setter
     @Column(name = "vote_deadline")
     private LocalDateTime voteDeadline;
 
     // 생성자
-    public Schedules(Long clubId, String scheduleName, LocalDateTime eventDate, LocalDateTime endDate, String location, String description, BigDecimal entryFee) {
+    public Schedules(Long clubId, String scheduleName, LocalDateTime eventDate, LocalDateTime endDate, String location,
+            String description, BigDecimal entryFee, LocalDateTime voteDeadline) {
         this.clubId = clubId;
         this.scheduleName = scheduleName;
         this.eventDate = eventDate;
@@ -68,10 +71,12 @@ public class Schedules extends BaseEntity {
         this.location = location;
         this.description = description;
         this.entryFee = entryFee != null ? entryFee : BigDecimal.ZERO;
+        this.voteDeadline = voteDeadline;
     }
 
     // 도메인 메서드
-    public void updateSchedule(String scheduleName, LocalDateTime eventDate, LocalDateTime endDate, String location, String description, BigDecimal entryFee, LocalDateTime voteDeadline) {
+    public void update(String scheduleName, LocalDateTime eventDate, LocalDateTime endDate, String location,
+            String description, BigDecimal entryFee, LocalDateTime voteDeadline) {
         this.scheduleName = scheduleName;
         this.eventDate = eventDate;
         this.endDate = endDate;
@@ -102,13 +107,10 @@ public class Schedules extends BaseEntity {
         this.closedAt = LocalDateTime.now();
     }
 
-    public void setVoteDeadline(LocalDateTime voteDeadline) {
-        this.voteDeadline = voteDeadline;
-    }
 
     public void reopen() {
         this.status = "OPEN";
         this.closedAt = null;
     }
-}
 
+}

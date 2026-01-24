@@ -104,7 +104,9 @@ public class ScheduleService {
                 request.endDate(),
                 request.location(),
                 request.description(),
-                request.entryFee());
+                request.entryFee(),
+                request.voteDeadline()
+        );
         if (request.voteDeadline() != null) {
             schedule.setVoteDeadline(request.voteDeadline());
         }
@@ -229,7 +231,7 @@ public class ScheduleService {
             throw new ScheduleException.InvalidDateRange();
         }
 
-        schedule.updateSchedule(
+        schedule.update(
                 request.scheduleName(),
                 request.eventDate(),
                 request.endDate(),

@@ -26,7 +26,7 @@ public class PostImages {
     @JoinColumn(name = "post_id", nullable = false)
     private Posts post;
 
-    @Column(name = "image_url", nullable = false, length = 255)
+    @Column(name = "image_url", nullable = false, length = 2048)
     private String imageUrl;
 
     // 생성자
@@ -39,10 +39,8 @@ public class PostImages {
         return new PostImages(post, imageUrl);
     }
 
-
     public Long getPostId() {
         return post.getPostId();
     }
 
 }
-

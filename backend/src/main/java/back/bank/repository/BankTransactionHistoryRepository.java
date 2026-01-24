@@ -14,5 +14,7 @@ public interface BankTransactionHistoryRepository extends JpaRepository<BankTran
             LocalDateTime fromDate,
             LocalDateTime toDate);
 
+    List<BankTransactionHistory> findByClubIdAndIsMatchedFalse(Long clubId);
+
     boolean existsByUniqueTxKey(String uniqueTxKey);
 }

@@ -44,6 +44,9 @@ public class BankTransactionHistory {
     @Column(name = "inout_type", nullable = false, length = 20)
     private String inoutType; // "DEPOSIT" or "WITHDRAW"
 
+    @Column(name = "unmatch_reason", length = 100)
+    private String unmatchReason;
+
     // 생성자
     public BankTransactionHistory(Long clubId, LocalDateTime bankTransactionAt,
             String printContent,
@@ -63,5 +66,9 @@ public class BankTransactionHistory {
 
     public void unmarkAsMatched() {
         this.isMatched = false;
+    }
+
+    public void updateUnmatchReason(String reason) {
+        this.unmatchReason = reason;
     }
 }
