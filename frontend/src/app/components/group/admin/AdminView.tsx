@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import * as React from 'react';
 import { useParams, useOutletContext } from 'react-router-dom';
 import { ChevronRight, Shield, Users, LogOut, AlertTriangle, Crown, Globe, Lock, BookOpen, Info, Wallet, Copy, Check } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -9,7 +8,7 @@ import { Label } from '../../ui/label';
 import { Input } from '../../ui/input';
 import { Badge } from '../../ui/badge';
 import { getBankAccount, createBankAccount, type BankAccounts, type AccountCreateRequest } from '../../../../api/bank';
-import { getMembers } from '../../../../api/member';
+import { getMembers, leaveClub } from '../../../../api/member';
 import { getMyInfo } from '../../../../api/user';
 import {
   AlertDialog,
@@ -33,7 +32,7 @@ interface GroupContextType {
 export function AdminView() {
   const navigate = useNavigate();
   const { groupId } = useParams();
-  const { club, loading: clubLoading } = useOutletContext<GroupContextType>();
+  const { club } = useOutletContext<GroupContextType>();
 
   // 실제 API에서 역할 정보 가져오기
   const [userRole, setUserRole] = useState<'owner' | 'treasurer' | 'manager' | 'member'>('member');
@@ -42,8 +41,8 @@ export function AdminView() {
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
-  const [loadingMembers, setLoadingMembers] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
   const [showAccountDialog, setShowAccountDialog] = useState(false);
   const [bankAccount, setBankAccount] = useState<BankAccounts | null>(null);
@@ -51,8 +50,8 @@ export function AdminView() {
   const [copied, setCopied] = useState(false);
   const [showCreateAccountDialog, setShowCreateAccountDialog] = useState(false);
   const [creatingAccount, setCreatingAccount] = useState(false);
-  const [bankCode, setBankCode] = useState('STUB');
   const [ownerName, setOwnerName] = useState('');
+  const [bankCode] = useState('STUB');
 
   // 실제 API에서 사용자 역할 조회
   useEffect(() => {
@@ -103,11 +102,11 @@ export function AdminView() {
 
   // 권한 계산 (실제 역할 기반)
   const permissions = {
-    canManageGroup: allRoles.includes('owner') || allRoles.includes('manager'),
+    canManageGroup: allRoles.includes('owner') || allRoles.includes('manager') || allRoles.includes('treasurer'),
     canManageDues: allRoles.includes('owner') || allRoles.includes('treasurer'),
     canWithdraw: allRoles.includes('owner') || allRoles.includes('treasurer'),
     canManageShares: allRoles.includes('owner') || allRoles.includes('treasurer'),
-    canManageMembers: allRoles.includes('owner') || allRoles.includes('manager'),
+    canManageMembers: allRoles.includes('owner') || allRoles.includes('manager') || allRoles.includes('treasurer'),
     canDeletePosts: allRoles.includes('owner') || allRoles.includes('manager'),
     canDeleteComments: allRoles.includes('owner') || allRoles.includes('manager'),
     canFinalizeSchedule: allRoles.includes('owner') || allRoles.includes('treasurer') || allRoles.includes('manager'),
@@ -119,13 +118,10 @@ export function AdminView() {
     async function fetchPendingCount() {
       if (!groupId) return;
       try {
-        setLoadingMembers(true);
         const pendingMembers = await getMembers(Number(groupId), 'PENDING');
         setPendingCount(pendingMembers.length);
       } catch (error) {
         console.error('대기 멤버 수 조회 실패:', error);
-      } finally {
-        setLoadingMembers(false);
       }
     }
     fetchPendingCount();
@@ -266,8 +262,7 @@ export function AdminView() {
         } else {
           // 최종 실패
           setLoadingAccount(false);
-          // 네트워크 에러나 일시적인 문제일 수 있으므로 생성 다이얼로그 표시
-          setShowCreateAccountDialog(true);
+          toast.error('계좌 정보를 불러올 수 없습니다.');
         }
       }
     };
@@ -355,12 +350,42 @@ export function AdminView() {
     }
     try {
       await closeClub(Number(groupId));
-      toast.success('모임이 폐쇄되었습니다');
+      toast.success('모임이 삭제되었습니다');
       setShowDeleteDialog(false);
+      setDeleteConfirmText('');
+      navigate('/', { replace: true });
+      setTimeout(() => {
+        window.location.reload();
+      }, 300);
+    } catch (error: any) {
+      console.error('모임 삭제 실패:', error);
+      const errorMessage = error?.message || '모임 삭제에 실패했습니다.';
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleLeaveClub = async () => {
+    if (!groupId) {
+      toast.error('모임 ID가 없습니다');
+      return;
+    }
+    try {
+      console.log('탈퇴 요청 시작:', { clubId: groupId });
+      await leaveClub(Number(groupId));
+      console.log('탈퇴 성공');
+      toast.success('모임에서 탈퇴했습니다');
+      setShowLeaveDialog(false);
       setTimeout(() => navigate('/'), 500);
-    } catch (error) {
-      console.error('모임 폐쇄 실패:', error);
-      toast.error('모임 폐쇄에 실패했습니다.');
+    } catch (error: any) {
+      console.error('모임 탈퇴 실패 상세:', {
+        error,
+        message: error?.message,
+        status: error?.status,
+        response: error?.response,
+        stack: error?.stack
+      });
+      const errorMessage = error?.message || error?.response?.data?.message || '모임 탈퇴에 실패했습니다.';
+      toast.error(errorMessage);
     }
   };
 
@@ -492,8 +517,8 @@ export function AdminView() {
                   <Wallet className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="font-medium text-stone-900">계좌 관리</p>
-                  <p className="text-xs text-stone-500">모임통장 계좌 정보 확인</p>
+                  <p className="font-medium text-stone-900">계좌 확인</p>
+                  <p className="text-xs text-stone-500">모임통장 계좌 정보 및 사용 안내</p>
                 </div>
               </div>
               <ChevronRight className="w-5 h-5 text-stone-300" />
@@ -567,6 +592,17 @@ export function AdminView() {
         </div>
       )}
 
+      {/* 모임 탈퇴 - 모임장이 아닌 모든 멤버 */}
+      {userRole !== 'owner' && (
+        <button
+          onClick={() => setShowLeaveDialog(true)}
+          className="w-full p-4 rounded-xl border border-stone-200 bg-white text-stone-700 font-medium flex items-center justify-center gap-2 hover:bg-stone-50 transition-colors"
+        >
+          <LogOut className="w-5 h-5" />
+          모임 탈퇴하기
+        </button>
+      )}
+
       {/* 위험 영역 - 모임장만 */}
       {userRole === 'owner' && (
         <button
@@ -611,58 +647,69 @@ export function AdminView() {
       <AlertDialog open={showAccountDialog} onOpenChange={setShowAccountDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl">모임통장 계좌 정보</AlertDialogTitle>
-            <AlertDialogDescription>
-              {(() => {
-                if (loadingAccount) {
-                  return <div className="py-8 text-center text-stone-500">로딩 중...</div> as React.ReactNode;
-                }
-                if (bankAccount) {
-                  return (
-                    <div className="space-y-4 pt-4">
-                      <div className="bg-stone-50 rounded-xl p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-stone-600">은행</span>
-                          <span className="font-medium text-stone-900">{getBankName(bankAccount.bankCode)}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-stone-600">계좌번호</span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-stone-900 font-mono">{bankAccount.accountNumber || '계좌번호 없음'}</span>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={handleCopyAccount}
-                              className="h-8 px-2"
-                            >
-                              {(() => {
-                                if (copied) {
-                                  return <Check className="w-4 h-4 text-green-600" /> as React.ReactNode;
-                                }
-                                return <Copy className="w-4 h-4" /> as React.ReactNode;
-                              })()}
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-stone-600">예금주</span>
-                          <span className="font-medium text-stone-900">{bankAccount.depositorName}</span>
-                        </div>
-                      </div>
-                      <p className="text-xs text-stone-500">
-                        💡 이체 시 입금자명을 꼭 본인 이름으로 남겨주세요.
-                      </p>
-                    </div>
-                  ) as React.ReactNode;
-                }
-                return (
-                  <div className="py-8 text-center text-stone-500">
-                    계좌 정보를 불러올 수 없습니다.
-                  </div>
-                ) as React.ReactNode;
-              })()}
-            </AlertDialogDescription>
+            <AlertDialogTitle className="text-xl">계좌 확인</AlertDialogTitle>
           </AlertDialogHeader>
+          {(() => {
+            if (loadingAccount) {
+              return <div className="py-8 text-center text-stone-500">로딩 중...</div>;
+            }
+            if (bankAccount) {
+              return (
+                <div className="space-y-4 pt-2">
+                  <div className="bg-stone-50 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-stone-600">은행</span>
+                      <span className="font-medium text-stone-900">{getBankName(bankAccount.bankCode)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-stone-600">계좌번호</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-stone-900 font-mono">{bankAccount.accountNumber || '계좌번호 없음'}</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={handleCopyAccount}
+                          className="h-8 px-2"
+                        >
+                          {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-stone-600">예금주</span>
+                      <span className="font-medium text-stone-900">{bankAccount.depositorName}</span>
+                    </div>
+                    {bankAccount.createdAt && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-stone-600">계좌 생성일</span>
+                        <span className="font-medium text-stone-900 text-sm">
+                          {new Date(bankAccount.createdAt).toLocaleDateString('ko-KR', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2">
+                    <p className="text-sm font-medium text-blue-900">💡 계좌 사용 안내</p>
+                    <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
+                      <li>이체 시 입금자명을 꼭 본인 이름으로 남겨주세요.</li>
+                      <li>계좌는 모임 생성 시 자동으로 발급되며 변경할 수 없습니다.</li>
+                      <li>회비 입금 시 이 계좌번호로 입금해주세요.</li>
+                    </ul>
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div className="py-8 text-center text-stone-500">
+                계좌 정보를 불러올 수 없습니다.
+              </div>
+            );
+          })()}
           <AlertDialogFooter>
             <AlertDialogCancel>닫기</AlertDialogCancel>
           </AlertDialogFooter>
@@ -748,6 +795,29 @@ export function AdminView() {
               className="bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               삭제하기
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Leave Club Dialog */}
+      <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>모임 탈퇴</AlertDialogTitle>
+            <AlertDialogDescription>
+              정말 이 모임에서 탈퇴하시겠습니까?
+              <br /><br />
+              탈퇴 후에는 모임의 모든 활동에 참여할 수 없으며, 다시 가입하려면 새로 신청해야 합니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleLeaveClub}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              탈퇴하기
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

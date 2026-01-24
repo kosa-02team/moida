@@ -1,41 +1,31 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Globe, Lock, Search, Users, KeyRound, Info } from 'lucide-react';
+import { ArrowLeft, Globe, Lock, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../ui/button';
-import { Switch } from '../../ui/switch';
-import { Label } from '../../ui/label';
 import { Card, CardContent } from '../../ui/card';
 import { RadioGroup, RadioGroupItem } from '../../ui/radio-group';
-import { GroupVisibility } from '../../../types';
-import { updateClub, getClub } from '../../../../api/club-full';
+import { updateClub, getClub, ClubDetailResponse } from '../../../../api/club-full';
 
 export function GroupPrivacySettingsView() {
   const navigate = useNavigate();
   const { groupId } = useParams();
   const [isLoading, setIsLoading] = useState(false);
+  const [clubData, setClubData] = useState<ClubDetailResponse | null>(null);
 
-  // 공개 설정 상태 - 통합된 3가지 옵션만 사용
-  const [visibility, setVisibility] = useState<GroupVisibility>('searchable');
-  const [requireApproval, setRequireApproval] = useState(true);
-  const [allowInviteCode, setAllowInviteCode] = useState(true);
+  // 공개 설정 상태 - 백엔드는 PUBLIC/PRIVATE만 지원
+  const [visibility, setVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
 
   const visibilityOptions = [
     {
-      value: 'private',
+      value: 'PRIVATE',
       label: '비공개',
-      description: '초대 코드로만 가입 가능',
+      description: '초대 코드로만 가입 가능, 멤버만 상세 정보 조회 가능',
       icon: Lock,
     },
     {
-      value: 'searchable',
-      label: '검색 허용',
-      description: '검색 결과에 표시, 상세 정보는 비공개',
-      icon: Search,
-    },
-    {
-      value: 'public',
-      label: '완전 공개',
+      value: 'PUBLIC',
+      label: '공개',
       description: '누구나 모임 정보를 볼 수 있음',
       icon: Globe,
     },
@@ -45,38 +35,41 @@ export function GroupPrivacySettingsView() {
     async function fetchClubData() {
       if (!groupId) return;
       try {
-        const clubData = await getClub(Number(groupId));
-        // visibility 매핑: PRIVATE -> private, PUBLIC -> public, SEARCHABLE -> searchable
-        if (clubData.visibility === 'PRIVATE') {
-          setVisibility('private');
-        } else if (clubData.visibility === 'PUBLIC') {
-          setVisibility('public');
+        const data = await getClub(Number(groupId));
+        setClubData(data);
+        // visibility 매핑: PRIVATE -> PRIVATE, PUBLIC -> PUBLIC
+        if (data.visibility === 'PRIVATE') {
+          setVisibility('PRIVATE');
         } else {
-          setVisibility('searchable');
+          setVisibility('PUBLIC');
         }
       } catch (error) {
         console.error('모임 정보 조회 실패:', error);
+        toast.error('모임 정보를 불러올 수 없습니다');
       }
     }
     fetchClubData();
   }, [groupId]);
 
   const handleSave = async () => {
-    if (!groupId) {
+    if (!groupId || !clubData) {
       toast.error('모임 ID를 찾을 수 없습니다');
       return;
     }
     
     setIsLoading(true);
     try {
-      // visibility 매핑: private -> PRIVATE, public -> PUBLIC, searchable -> SEARCHABLE
-      const visibilityValue = visibility === 'private' ? 'PRIVATE' : visibility === 'public' ? 'PUBLIC' : 'SEARCHABLE';
-      await updateClub(Number(groupId), { visibility: visibilityValue as 'PUBLIC' | 'PRIVATE' });
+      // 백엔드 ClubRequest는 clubName이 필수이므로 현재 클럽 이름을 함께 전송
+      await updateClub(Number(groupId), {
+        clubName: clubData.clubName,
+        visibility: visibility as 'PUBLIC' | 'PRIVATE'
+      });
       toast.success('공개 설정이 저장되었습니다');
       navigate(-1);
-    } catch (error) {
+    } catch (error: any) {
       console.error('공개 설정 저장 실패:', error);
-      toast.error('공개 설정 저장에 실패했습니다');
+      const errorMessage = error?.response?.data?.message || error?.message || '공개 설정 저장에 실패했습니다';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -113,7 +106,7 @@ export function GroupPrivacySettingsView() {
         <div className="bg-white rounded-2xl p-5 border border-stone-100 space-y-4">
           <h3 className="font-bold text-stone-900">모임 공개 범위</h3>
           
-          <RadioGroup value={visibility} onValueChange={(v) => setVisibility(v as GroupVisibility)}>
+          <RadioGroup value={visibility} onValueChange={(v) => setVisibility(v as 'PUBLIC' | 'PRIVATE')}>
             <div className="space-y-3">
               {visibilityOptions.map((option) => (
                 <label
@@ -143,59 +136,19 @@ export function GroupPrivacySettingsView() {
           </RadioGroup>
         </div>
 
-        {/* Join Settings */}
-        <div className="bg-white rounded-2xl border border-stone-100 divide-y divide-stone-100">
-          <div className="px-4 py-3 bg-stone-50">
-            <h3 className="font-medium text-stone-700">가입 설정</h3>
-          </div>
-
-          {/* Require Approval */}
-          <div className="p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                <Users className="w-5 h-5 text-orange-600" />
-              </div>
-              <div>
-                <p className="font-medium text-stone-900">가입 승인 필요</p>
-                <p className="text-xs text-stone-500">관리자 승인 후 가입</p>
-              </div>
-            </div>
-            <Switch
-              checked={requireApproval}
-              onCheckedChange={setRequireApproval}
-              className="data-[state=checked]:bg-orange-500"
-            />
-          </div>
-
-          {/* Invite Code */}
-          <div className="p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-stone-100 rounded-lg flex items-center justify-center">
-                <KeyRound className="w-5 h-5 text-stone-600" />
-              </div>
-              <div>
-                <p className="font-medium text-stone-900">초대 코드 허용</p>
-                <p className="text-xs text-stone-500">초대 코드로 직접 가입 가능</p>
-              </div>
-            </div>
-            <Switch
-              checked={allowInviteCode}
-              onCheckedChange={setAllowInviteCode}
-              className="data-[state=checked]:bg-orange-500"
-            />
-          </div>
-        </div>
 
         {/* Info */}
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
               <Info className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-blue-800">회비 현황은 항상 비공개</p>
-                <p className="text-xs text-blue-700 mt-1">
-                  회비 현황 및 관련 정보는 설정과 관계없이 모임 회원에게만 공개됩니다.
-                </p>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-blue-800">가입 및 초대 코드 안내</p>
+                <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
+                  <li>가입 신청 시 자동으로 승인 대기 상태로 전환됩니다.</li>
+                  <li>초대 코드는 모임 생성 시 자동으로 발급되며, 모임 관리 페이지에서 재발급할 수 있습니다.</li>
+                  <li>회비 현황 및 관련 정보는 설정과 관계없이 모임 회원에게만 공개됩니다.</li>
+                </ul>
               </div>
             </div>
           </CardContent>

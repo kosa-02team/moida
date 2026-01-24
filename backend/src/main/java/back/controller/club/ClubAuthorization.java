@@ -54,4 +54,34 @@ public class ClubAuthorization {
             throw new ClubException.AuthNotOwner();
         }
     }
+
+    public boolean isAtLeastStaffOrAccountant(Long clubId) {
+        org.springframework.security.core.Authentication authentication = org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated() ||
+                authentication.getPrincipal().equals("anonymousUser")) {
+            return false;
+        }
+
+        Long currentUserId;
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof UserPrincipal) {
+            currentUserId = ((UserPrincipal) principal).getUserId();
+        } else {
+            return false;
+        }
+
+        try {
+            clubAuthService.assertAtLeastStaffOrAccountant(clubId, currentUserId);
+            return true;
+        } catch (ClubException e) {
+            return false;
+        }
+    }
+
+    public boolean isAtLeastStaff(Long clubId) {
+        return isAtLeastStaffOrAccountant(clubId);
+    }
 }

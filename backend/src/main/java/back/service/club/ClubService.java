@@ -10,6 +10,7 @@ import back.dto.club.ClubRequest;
 import back.dto.club.ClubResponse;
 import back.exception.AuthException;
 import back.exception.ClubException;
+import back.exception.response.ErrorCode;
 import back.repository.UserRepository;
 import back.repository.club.ClubMemberRepository;
 import back.repository.club.ClubRepository;
@@ -18,6 +19,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -92,12 +96,13 @@ public class ClubService {
         boolean isMember = viewerId != null && 
                 clubMemberRepository.existsByClubIdAndUserIdAndStatus(clubId, viewerId, ClubMembers.Status.ACTIVE);
 
-        if (isPublic || isMember) {
-            Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE);
-            return ClubResponse.full(club, currentMembers);
-        } else {
-            return ClubResponse.limited(club);
+        // 비공개 모임이고 멤버가 아닌 경우 접근 거부
+        if (!isPublic && !isMember) {
+            throw new ClubException.AuthNotActive();
         }
+
+        Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE);
+        return ClubResponse.full(club, currentMembers);
     }
 
     public ClubResponse getClub(Long clubId) {
@@ -139,6 +144,155 @@ public class ClubService {
     }
 
     @Transactional
+    public void requestClubDeletion(Long clubId, Long ownerId) {
+        Clubs club = clubRepository.findById(clubId)
+                .orElseThrow(ClubException.NotFound::new);
+
+        if (!club.getOwnerId().equals(ownerId)) {
+            throw new ClubException(ErrorCode.CLUB_AUTH_NOT_OWNER);
+        }
+
+        if (club.getDeletionRequestStatus() != null && club.getDeletionRequestStatus() == Clubs.DeletionRequestStatus.PENDING) {
+            throw new ClubException(ErrorCode.CLUB_DELETION_ALREADY_REQUESTED);
+        }
+
+        // 삭제 요청 시작
+        club.requestDeletion();
+
+        // 모든 운영진(OWNER, ACCOUNTANT, STAFF)의 삭제 동의 초기화
+        List<ClubMembers> staffMembers = clubMemberRepository.findByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE)
+                .stream()
+                .filter(member -> member.getRole() == ClubMembers.Role.OWNER
+                        || member.getRole() == ClubMembers.Role.ACCOUNTANT
+                        || member.getRole() == ClubMembers.Role.STAFF)
+                .toList();
+
+        for (ClubMembers member : staffMembers) {
+            member.resetDeletionApproval();
+            // 모임장은 삭제 요청 시작 시 자동으로 동의한 것으로 간주
+            if (member.getRole() == ClubMembers.Role.OWNER && member.getUserId().equals(ownerId)) {
+                member.approveDeletion();
+            }
+        }
+
+        // 모임장만 있는 경우 즉시 APPROVED로 변경
+        if (staffMembers.size() == 1 && staffMembers.get(0).getRole() == ClubMembers.Role.OWNER) {
+            club.approveDeletion();
+        }
+    }
+
+    @Transactional
+    public void approveClubDeletion(Long clubId, Long userId) {
+        Clubs club = clubRepository.findById(clubId)
+                .orElseThrow(ClubException.NotFound::new);
+
+        if (club.getDeletionRequestStatus() != Clubs.DeletionRequestStatus.PENDING) {
+            throw new ClubException(ErrorCode.CLUB_DELETION_NOT_REQUESTED);
+        }
+
+        ClubMembers member = clubMemberRepository.findByClubIdAndUserId(clubId, userId)
+                .orElseThrow(ClubException.MemberNotFound::new);
+
+        if (member.getStatus() != ClubMembers.Status.ACTIVE) {
+            throw new ClubException.MemberNotActive();
+        }
+
+        // 운영진(OWNER, ACCOUNTANT, STAFF)만 동의 가능
+        if (member.getRole() != ClubMembers.Role.OWNER
+                && member.getRole() != ClubMembers.Role.ACCOUNTANT
+                && member.getRole() != ClubMembers.Role.STAFF) {
+            throw new ClubException(ErrorCode.CLUB_AUTH_NOT_STAFF);
+        }
+
+        // 동의 처리
+        member.approveDeletion();
+
+        // 모든 운영진이 동의했는지 확인
+        List<ClubMembers> staffMembers = clubMemberRepository.findByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE)
+                .stream()
+                .filter(m -> m.getRole() == ClubMembers.Role.OWNER
+                        || m.getRole() == ClubMembers.Role.ACCOUNTANT
+                        || m.getRole() == ClubMembers.Role.STAFF)
+                .toList();
+
+        boolean allApproved = staffMembers.stream()
+                .allMatch(m -> Boolean.TRUE.equals(m.getDeletionApproval()));
+
+        if (allApproved && !staffMembers.isEmpty()) {
+            // 모든 운영진이 동의했으면 삭제 요청 상태를 APPROVED로 변경
+            club.approveDeletion();
+        }
+    }
+
+    @Transactional
+    public void rejectClubDeletion(Long clubId, Long userId) {
+        Clubs club = clubRepository.findById(clubId)
+                .orElseThrow(ClubException.NotFound::new);
+
+        if (club.getDeletionRequestStatus() == null || club.getDeletionRequestStatus() != Clubs.DeletionRequestStatus.PENDING) {
+            throw new ClubException(ErrorCode.CLUB_DELETION_NOT_REQUESTED);
+        }
+
+        ClubMembers member = clubMemberRepository.findByClubIdAndUserId(clubId, userId)
+                .orElseThrow(ClubException.MemberNotFound::new);
+
+        if (member.getStatus() != ClubMembers.Status.ACTIVE) {
+            throw new ClubException.MemberNotActive();
+        }
+
+        // 운영진만 거부 가능
+        if (member.getRole() != ClubMembers.Role.OWNER
+                && member.getRole() != ClubMembers.Role.ACCOUNTANT
+                && member.getRole() != ClubMembers.Role.STAFF) {
+            throw new ClubException(ErrorCode.CLUB_AUTH_NOT_STAFF);
+        }
+
+        // 거부 처리 (거부 시 삭제 요청 취소)
+        member.rejectDeletion();
+        club.cancelDeletionRequest();
+
+        // 모든 운영진의 동의 상태 초기화
+        List<ClubMembers> staffMembers = clubMemberRepository.findByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE)
+                .stream()
+                .filter(m -> m.getRole() == ClubMembers.Role.OWNER
+                        || m.getRole() == ClubMembers.Role.ACCOUNTANT
+                        || m.getRole() == ClubMembers.Role.STAFF)
+                .toList();
+
+        for (ClubMembers m : staffMembers) {
+            m.resetDeletionApproval();
+        }
+    }
+
+    @Transactional
+    public void cancelClubDeletionRequest(Long clubId, Long ownerId) {
+        Clubs club = clubRepository.findById(clubId)
+                .orElseThrow(ClubException.NotFound::new);
+
+        if (!club.getOwnerId().equals(ownerId)) {
+            throw new ClubException(ErrorCode.CLUB_AUTH_NOT_OWNER);
+        }
+
+        if (club.getDeletionRequestStatus() == null || club.getDeletionRequestStatus() != Clubs.DeletionRequestStatus.PENDING) {
+            throw new ClubException(ErrorCode.CLUB_DELETION_NOT_REQUESTED);
+        }
+
+        club.cancelDeletionRequest();
+
+        // 모든 운영진의 동의 상태 초기화
+        List<ClubMembers> staffMembers = clubMemberRepository.findByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE)
+                .stream()
+                .filter(m -> m.getRole() == ClubMembers.Role.OWNER
+                        || m.getRole() == ClubMembers.Role.ACCOUNTANT
+                        || m.getRole() == ClubMembers.Role.STAFF)
+                .toList();
+
+        for (ClubMembers member : staffMembers) {
+            member.resetDeletionApproval();
+        }
+    }
+
+    @Transactional
     public void activateClub(Long clubId, Long ownerId) {
         Clubs club = clubRepository.findById(clubId)
                 .orElseThrow(ClubException.NotFound::new);
@@ -167,19 +321,35 @@ public class ClubService {
             throw new ClubException.MemberNotActive();
         }
 
-        // 기존 모임장을 운영진으로 변경
+        // 기존 모임장 멤버 조회
         ClubMembers currentOwnerMember = clubMemberRepository.findByClubIdAndUserId(clubId, currentOwnerId)
                 .orElseThrow(ClubException.MemberNotFound::new);
-        currentOwnerMember.promoteToStaff();
+
+        // 새 모임장의 기존 역할 저장 (권한 교환을 위해)
+        ClubMembers.Role newOwnerPreviousRole = newOwnerMember.getRole();
+
+        // 권한 교환: 새 모임장의 기존 역할을 기존 모임장에게 부여
+        switch (newOwnerPreviousRole) {
+            case ACCOUNTANT:
+                currentOwnerMember.promoteToAccountant();
+                break;
+            case STAFF:
+                currentOwnerMember.promoteToStaff();
+                break;
+            case MEMBER:
+            default:
+                currentOwnerMember.demoteToMember();
+                break;
+        }
 
         // 새 모임장으로 위임
         newOwnerMember.promoteToOwner();
         club.changeOwner(newOwnerMember.getUserId());
     }
 
-    // 카테고리별 모임 조회
+    // 카테고리별 모임 조회 - ACTIVE 상태만 조회
     public Page<ClubResponse> getClubsByCategory(Clubs.Category category, Pageable pageable) {
-        return clubRepository.findByCategory(category, pageable)
+        return clubRepository.findByCategoryAndStatus(category, Clubs.Status.ACTIVE, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
                             club.getClubId(), ClubMembers.Status.ACTIVE);
@@ -197,9 +367,9 @@ public class ClubService {
                 });
     }
 
-    // 카테고리 + 이름 검색
+    // 카테고리 + 이름 검색 - ACTIVE 상태만 조회
     public Page<ClubResponse> searchClubsByCategoryAndName(Clubs.Category category, String clubName, Pageable pageable) {
-        return clubRepository.findByCategoryAndClubNameContaining(category, clubName, pageable)
+        return clubRepository.findByCategoryAndStatusAndClubNameContaining(category, Clubs.Status.ACTIVE, clubName, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
                             club.getClubId(), ClubMembers.Status.ACTIVE);
@@ -207,9 +377,9 @@ public class ClubService {
                 });
     }
 
-    // 이름 검색
+    // 이름 검색 - ACTIVE 상태만 조회
     public Page<ClubResponse> searchClubsByName(String clubName, Pageable pageable) {
-        return clubRepository.findByClubNameContaining(clubName, pageable)
+        return clubRepository.findByStatusAndClubNameContaining(Clubs.Status.ACTIVE, clubName, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
                             club.getClubId(), ClubMembers.Status.ACTIVE);
@@ -217,9 +387,9 @@ public class ClubService {
                 });
     }
 
-    // 모든 모임 조회 (페이징)
+    // 모든 모임 조회 (페이징) - ACTIVE 상태만 조회
     public Page<ClubResponse> getAllClubs(Pageable pageable) {
-        return clubRepository.findAll(pageable)
+        return clubRepository.findByStatus(Clubs.Status.ACTIVE, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
                             club.getClubId(), ClubMembers.Status.ACTIVE);

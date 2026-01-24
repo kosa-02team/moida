@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { 
-  ArrowLeft, MapPin, Users, Calendar, Eye, Lock, Heart, MessageCircle, 
-  ChevronRight, Flag, Share2, UserPlus
+  ArrowLeft, Users, Calendar, Eye, Lock, Heart, MessageCircle, Flag, Share2, UserPlus
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
@@ -12,7 +11,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { ReportDialog } from '../report/ReportDialog';
 import { getClub } from '@/api/club-full';
-import { get } from '@/api/client';
+import { get, AuthenticationError } from '@/api/client';
 import { PostCardResponse } from '@/api/post';
 import { joinClub } from '@/api/member';
 import { getToken } from '@/api/client';
@@ -102,10 +101,23 @@ export function ExploreGroupDetailView() {
           }
         }
 
+        // 로컬 스토리지에서 이미지 가져오기
+        const imageKey = `club_image_${clubData.clubId}`;
+        const storedImage = localStorage.getItem(imageKey);
+        console.log('=== 클럽 이미지 디버깅 정보 ===');
+        console.log('클럽 ID:', clubData.clubId);
+        console.log('이미지 키:', imageKey);
+        console.log('이미지 존재 여부:', !!storedImage);
+        console.log('이미지 값:', storedImage);
+        console.log('이미지 길이:', storedImage?.length || 0);
+        console.log('이미지 시작 부분:', storedImage?.substring(0, 100));
+        console.log('로컬 스토리지 전체 키:', Object.keys(localStorage).filter(key => key.includes('club_image')));
+        console.log('==========================');
+        
         const groupData: PublicGroup = {
           id: clubData.clubId.toString(),
           name: clubData.clubName,
-          image: '',
+          image: storedImage || '',
           description: '', // 백엔드에 description 필드가 없음
           tags: [], // 백엔드에 tags 필드가 없음
           memberCount: clubData.currentMembers || 0,
@@ -118,8 +130,38 @@ export function ExploreGroupDetailView() {
         };
 
         setGroup(groupData);
-      } catch (error) {
+      } catch (error: any) {
         console.error('모임 정보 불러오기 실패:', error);
+        console.error('에러 상세:', {
+          status: error?.status,
+          message: error?.message,
+          response: error?.response,
+          errorData: error?.response?.data
+        });
+        
+        // 비공개 모임 접근 권한 없음 에러 처리
+        const errorMessage = error?.message || '';
+        const errorData = error?.response?.data || {};
+        // 백엔드 ErrorResponse 구조: { status, code, message }
+        const errorCode = errorData?.code || errorData?.errorCode || '';
+        
+        // AuthenticationError 체크 (client.ts에서 403 에러 시 던지는 에러)
+        const isAuthenticationError = error instanceof AuthenticationError;
+        
+        // 403 에러 또는 CA01 에러 코드 또는 관련 메시지 확인
+        const isPermissionError = error?.status === 403 || 
+                                  errorCode === 'CA01' ||
+                                  isAuthenticationError ||
+                                  errorMessage.includes('활성 멤버가 아닙니다') ||
+                                  errorMessage.includes('권한') ||
+                                  errorMessage.includes('멤버가 아닙니다');
+        
+        if (isPermissionError) {
+          toast.error('비공개 모임입니다. 해당 모임의 멤버만 상세 정보를 조회할 수 있습니다.');
+          navigate('/explore');
+          return;
+        }
+        
         toast.error('모임 정보를 불러오는데 실패했습니다.');
         navigate('/explore');
       } finally {
@@ -145,6 +187,14 @@ export function ExploreGroupDetailView() {
       </div>
     );
   }
+
+  // 렌더링 시점에 이미지 상태 확인
+  console.log('=== 렌더링 시점 이미지 확인 ===');
+  console.log('group.image 존재:', !!group.image);
+  console.log('group.image 값:', group.image);
+  console.log('group.image 길이:', group.image?.length || 0);
+  console.log('group.image 시작:', group.image?.substring(0, 50));
+  console.log('============================');
 
   const handleJoinRequest = async () => {
     if (!joinNickname.trim()) {
@@ -179,13 +229,40 @@ export function ExploreGroupDetailView() {
   return (
     <div className="min-h-screen bg-stone-50 pb-32">
       {/* Header Image */}
-      <div className="relative h-56">
-        <img
-          src={group.image}
-          alt={group.name}
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-black/60" />
+      <div className="relative h-56 bg-stone-200 overflow-hidden">
+        {/* Background Image or Placeholder */}
+        {(() => {
+          console.log('렌더링 시점 - group.image 값:', group.image ? '있음' : '없음', group.image?.substring(0, 50));
+          return group.image && group.image.trim() ? (
+            <img
+              src={group.image}
+              alt={group.name}
+              className="w-full h-full object-cover"
+              style={{ display: 'block', position: 'relative', zIndex: 0 }}
+              onError={(e) => {
+                console.error('=== 이미지 로드 실패 ===');
+                console.error('이미지 src 시작 부분:', group.image?.substring(0, 100));
+                console.error('이미지 src 길이:', group.image?.length);
+                console.error('에러 이벤트:', e);
+                e.currentTarget.style.display = 'none';
+              }}
+              onLoad={(e) => {
+                console.log('=== 이미지 로드 성공 ===');
+                console.log('이미지 너비:', e.currentTarget.naturalWidth);
+                console.log('이미지 높이:', e.currentTarget.naturalHeight);
+                console.log('이미지 src 시작 부분:', e.currentTarget.src.substring(0, 100));
+              }}
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center">
+              <span className="text-6xl font-bold text-orange-400">
+                {group.name[0]}
+              </span>
+            </div>
+          );
+        })()}
+        {/* Gradient Overlay - 더 밝게 조정 */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-black/50 pointer-events-none" style={{ zIndex: 1 }} />
         
         {/* Back Button */}
         <Button
@@ -244,12 +321,6 @@ export function ExploreGroupDetailView() {
               <span className="font-medium">{group.memberCount}</span>
               <span className="text-stone-400">/ {group.maxMembers}명</span>
             </div>
-            {group.location && (
-              <div className="flex items-center gap-2 text-stone-600">
-                <MapPin className="w-5 h-5 text-orange-500" />
-                <span>{group.location}</span>
-              </div>
-            )}
             <p className="text-stone-700 leading-relaxed">{group.description}</p>
             <div className="flex flex-wrap gap-2 pt-2">
               {group.tags.map(tag => (
@@ -272,10 +343,6 @@ export function ExploreGroupDetailView() {
               <h3 className="font-bold text-stone-900">{group.nextEvent.title}</h3>
               <div className="flex items-center gap-4 mt-2 text-sm text-stone-600">
                 <span>{group.nextEvent.date}</span>
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-4 h-4" />
-                  {group.nextEvent.location}
-                </span>
               </div>
             </CardContent>
           </Card>

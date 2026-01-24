@@ -27,6 +27,12 @@ public interface ClubRepository extends JpaRepository<Clubs, Long> {
     // 카테고리 + 이름 검색
     Page<Clubs> findByCategoryAndClubNameContaining(Clubs.Category category, String clubName, Pageable pageable);
 
+    // 카테고리 + 상태 + 이름 검색
+    Page<Clubs> findByCategoryAndStatusAndClubNameContaining(Clubs.Category category, Clubs.Status status, String clubName, Pageable pageable);
+
+    // 상태 + 이름 검색
+    Page<Clubs> findByStatusAndClubNameContaining(Clubs.Status status, String clubName, Pageable pageable);
+
     // 초대 코드로 모임 조회
     Optional<Clubs> findByInviteCode(String inviteCode);
 }

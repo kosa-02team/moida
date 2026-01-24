@@ -19,7 +19,7 @@ import { Label } from '../ui/label';
 import { ReportDialog } from '../report/ReportDialog';
 import { getClub, joinClub } from '@/api/club-full';
 import { getRecentPosts } from '@/api/post';
-import { getToken } from '@/api/client';
+import { getToken, AuthenticationError } from '@/api/client';
 import { getMyInfo, UserResponse } from '@/api/user';
 
 export function GroupPreviewView() {
@@ -112,8 +112,38 @@ export function GroupPreviewView() {
           publicPosts,
           gallery: [], // 백엔드에 갤러리 API가 필요
         });
-      } catch (error) {
+      } catch (error: any) {
         console.error('모임 정보 불러오기 실패:', error);
+        console.error('에러 상세:', {
+          status: error?.status,
+          message: error?.message,
+          response: error?.response,
+          errorData: error?.response?.data
+        });
+        
+        // 비공개 모임 접근 권한 없음 에러 처리
+        const errorMessage = error?.message || '';
+        const errorData = error?.response?.data || {};
+        // 백엔드 ErrorResponse 구조: { status, code, message }
+        const errorCode = errorData?.code || errorData?.errorCode || '';
+        
+        // AuthenticationError 체크 (client.ts에서 403 에러 시 던지는 에러)
+        const isAuthenticationError = error instanceof AuthenticationError;
+        
+        // 403 에러 또는 CA01 에러 코드 또는 관련 메시지 확인
+        const isPermissionError = error?.status === 403 || 
+                                  errorCode === 'CA01' ||
+                                  isAuthenticationError ||
+                                  errorMessage.includes('활성 멤버가 아닙니다') ||
+                                  errorMessage.includes('권한') ||
+                                  errorMessage.includes('멤버가 아닙니다');
+        
+        if (isPermissionError) {
+          toast.error('비공개 모임입니다. 해당 모임의 멤버만 상세 정보를 조회할 수 있습니다.');
+          navigate('/explore');
+          return;
+        }
+        
         toast.error('모임 정보를 불러오는데 실패했습니다.');
         navigate('/explore');
       } finally {
@@ -170,7 +200,42 @@ export function GroupPreviewView() {
       // 필요하다면 여기서 모임 정보를 새로고침하거나 내가 가입한 모임 목록을 갱신
     } catch (error: any) {
       console.error('가입 신청 실패:', error);
-      toast.error(error.message || '가입 신청에 실패했습니다.');
+      console.error('에러 상세:', {
+        status: error?.status,
+        message: error?.message,
+        response: error?.response,
+        errorData: error?.response?.data
+      });
+      
+      // 에러 응답 데이터 확인
+      const errorData = error?.response?.data || {};
+      // 백엔드 ErrorResponse 구조: { status, code, message }
+      const errorCode = errorData?.code || errorData?.errorCode || '';
+      const errorMessage = error?.message || '';
+      
+      // 이미 가입 승인 대기 중인 경우 (CM02)
+      // 에러 코드나 메시지에서 확인
+      const isAlreadyPending = errorCode === 'CM02' || 
+                               errorMessage.includes('가입 승인 대기 중') || 
+                               errorMessage.includes('이미 가입 승인 대기 중');
+      
+      // 이미 활동 멤버인 경우 (CM03)
+      const isAlreadyActive = errorCode === 'CM03' || 
+                              errorMessage.includes('이미 해당 모임의 활동 멤버');
+      
+      // PENDING 상태인데 ACTIVE 예외가 나온 경우도 처리
+      // (백엔드가 재시작되지 않아서 이전 로직이 실행되는 경우)
+      if (isAlreadyPending || (!isAlreadyActive && errorMessage.includes('활동 멤버'))) {
+        toast.error('이미 가입 승인 대기 중입니다. 승인을 기다려주세요.');
+        return;
+      }
+      
+      if (isAlreadyActive) {
+        toast.error('이미 해당 모임의 활동 멤버입니다.');
+        return;
+      }
+      
+      toast.error(errorMessage || '가입 신청에 실패했습니다.');
     } finally {
       setIsSubmitting(false);
     }

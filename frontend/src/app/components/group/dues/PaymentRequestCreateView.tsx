@@ -90,7 +90,7 @@ export function PaymentRequestCreateView() {
         return {
           ...item,
           memberId: value as number,
-          memberName: member ? (member.clubNickname || member.realName) : '',
+          memberName: member ? (member.clubNickname || '멤버') : '',
         };
       }
       
@@ -205,7 +205,7 @@ export function PaymentRequestCreateView() {
                     <SelectContent>
                       {members.map(member => (
                         <SelectItem key={member.memberId} value={member.memberId.toString()}>
-                          {member.clubNickname || member.realName}
+                          {member.clubNickname || '멤버'}
                         </SelectItem>
                       ))}
                     </SelectContent>

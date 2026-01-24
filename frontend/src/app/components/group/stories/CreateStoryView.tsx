@@ -32,7 +32,7 @@ export function CreateStoryView() {
   
   // 카테고리 선택 (일반 게시글 / 투표)
   const [postCategory, setPostCategory] = useState<'story' | 'vote'>('story');
-  
+
   // 투표 관련 상태
   const [voteTitle, setVoteTitle] = useState('');
   const [voteDescription, setVoteDescription] = useState('');
@@ -108,10 +108,10 @@ export function CreateStoryView() {
           const MAX_BASE64_LENGTH = 200; // 안전 마진 포함
           const MAX_WIDTH = 400;
           const MAX_HEIGHT = 400;
-          
+
           let width = img.width;
           let height = img.height;
-          
+
           // 크기 조정
           if (width > height) {
             if (width > MAX_WIDTH) {
@@ -124,30 +124,30 @@ export function CreateStoryView() {
               height = MAX_HEIGHT;
             }
           }
-          
+
           canvas.width = width;
           canvas.height = height;
-          
+
           const ctx = canvas.getContext('2d');
           if (!ctx) {
             reject(new Error('Canvas context를 가져올 수 없습니다'));
             return;
           }
-          
+
           ctx.drawImage(img, 0, 0, width, height);
-          
+
           // 매우 낮은 품질로 시작 (0.3)
           let quality = 0.3;
           let compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-          
+
           // base64 부분만 추출 (data:image/jpeg;base64, 제외)
           const base64Part = compressedDataUrl.split(',')[1] || '';
-          
+
           // base64 문자열 길이가 200자 이하가 될 때까지 크기와 품질 조정
           let attempts = 0;
           while (base64Part.length > MAX_BASE64_LENGTH && attempts < 10) {
             attempts++;
-            
+
             if (quality > 0.1) {
               // 품질 낮추기
               quality -= 0.05;
@@ -162,13 +162,13 @@ export function CreateStoryView() {
               ctx.drawImage(img, 0, 0, width, height);
               compressedDataUrl = canvas.toDataURL('image/jpeg', 0.2);
             }
-            
+
             const newBase64Part = compressedDataUrl.split(',')[1] || '';
             if (newBase64Part.length <= MAX_BASE64_LENGTH) {
               break;
             }
           }
-          
+
           // 최종 검증
           const finalBase64Part = compressedDataUrl.split(',')[1] || '';
           if (finalBase64Part.length > MAX_BASE64_LENGTH) {
@@ -178,7 +178,7 @@ export function CreateStoryView() {
             ctx.drawImage(img, 0, 0, 200, 200);
             compressedDataUrl = canvas.toDataURL('image/jpeg', 0.2);
           }
-          
+
           resolve(compressedDataUrl);
         };
         img.onerror = () => reject(new Error('이미지 로드 실패'));
@@ -337,12 +337,12 @@ export function CreateStoryView() {
         place: location.trim() || null,
         taggedMemberIds: taggedMembers.length > 0 ? taggedMembers : undefined,
       };
-      
+
       console.log('게시글 생성 요청:', {
         ...request,
         imagesUrl: request.imagesUrl?.map((url, idx) => `${idx}: ${url.substring(0, 50)}...`)
       });
-      
+
       await createStory(Number(groupId), request);
       toast.success('게시글이 작성되었습니다');
       navigate(-1);
@@ -353,7 +353,7 @@ export function CreateStoryView() {
         response: error?.response,
         status: error?.status
       });
-      
+
       const errorMessage = error?.message || error?.response?.data?.message || '게시글 작성에 실패했습니다';
       toast.error(errorMessage);
     } finally {
@@ -580,7 +580,7 @@ export function CreateStoryView() {
               <Button
                 onClick={handleSubmit}
                 disabled={
-                  isSubmitting || 
+                  isSubmitting ||
                   (!voteTitle.trim() || voteOptions.filter(opt => opt.optionText.trim()).length < 2)
                 }
                 className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-6"
@@ -766,11 +766,8 @@ export function CreateStoryView() {
               <Button
                 onClick={handleSubmit}
                 disabled={
-                  isSubmitting || 
-                  (postCategory === 'vote'
-                    ? (!voteTitle.trim() || voteOptions.filter(opt => opt.optionText.trim()).length < 2)
-                    : (!content.trim() && images.length === 0 && !title.trim())
-                  )
+                  isSubmitting ||
+                  (!content.trim() && images.length === 0 && !title.trim())
                 }
                 className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-6"
               >

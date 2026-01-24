@@ -4,6 +4,7 @@ import back.exception.ClubException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ClubMembersTest {
@@ -61,12 +62,16 @@ class ClubMembersTest {
                     .userId(10L)
                     .nickname("테스트닉네임")
                     .build();
+            // memberId를 설정 (실제로는 JPA가 저장 후 설정)
+            ReflectionTestUtils.setField(member, "memberId", 789L);
 
             // when
             member.reject();
 
             // then
             assertThat(member.getStatus()).isEqualTo(ClubMembers.Status.REJECTED);
+            // 거절 시 닉네임이 고유한 값으로 변경되었는지 확인
+            assertThat(member.getNickname()).isEqualTo("_789");
         }
 
         @Test
@@ -99,6 +104,8 @@ class ClubMembersTest {
                     .userId(10L)
                     .nickname("테스트닉네임")
                     .build();
+            // memberId를 설정 (실제로는 JPA가 저장 후 설정)
+            ReflectionTestUtils.setField(member, "memberId", 123L);
             member.approve(); // ACTIVE 상태로 변경
             member.promoteToStaff();
 
@@ -108,6 +115,8 @@ class ClubMembersTest {
             // then
             assertThat(member.getStatus()).isEqualTo(ClubMembers.Status.KICKED);
             assertThat(member.getRole()).isEqualTo(ClubMembers.Role.NONE);
+            // 강퇴 시 닉네임이 고유한 값으로 변경되었는지 확인
+            assertThat(member.getNickname()).isEqualTo("_123");
         }
 
         @Test
@@ -158,7 +167,11 @@ class ClubMembersTest {
                     .userId(10L)
                     .nickname("기존닉네임")
                     .build();
+            // memberId를 설정 (실제로는 JPA가 저장 후 설정)
+            ReflectionTestUtils.setField(member, "memberId", 456L);
             member.left();
+            // 탈퇴 시 닉네임이 고유한 값으로 변경되었는지 확인
+            assertThat(member.getNickname()).isEqualTo("_456");
 
             // when
             member.reApply();
@@ -209,11 +222,11 @@ class ClubMembersTest {
                     .userId(10L)
                     .nickname("테스트닉네임")
                     .build();
-            // PENDING 상태
+            // PENDING 상태 (기본값)
 
             // when & then
             assertThatThrownBy(() -> member.reApply())
-                    .isInstanceOf(ClubException.MemberAlreadyActive.class);
+                    .isInstanceOf(ClubException.MemberAlreadyPending.class);
         }
     }
 

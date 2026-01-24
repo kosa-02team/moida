@@ -247,8 +247,8 @@ class ClubServiceTest {
         }
 
         @Test
-        @DisplayName("비공개 모임 조회 성공 - 비멤버 (제한된 정보)")
-        void get_club_success_private_non_member() {
+        @DisplayName("비공개 모임 조회 실패 - 비멤버")
+        void get_club_fail_private_non_member() {
             // given
             Long clubId = 1L;
             Long viewerId = 10L;
@@ -258,18 +258,11 @@ class ClubServiceTest {
             given(clubMemberRepository.existsByClubIdAndUserIdAndStatus(clubId, viewerId, ClubMembers.Status.ACTIVE))
                     .willReturn(false);
 
-            // when
-            ClubResponse response = clubService.getClub(clubId, viewerId);
+            // when & then
+            assertThatThrownBy(() -> clubService.getClub(clubId, viewerId))
+                    .isInstanceOf(ClubException.AuthNotActive.class);
 
-            // then
-            assertThat(response).isNotNull();
-            assertThat(response.getClubId()).isEqualTo(clubId);
-            assertThat(response.getClubName()).isNotNull();
-            assertThat(response.getType()).isNotNull();
-            assertThat(response.getVisibility()).isNotNull();
-            assertThat(response.getOwnerId()).isNull(); // 제한된 정보만 반환
-            assertThat(response.getCurrentMembers()).isNull();
-
+            then(clubRepository).should(times(1)).findById(clubId);
             then(clubMemberRepository).should(times(1))
                     .existsByClubIdAndUserIdAndStatus(clubId, viewerId, ClubMembers.Status.ACTIVE);
             then(clubMemberRepository).should(never())

@@ -2,6 +2,7 @@ package back.domain.club;
 
 import back.domain.BaseEntity;
 import back.exception.ClubException;
+import back.exception.response.ErrorCode;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -40,6 +41,9 @@ public class ClubMembers extends BaseEntity {
 
     @Column(name = "joined_at")
     private LocalDateTime joinedAt;
+
+    @Column(name = "deletion_approval", nullable = true)
+    private Boolean deletionApproval;
 
     public enum Status {
         PENDING, ACTIVE, REJECTED, LEFT, KICKED
@@ -87,15 +91,45 @@ public class ClubMembers extends BaseEntity {
 
     public void left() {
         this.status = Status.LEFT;
+        // 탈퇴 시 닉네임을 고유한 값으로 변경하여 제약조건 위반 방지
+        // 재가입 시 같은 닉네임을 사용할 수 있도록 함
+        // 닉네임 길이 제한(10자)을 고려하여 짧은 고유값 생성
+        if (this.memberId != null) {
+            // memberId를 사용 (닉네임 길이 제한 10자 고려)
+            // 형식: "_" + memberId (memberId가 9자리 이하인 경우)
+            String memberIdStr = String.valueOf(this.memberId);
+            if (memberIdStr.length() <= 9) {
+                this.nickname = "_" + memberIdStr;
+            } else {
+                // memberId가 너무 큰 경우 뒤 9자리만 사용
+                this.nickname = "_" + memberIdStr.substring(memberIdStr.length() - 9);
+            }
+        } else if (this.userId != null) {
+            // memberId가 null인 경우 userId 사용 (이론적으로 발생하지 않음)
+            String userIdStr = String.valueOf(this.userId);
+            if (userIdStr.length() <= 9) {
+                this.nickname = "_" + userIdStr;
+            } else {
+                this.nickname = "_" + userIdStr.substring(userIdStr.length() - 9);
+            }
+        } else {
+            // 최후의 수단: 타임스탬프의 마지막 9자리 사용
+            String timestamp = String.valueOf(System.currentTimeMillis());
+            this.nickname = "_" + timestamp.substring(Math.max(0, timestamp.length() - 9));
+        }
     }
 
     public void kick() {
         if (this.status != Status.ACTIVE) {
             throw new ClubException.MemberNotActive();
         }
-        ;
         this.status = Status.KICKED;
         this.role = Role.NONE;
+        // 강퇴 시 닉네임을 고유한 값으로 변경하여 제약조건 위반 방지
+        // 재가입 시 같은 닉네임을 사용할 수 있도록 함
+        if (this.memberId != null) {
+            this.nickname = "_" + this.memberId;
+        }
     }
 
     public void reject() {
@@ -103,16 +137,25 @@ public class ClubMembers extends BaseEntity {
             throw new ClubException.MemberNotPending();
         }
         this.status = Status.REJECTED;
+        // 거절 시 닉네임을 고유한 값으로 변경하여 제약조건 위반 방지
+        // 재가입 시 같은 닉네임을 사용할 수 있도록 함
+        if (this.memberId != null) {
+            this.nickname = "_" + this.memberId;
+        }
     }
 
     public void reApply() {
         if (this.status == Status.KICKED) {
             throw new ClubException.MemberKickedOut();
         }
+        if (this.status == Status.PENDING) {
+            throw new ClubException.MemberAlreadyPending();
+        }
+        if (this.status == Status.ACTIVE) {
+            throw new ClubException.MemberAlreadyActive();
+        }
         if (this.status == Status.REJECTED || this.status == Status.LEFT) {
             this.status = Status.PENDING;
-        } else {
-            throw new ClubException.MemberAlreadyActive();
         }
     }
 
@@ -142,6 +185,24 @@ public class ClubMembers extends BaseEntity {
 
     public void demoteToMember() {
         this.role = Role.MEMBER;
+    }
+
+    public void approveDeletion() {
+        if (this.role != Role.OWNER && this.role != Role.ACCOUNTANT && this.role != Role.STAFF) {
+            throw new ClubException(ErrorCode.CLUB_AUTH_NOT_STAFF);
+        }
+        this.deletionApproval = true;
+    }
+
+    public void rejectDeletion() {
+        if (this.role != Role.OWNER && this.role != Role.ACCOUNTANT && this.role != Role.STAFF) {
+            throw new ClubException(ErrorCode.CLUB_AUTH_NOT_STAFF);
+        }
+        this.deletionApproval = false;
+    }
+
+    public void resetDeletionApproval() {
+        this.deletionApproval = null;
     }
 
     public void changeNickname(String nickname) {

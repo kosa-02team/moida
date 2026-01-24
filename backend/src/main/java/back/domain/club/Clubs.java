@@ -56,8 +56,21 @@ public class Clubs extends BaseEntity {
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "deletion_request_status", length = 20, nullable = true)
+    private DeletionRequestStatus deletionRequestStatus;
+
+    @Column(name = "deletion_requested_at", nullable = true)
+    private LocalDateTime deletionRequestedAt;
+
     public enum Status {
         ACTIVE, INACTIVE
+    }
+
+    public enum DeletionRequestStatus {
+        NONE,        // 삭제 요청 없음
+        PENDING,     // 삭제 요청 중 (운영진 동의 대기)
+        APPROVED     // 모든 운영진 동의 완료 (삭제 가능)
     }
 
     public enum Visibility {
@@ -111,6 +124,31 @@ public class Clubs extends BaseEntity {
     public void close() {
         this.status = Status.INACTIVE;
         this.closedAt = LocalDateTime.now();
+        this.deletionRequestStatus = DeletionRequestStatus.NONE;
+        this.deletionRequestedAt = null;
+    }
+
+    public void requestDeletion() {
+        if (this.deletionRequestStatus == DeletionRequestStatus.PENDING) {
+            throw new IllegalStateException("이미 삭제 요청이 진행 중입니다.");
+        }
+        this.deletionRequestStatus = DeletionRequestStatus.PENDING;
+        this.deletionRequestedAt = LocalDateTime.now();
+    }
+
+    public void cancelDeletionRequest() {
+        if (this.deletionRequestStatus == null || this.deletionRequestStatus != DeletionRequestStatus.PENDING) {
+            throw new IllegalStateException("진행 중인 삭제 요청이 없습니다.");
+        }
+        this.deletionRequestStatus = DeletionRequestStatus.NONE;
+        this.deletionRequestedAt = null;
+    }
+
+    public void approveDeletion() {
+        if (this.deletionRequestStatus == null || this.deletionRequestStatus != DeletionRequestStatus.PENDING) {
+            throw new IllegalStateException("삭제 요청이 진행 중이 아닙니다.");
+        }
+        this.deletionRequestStatus = DeletionRequestStatus.APPROVED;
     }
 
     public void activate() {

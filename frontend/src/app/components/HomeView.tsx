@@ -90,8 +90,12 @@ export function HomeView() {
     fetchData();
   }, [searchQuery, navigate]);
 
-  // 내 모임 필터링 (카테고리 포함)
+  // 내 모임 필터링 (카테고리 포함, ACTIVE 상태만 표시)
   const displayGroups = myClubs.filter(club => {
+    // 폐쇄된 모임(INACTIVE)은 제외
+    if (club.status === 'INACTIVE') {
+      return false;
+    }
     const matchesSearch =
       club.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = filterCategory === 'all' || club.category === filterCategory;

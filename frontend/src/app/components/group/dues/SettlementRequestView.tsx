@@ -61,7 +61,7 @@ export function SettlementRequestView() {
         setMembers(activeMembers.map(m => ({
           id: m.memberId.toString(),
           memberId: m.memberId,
-          name: m.clubNickname || m.realName,
+          name: m.clubNickname || '멤버',
           selected: false,
         })));
       } catch (error) {

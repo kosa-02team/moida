@@ -152,7 +152,6 @@ export function GroupMainView() {
           <Progress
             value={((club.currentMembers || 1) / (club.maxMembers || 100)) * 100}
             className="h-2 bg-stone-100"
-            indicatorClassName="bg-orange-500"
           />
         </div>
       </section>

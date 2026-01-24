@@ -2,7 +2,7 @@
  * 은행 계좌(BankAccount) 관련 API
  */
 
-import { get, post } from './client';
+import { get, post, put } from './client';
 import { TransactionLogResponse } from './ledger';
 import { PaymentRequest } from './payment-request';
 
@@ -95,6 +95,17 @@ export const createBankAccount = async (
 ): Promise<BankAccounts> => {
   const url = `/api/clubs/${clubId}/bank/accounts`;
   return post<BankAccounts>(url, request);
+};
+
+/**
+ * 모임 가상계좌 변경
+ */
+export const changeBankAccount = async (
+  clubId: number,
+  request: AccountCreateRequest
+): Promise<BankAccounts> => {
+  const url = `/api/clubs/${clubId}/bank/account`;
+  return put<BankAccounts>(url, request);
 };
 
 /**
