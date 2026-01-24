@@ -51,6 +51,14 @@ class EventFundServiceTest {
         private NotificationService notificationService;
         @Mock
         private NotificationsRepository notificationsRepository;
+        @Mock
+        private back.bank.repository.BankAccountRepository bankAccountRepository;
+        @Mock
+        private back.bank.service.BankService bankService;
+        @Mock
+        private back.service.club.ClubAuthService clubAuthService;
+        @Mock
+        private back.repository.club.ClubMemberRepository clubMemberRepository;
 
         @InjectMocks
         private EventFundService eventFundService;
@@ -98,6 +106,7 @@ class EventFundServiceTest {
                         // given
                         Long clubId = 1L;
                         Long scheduleId = 100L;
+                        Long userId = 1L; // 요청자 ID
                         BigDecimal entryFee = BigDecimal.valueOf(10000);
 
                         Schedules schedule = createSchedule(scheduleId, entryFee);
@@ -109,16 +118,19 @@ class EventFundServiceTest {
                         Users user1 = createUser(10L, "홍길동");
                         Users user2 = createUser(11L, "김철수");
 
+                        // Mock 설정
+                        willDoNothing().given(clubAuthService).assertAtLeastAccountant(clubId, userId);
+                        given(bankService.syncTransactionsStub(any(), any(), any(), any())).willReturn(List.of());
                         given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
                         given(participantRepository.findByScheduleId(scheduleId)).willReturn(List.of(p1, p2));
                         given(userRepository.findAllById(any())).willReturn(List.of(user1, user2));
-                        given(paymentRequestRepository.existsByScheduleIdAndMemberId(scheduleId, 1L)).willReturn(false);
-                        given(paymentRequestRepository.existsByScheduleIdAndMemberId(scheduleId, 2L)).willReturn(false);
+                        given(paymentRequestRepository.existsByScheduleIdAndMemberId(scheduleId, 10L)).willReturn(false);
+                        given(paymentRequestRepository.existsByScheduleIdAndMemberId(scheduleId, 11L)).willReturn(false);
                         given(notificationsRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
                         willDoNothing().given(notificationService).send(any(), any());
 
                         // when
-                        eventFundService.collectEntryFees(clubId, scheduleId);
+                        eventFundService.collectEntryFees(clubId, scheduleId, userId);
 
                         // then - 참석 마감 확인
                         assertThat(schedule.getAttendanceClosedAt()).isNotNull();
@@ -149,6 +161,7 @@ class EventFundServiceTest {
                         // given
                         Long clubId = 1L;
                         Long scheduleId = 100L;
+                        Long userId = 1L; // 요청자 ID
                         Schedules schedule = createSchedule(scheduleId, BigDecimal.valueOf(10000));
 
                         // 참석 마감 시간 설정
@@ -167,6 +180,9 @@ class EventFundServiceTest {
                                         BigDecimal.valueOf(-5000),
                                         BigDecimal.ZERO, "간식", null, 201L);
 
+                        // Mock 설정
+                        willDoNothing().given(clubAuthService).assertAtLeastAccountant(clubId, userId);
+                        given(bankService.syncTransactionsStub(any(), any(), any(), any())).willReturn(List.of());
                         given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
 
                         // 실제 납부자 리스트
@@ -184,7 +200,7 @@ class EventFundServiceTest {
                                         .willReturn(List.of(req1, req2));
 
                         // when
-                        eventFundService.settleAndRefund(clubId, scheduleId);
+                        eventFundService.settleAndRefund(clubId, scheduleId, userId);
 
                         // then
                         // 환급액: (20000 - 5000) / 2명 = 7500원
@@ -204,9 +220,13 @@ class EventFundServiceTest {
                         // given
                         Long clubId = 1L;
                         Long scheduleId = 100L;
+                        Long userId = 1L; // 요청자 ID
                         Schedules schedule = createSchedule(scheduleId, BigDecimal.valueOf(10000));
                         ReflectionTestUtils.setField(schedule, "attendanceClosedAt", LocalDateTime.now().minusDays(2));
 
+                        // Mock 설정
+                        willDoNothing().given(clubAuthService).assertAtLeastAccountant(clubId, userId);
+                        given(bankService.syncTransactionsStub(any(), any(), any(), any())).willReturn(List.of());
                         given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
 
                         // 수입: 20000원 (실제 납부자)
@@ -242,7 +262,7 @@ class EventFundServiceTest {
                                         .willReturn(List.of(settlementReq));
 
                         // when
-                        eventFundService.settleAndRefund(clubId, scheduleId);
+                        eventFundService.settleAndRefund(clubId, scheduleId, userId);
 
                         // then
                         // 지출 인정: 5000원 (3000원은 제외됨)
