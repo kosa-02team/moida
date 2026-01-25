@@ -2,6 +2,7 @@ package back.service.ledger;
 
 import back.bank.domain.BankTransactionHistory;
 import back.bank.repository.BankTransactionHistoryRepository;
+import back.bank.service.BankService;
 import back.controller.ledger.ManualTransactionRequest;
 import back.controller.ledger.TransactionLogResponse;
 import back.controller.ledger.TransactionUpdateRequest;
@@ -31,6 +32,14 @@ public class LedgerService {
     private final BankTransactionHistoryRepository bankTransactionHistoryRepository;
     private final PaymentRequestRepository paymentRequestRepository;
     private final ClubMemberRepository clubMemberRepository;
+    private final BankService bankService;
+
+    // 동기화
+    @Transactional
+    public void syncTransactions(Long clubId) {
+        bankService.syncTransactionsStub(clubId, 1L, null, null);
+        bankService.syncTransactionsStub(clubId, 2L, null, null);
+    }
 
     // 조회 (최신순 정렬: createdAt DESC, transactionId DESC)
     @Transactional(readOnly = true)

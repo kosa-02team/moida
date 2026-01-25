@@ -22,11 +22,11 @@ import java.util.List;
 public class LedgerController {
 
     private final LedgerService ledgerService;
-    private final BankService bankService;
 
     /**
      * 장부 내역 조회 (필터링 포함)
      * GET /clubs/{clubId}/ledger?startDate=2024-01-01&endDate=2024-01-31&sync=true
+     * 
      * @param sync - true인 경우 조회 전 은행 동기화 실행 (기본값: true, 최신 거래 내역 반영)
      */
     @GetMapping
@@ -41,13 +41,8 @@ public class LedgerController {
         if (sync) {
             try {
                 System.out.println("🔄 [거래 내역 조회] 동기화 시작: clubId=" + clubId);
-                List<TransactionLog> depositLogs = bankService.syncTransactionsStub(clubId, 1L, null, null); // 입금 내역
-                System.out.println("  ✓ 입금 내역 동기화 완료: " + depositLogs.size() + "건");
-                
-                List<TransactionLog> withdrawLogs = bankService.syncTransactionsStub(clubId, 2L, null, null); // 출금 내역
-                System.out.println("  ✓ 출금 내역 동기화 완료: " + withdrawLogs.size() + "건");
-                
-                System.out.println("🔄 [거래 내역 조회] 동기화 완료: 총 " + (depositLogs.size() + withdrawLogs.size()) + "건");
+                ledgerService.syncTransactions(clubId);
+                System.out.println("🔄 [거래 내역 조회] 동기화 완료");
             } catch (Exception e) {
                 // 동기화 실패 시 로깅만 하고 계속 진행
                 System.err.println("❌ [거래 내역 조회] 동기화 실패: clubId=" + clubId + ", error=" + e.getMessage());
