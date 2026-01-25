@@ -9,7 +9,7 @@
     "bank_rsp_code": "000",
     "bank_rsp_message": "",
     "bank_name": "오픈은행",
-    "balance_amt": "12000",
+    "balance_amt": "132000",
     "page_record_cnt": "4",
     "next_page_yn": "N",
     "res_list": [
@@ -20,7 +20,7 @@
             "tran_type": "이체",
             "print_content": "GS25 여의도점",
             "tran_amt": "42000",
-            "after_balance_amt": "138000",
+            "after_balance_amt": "258000",
             "comment": "런닝 전 음료/간식 구매 (6명 x 7,000원)"
         },
         {
@@ -30,7 +30,7 @@
             "tran_type": "이체",
             "print_content": "치킨플러스 여의도",
             "tran_amt": "78000",
-            "after_balance_amt": "60000",
+            "after_balance_amt": "180000",
             "comment": "뒷풀이 치킨 (3마리)"
         },
         {
@@ -40,7 +40,7 @@
             "tran_type": "이체",
             "print_content": "CU 여의도역점",
             "tran_amt": "36000",
-            "after_balance_amt": "24000",
+            "after_balance_amt": "144000",
             "comment": "뒷풀이 음료/맥주"
         },
         {
@@ -50,7 +50,7 @@
             "tran_type": "이체",
             "print_content": "주차비",
             "tran_amt": "12000",
-            "after_balance_amt": "12000",
+            "after_balance_amt": "132000",
             "comment": "여의도 공영주차장"
         }
     ]

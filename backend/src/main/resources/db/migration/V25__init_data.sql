@@ -384,7 +384,7 @@ VALUES
 
 INSERT INTO posts (club_id, writer_id, category, title, content, schedule_id, place, created_at, updated_at)
 VALUES
-(1, 1, 'GENERAL', '오늘은 여의도 공원 한 바퀴', '오늘은 여의도 공원 한 바퀴.\n\n초반엔 다들 말 많다가 2km 지나니까 말수 급감.\n\n끝나고 편의점에서 아이스크림 하나씩 들고 앉아있는데,\n\n“뛰는 것보다 이 시간이 더 좋다”는 말에 다들 고개 끄덕임.', 1, '여의도공원', NOW(), NOW()),
+(1, 27, 'GENERAL', '오늘은 여의도 공원 한 바퀴', '오늘은 여의도 공원 한 바퀴.\n\n초반엔 다들 말 많다가 2km 지나니까 말수 급감.\n\n끝나고 편의점에서 아이스크림 하나씩 들고 앉아있는데,\n\n“뛰는 것보다 이 시간이 더 좋다”는 말에 다들 고개 끄덕임.', 1, '여의도공원', NOW(), NOW()),
 
 (1, 2, 'GENERAL', '러닝 전에 커피 마시면 안 된다고', '러닝 전에 커피 마시면 안 된다고 했는데\n\n결국 두 명이나 아이스 아메리카노 들고 등장.\n\n뛰다가 배 아프다며 중간에 화장실 찾느라 코스 이탈.\n\n다음부턴 커피 금지로 합의.', 2, '한강공원', NOW(), NOW()),
 
@@ -404,50 +404,6 @@ VALUES
 
 (1, 10, 'GENERAL', '오늘은 유독 컨디션', '오늘은 유독 컨디션 안 좋은 사람이 많았던 날.\n\n그래서 목표 거리 줄이고 일찍 종료.\n\n“이런 날도 있어야 오래 한다”는 말이 오늘의 명언.', 10, '서울숲', NOW(), NOW());
 
-INSERT INTO post_images (post_id, image_url, created_at)
-VALUES
-(1, '/uploads/images/story/1/1.png', NOW()),
-(1, '/uploads/images/story/1/2.jpg', NOW()),
-
-(2, '/uploads/images/story/2/1.png', NOW()),
-(2, '/uploads/images/story/2/2.png', NOW()),
-
-(3, '/uploads/images/story/3/1.png', NOW()),
-(3, '/uploads/images/story/3/2.png', NOW()),
-
-(4, '/uploads/images/story/4/1.png', NOW()),
-(4, '/uploads/images/story/4/2.png', NOW()),
-
-(5, '/uploads/images/story/5/1.png', NOW()),
-(5, '/uploads/images/story/5/2.png', NOW()),
-
-(6, '/uploads/images/story/6/1.png', NOW()),
-(6, '/uploads/images/story/6/2.png', NOW()),
-
-(7, '/uploads/images/story/7/1.png', NOW()),
-(7, '/uploads/images/story/7/2.png', NOW()),
-
-(8, '/uploads/images/story/8/1.png', NOW()),
-(8, '/uploads/images/story/8/2.png', NOW()),
-
-(9, '/uploads/images/story/9/1.png', NOW()),
-(9, '/uploads/images/story/9/2.png', NOW()),
-
-(10, '/uploads/images/story/10/1.png', NOW()),
-(10, '/uploads/images/story/10/2.png', NOW());
-
-INSERT INTO post_member_tags (post_id, member_id)
-VALUES
-(1, 27), (1, 2), (1, 3),
-(2, 27), (2, 4), (2, 5),
-(3, 27), (3, 6), (3, 7), (3, 8),
-(4, 27), (4, 9),
-(5, 27), (5, 10), (5, 11),
-(6, 27), (6, 12), (6, 13),
-(7, 27), (7, 14),
-(8, 27), (8, 2), (8, 5),
-(9, 27), (9, 3), (9, 6),
-(10, 27), (10, 4), (10, 7);
 
 
 SET FOREIGN_KEY_CHECKS = 1;

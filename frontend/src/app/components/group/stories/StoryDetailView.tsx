@@ -147,32 +147,14 @@ export function StoryDetailView() {
         const userInfo = await getMyInfo().catch(() => null); // 실패해도 계속 진행
         const votesData = await getVotes(Number(groupId)).catch(() => [] as VoteListResponse[]);
 
-        // 멤버 목록에서 작성자 정보 찾기
-        const writerMember = members.find(m => m.userId === postData.writerId);
-        const writerName = writerMember?.clubNickname || `사용자${postData.writerId}`;
+        // 멤버 목록에서 작성자 정보 찾기 (unused)
+        // const writerMember = members.find(m => m.userId === postData.writerId);
+        // const writerName = writerMember?.clubNickname || `사용자${postData.writerId}`;
 
         // 백엔드 응답에 없는 필드들을 보완
-        const enrichedPost: PostDetailResponse = {
-          ...postData,
-          // writerName을 멤버 정보에서 가져오기
-          writerName: postData.writerName || writerName,
-          // writerProfileImageUrl이 없으면 null
-          writerProfileImageUrl: postData.writerProfileImageUrl || null,
-          // imagesUrl은 백엔드에서 이제 포함됨
-          imagesUrl: postData.imagesUrl || [],
-          // postLikes가 없으면 0
-          postLikes: postData.postLikes || 0,
-          // isLiked는 기본값 false (별도 확인 필요 시 API 호출)
-          isLiked: postData.isLiked || false,
-          // isMyPost는 writerId와 현재 사용자 ID 비교
-          isMyPost: userInfo ? postData.writerId === userInfo.userId : false,
-          // taggedMemberIds는 빈 배열 (별도 API 호출 필요 시 추가)
-          taggedMemberIds: postData.taggedMemberIds || []
-        };
-
-        setPost(enrichedPost);
-        setLiked(enrichedPost.isLiked || false);
-        setLikeCount(enrichedPost.postLikes || 0);
+        setPost(postData);
+        setLiked(postData.isLiked || false);
+        setLikeCount(postData.postLikes || 0);
 
         // currentUserId 설정 (아직 설정되지 않은 경우)
         if (userInfo && !currentUserId) {
@@ -611,10 +593,39 @@ export function StoryDetailView() {
           </div>
         </div>
 
-        {/* Content */}
         {post?.content && (
           <div className="px-4 pb-4">
             <p className="text-stone-800 leading-relaxed">{post.content}</p>
+          </div>
+        )}
+
+        {/* Location & Tagged Members */}
+        {(post?.place || (post?.taggedMemberIds && post.taggedMemberIds.length > 0)) && (
+          <div className="px-4 pb-4 flex flex-col gap-2">
+            {/* Location */}
+            {post.place && (
+              <div className="flex items-center gap-2 text-stone-600">
+                <MapPin className="w-4 h-4 text-stone-500" />
+                <span className="text-sm">{post.place}</span>
+              </div>
+            )}
+
+            {/* Tagged Members */}
+            {post.taggedMemberIds && post.taggedMemberIds.length > 0 && (
+              <div className="flex items-center gap-2 text-stone-600">
+                <Users className="w-4 h-4 text-stone-500" />
+                <div className="flex flex-wrap gap-1">
+                  {post.taggedMemberIds.map((memberId) => {
+                    const member = members.find(m => m.userId === memberId);
+                    return (
+                      <span key={memberId} className="text-sm font-medium bg-stone-100 px-2 py-0.5 rounded-md">
+                        @{member?.clubNickname || `사용자${memberId}`}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

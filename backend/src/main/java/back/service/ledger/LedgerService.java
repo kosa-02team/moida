@@ -35,10 +35,10 @@ public class LedgerService {
     private final BankService bankService;
 
     // 동기화
-    @Transactional
+//    @Transactional
     public void syncTransactions(Long clubId) {
         bankService.syncTransactionsStub(clubId, 1L, null, null);
-        bankService.syncTransactionsStub(clubId, 2L, null, null);
+//        bankService.syncTransactionsStub(clubId, 2L, null, null);
     }
 
     // 조회 (최신순 정렬: createdAt DESC, transactionId DESC)

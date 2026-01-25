@@ -145,7 +145,15 @@ public class PostService {
         Long postLikes = postLikeRepository.countByPostId(postId);
         Boolean isLiked = postLikeRepository.existsByPostIdAndUserId(postId, viewerId);
 
-        return PostDetailResponse.from(post, imagesUrl, postLikes, isLiked);
+        // 내 게시글 여부
+        Boolean isMyPost = post.getWriter().getUserId().equals(viewerId);
+
+        // 태그된 멤버 ID 목록 조회
+        List<Long> taggedMemberIds = postMemberTagRepository.findByPostId(postId).stream()
+                .map(back.domain.post.PostMemberTags::getMemberId)
+                .toList();
+
+        return PostDetailResponse.from(post, imagesUrl, postLikes, isLiked, isMyPost, taggedMemberIds);
     }
 
     // 스토리 페이지에 게시글 박스
@@ -231,7 +239,7 @@ public class PostService {
         assertCanManagePost(clubId, post, actorId);
 
         applyStoryUpdates(post, request);
-        applyMediaUpdatesOnUpdate(post, request);
+        applyMediaUpdatesOnUpdate(post, clubId, request);
 
         return PostIdResponse.from(post);
     }
@@ -375,7 +383,10 @@ public class PostService {
             replaceImages(saved, request.imagesUrl());
         }
         if (request.taggedMemberIds() != null && !request.taggedMemberIds().isEmpty()) {
-            replaceTaggedMembers(saved.getPostId(), request.taggedMemberIds());
+            replaceTaggedMembers(
+                    saved.getPostId(),
+                    saved.getClub().getClubId(),
+                    request.taggedMemberIds());
         }
     }
 
@@ -384,12 +395,18 @@ public class PostService {
      * 빈 리스트면 전체 삭제
      * 값 있으면 교체
      */
-    private void applyMediaUpdatesOnUpdate(Posts post, StoryUpdateRequest request) {
+    private void applyMediaUpdatesOnUpdate(
+            Posts post,
+            Long clubId,
+            StoryUpdateRequest request) {
         if (request.imagesUrl() != null) {
             replaceImages(post, request.imagesUrl());
         }
         if (request.taggedMemberIds() != null) {
-            replaceTaggedMembers(post.getPostId(), request.taggedMemberIds());
+            replaceTaggedMembers(
+                    post.getPostId(),
+                    clubId,
+                    request.taggedMemberIds());
         }
     }
 
@@ -407,14 +424,19 @@ public class PostService {
         postImageRepository.saveAll(images);
     }
 
-    private void replaceTaggedMembers(Long postId, List<Long> memberIds) {
+    private void replaceTaggedMembers(Long postId, Long clubId, List<Long> userIds) {
         postMemberTagRepository.deleteByPostId(postId);
 
-        if (memberIds.isEmpty())
+        if (userIds.isEmpty())
             return;
 
+        List<Long> memberIds = clubMemberRepository
+                .findByClubIdAndUserIdIn(clubId, userIds)
+                .stream()
+                .map(ClubMembers::getMemberId)
+                .toList();
+
         List<PostMemberTags> tags = memberIds.stream()
-                .distinct()
                 .map(memberId -> PostMemberTags.of(postId, memberId))
                 .toList();
 

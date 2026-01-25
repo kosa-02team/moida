@@ -14,20 +14,38 @@ import back.repository.schedule.ScheduleParticipantRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
- * 거래내역 매칭 서비스
- * - 입금요청과 거래내역을 자동으로 매칭
+ * 거래내역 매칭 서비스 (리팩토링 버전)
+ * 
+ * [핵심 변경점]
+ * - 기존: 모든 PaymentRequest 순회 → 이름 비교 → 중복 판단 (복잡)
+ * - 변경: 거래 이름으로 club_members에서 멤버 먼저 확정 → 해당 멤버 요청만 매칭 (단순)
+ *
+ * [흐름]
+ * 1. 거래내역에서 이름 추출 (normalize)
+ * 2. club_members에서 해당 이름의 멤버 조회
+ * - 1명 → 멤버 확정 → 그 멤버의 PaymentRequest만 매칭 시도
+ * - 0명 → 이름 없는 거래 → 기존 전체 스캔 (금액+날짜 유일 시 매칭)
+ * - 2명+ → 동명이인 → 자동 매칭 금지, 후보만 저장
  */
 @Service
 public class TransactionMatchingService {
+
+    // 실패 사유 상수
+    public static final String REASON_NAME_DUPLICATE = "NAME_DUPLICATE";
+    public static final String REASON_NAME_NOT_FOUND = "NAME_NOT_FOUND";
+    public static final String REASON_AMBIGUOUS = "AMBIGUOUS_CANDIDATES";
+    public static final String REASON_AMOUNT_MISMATCH = "AMOUNT_MISMATCH";
+    public static final String REASON_DATE_OUT_OF_RANGE = "DATE_OUT_OF_RANGE";
+    public static final String REASON_NO_PENDING = "NO_PENDING_REQUESTS";
 
     private final PaymentRequestRepository paymentRequestRepository;
     private final BankTransactionHistoryRepository transactionHistoryRepository;
@@ -53,601 +71,511 @@ public class TransactionMatchingService {
         this.auditLogsRepository = auditLogsRepository;
     }
 
-    /**
-     * 자동 매칭 수행
-     * - 새로운 거래내역이 들어올 때 호출
-     */
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    // ========================================================================
+    // 1단계: 자동 매칭 수행
+    // ========================================================================
+    @Transactional
     public void autoMatchTransactions(Long clubId, List<BankTransactionHistory> newTransactions,
             Map<Long, TransactionLog> newTransactionLogs) {
-        synchronized (clubId.toString().intern()) {
-            // 매칭 가능한 입금요청 조회 (PENDING 상태 + 만료되지 않음)
-            List<PaymentRequest> matchableRequests = paymentRequestRepository.findMatchableRequests(clubId);
 
-            // 클럽 정보 조회 (운영 타입 확인용)
-            Clubs club = clubRepository.findById(clubId).orElse(null);
-            boolean isFairSettlement = club != null && club.getType() == Clubs.Type.FAIR_SETTLEMENT;
+        // 전체 PaymentRequest (fallback용)
+        List<PaymentRequest> allRequests = paymentRequestRepository.findMatchableRequests(clubId);
 
-            for (BankTransactionHistory transaction : newTransactions) {
+        // 클럽 멤버 전체 조회
+        List<back.repository.club.projection.MemberNameView> allMembers = clubMemberRepository
+                .findAllNameViewsByClubId(clubId);
 
-                // 이미 매칭된 거래는 스킵
-                if (isAlreadyMatched(transaction, matchableRequests)) {
-                    continue;
-                }
+        Clubs club = clubRepository.findById(clubId).orElse(null);
+        boolean isFairSettlement = club != null && club.getType() == Clubs.Type.FAIR_SETTLEMENT;
 
-                // 매칭 시도
-                tryMatch(transaction, matchableRequests, isFairSettlement, newTransactionLogs);
-            }
-        }
-    }
+        List<MatchingResult> results = new java.util.ArrayList<>();
 
-    /**
-     * 거래내역과 입금요청 매칭 시도
-     */
-    private void tryMatch(BankTransactionHistory transaction, List<PaymentRequest> requests, boolean isFairSettlement,
-            Map<Long, TransactionLog> newTransactionLogs) {
-        for (PaymentRequest request : requests) {
-            if (!request.isMatchable()) {
+        for (BankTransactionHistory tx : newTransactions) {
+            if (Boolean.TRUE.equals(tx.getIsMatched()))
                 continue;
-            }
 
-            if (isMatched(transaction, request)) {
-                // 자동 매칭 처리
-                request.autoMatch(transaction.getHistoryId());
-                paymentRequestRepository.save(request);
+            MatchingResult result = matchTransaction(tx, allRequests, allMembers);
+            results.add(result);
 
-                // 거래내역 매칭 상태 업데이트
-                transaction.markAsMatched();
-                transactionHistoryRepository.save(transaction);
-
-                // 일정 참가자 상태 업데이트
-                updateScheduleParticipantStatus(request, transaction.getHistoryId());
-
-                // FAIR_SETTLEMENT 타입인 경우 TransactionLog에 scheduleId 저장
-                if (isFairSettlement && newTransactionLogs != null
-                        && newTransactionLogs.containsKey(transaction.getHistoryId())) {
-                    TransactionLog log = newTransactionLogs.get(transaction.getHistoryId());
-                    if (log != null && request.getScheduleId() != null) {
-                        log.updateScheduleId(request.getScheduleId());
-                        transactionLogRepository.save(log); // 변경사항 저장
-                    }
-                }
-
-                return; // 하나의 거래내역은 하나의 요청에만 매칭
+            // 매칭 성공 시 다음 거래가 중복 매칭되지 않도록 제거
+            if (result.isMatched && result.matchedRequest != null) {
+                allRequests.remove(result.matchedRequest);
             }
         }
 
-        // 매칭 실패 시 사유 추적 (가장 근접한 실패 사유 기록)
-        String failureReason = determineFailureReason(transaction, requests);
-        transaction.updateUnmatchReason(failureReason);
-        transactionHistoryRepository.save(transaction);
+        // DB 업데이트
+        processMatchingResults(results, isFairSettlement, newTransactionLogs);
     }
 
-    /**
-     * 매칭 조건 확인
-     * 1. 금액이 예상 금액과 일치
-     * 2. 거래 날짜가 예상 날짜 ±N일 이내 (N=match_days_range)툴바 사용자 지정…
-     * 3. print_content에 회원 이름, 닉네임 포함
-     */
-    private boolean isMatched(BankTransactionHistory tx, PaymentRequest req) {
-        System.out.println("=== [isMatched 호출] 거래내역: " + tx.getPrintContent() + " (" + tx.getAmount() + "원), 요청: "
-                + req.getMemberName() + " (" + req.getExpectedAmount() + "원) ===");
-        System.out.println("은행거래내역 금액 : " + tx.getAmount() + ", 지불 요청 금액 : " + req.getExpectedAmount());
+    // ========================================================================
+    // 핵심 매칭 로직 (리팩토링됨)
+    // ========================================================================
+    private MatchingResult matchTransaction(BankTransactionHistory tx,
+            List<PaymentRequest> allRequests,
+            List<back.repository.club.projection.MemberNameView> allMembers) {
 
-        // 1) 금액 먼저 (절대값 비교)
+        // --- Step 1: 거래 내용에서 이름 추출 ---
+        String extractedName = extractNameFromContent(tx.getPrintContent());
+
+        if (extractedName.isEmpty()) {
+            // 이름 추출 실패 → 기존 fallback 로직 (금액+날짜 유일 시 매칭)
+            return fallbackMatch(tx, allRequests);
+        }
+
+        // --- Step 2: club_members에서 해당 이름의 멤버 조회 ---
+        List<back.repository.club.projection.MemberNameView> matchedMembers = findMembersByName(extractedName,
+                allMembers);
+
+        // --- Step 3: 분기 처리 ---
+        if (matchedMembers.size() == 1) {
+            // Case A: 유일한 멤버 → 해당 멤버의 요청만 매칭 시도
+            return matchForUniqueMember(tx, matchedMembers.get(0), allRequests);
+        } else if (matchedMembers.isEmpty()) {
+            // Case B: 이름 매칭되는 멤버 없음 → fallback
+            return fallbackMatch(tx, allRequests);
+        } else {
+            // Case C: 동명이인 (2명 이상) → 자동 매칭 금지
+            return handleDuplicateNames(tx, matchedMembers, allRequests);
+        }
+    }
+
+    // ========================================================================
+    // Helper: 거래 내용에서 이름 추출
+    // ========================================================================
+    private String extractNameFromContent(String content) {
+        if (content == null || content.isBlank())
+            return "";
+
+        // 정규화 (공백, 특수문자 제거 + 접미어 제거)
+        String normalized = Normalizer.normalize(content, Normalizer.Form.NFC);
+        String cleaned = normalized.replaceAll("\\s+", "")
+                .replaceAll("[^0-9a-zA-Z가-힣]", "");
+
+        // 접미어 제거 (어디에 있든 제거)
+        cleaned = cleaned.replaceAll("(월회비|회비|입금)", "");
+
+        return cleaned.toLowerCase();
+    }
+
+    // ========================================================================
+    // Helper: 이름으로 멤버 조회 (realName 또는 nickname 매칭)
+    // ========================================================================
+    private List<back.repository.club.projection.MemberNameView> findMembersByName(
+            String nameToFind,
+            List<back.repository.club.projection.MemberNameView> allMembers) {
+
+        return allMembers.stream()
+                .filter(m -> {
+                    String realName = extractNameFromContent(m.getRealName());
+                    String nickname = extractNameFromContent(m.getClubNickname());
+                    return nameToFind.equals(realName) || nameToFind.equals(nickname);
+                })
+                .collect(Collectors.toList());
+    }
+
+    // ========================================================================
+    // Case A: 유일한 멤버 → 해당 멤버의 요청만 매칭
+    // ========================================================================
+    private MatchingResult matchForUniqueMember(BankTransactionHistory tx,
+            back.repository.club.projection.MemberNameView member,
+            List<PaymentRequest> allRequests) {
+
+        Long memberId = member.getMemberId();
+
+        // 해당 멤버의 미매칭 요청만 필터링
+        List<PaymentRequest> memberRequests = allRequests.stream()
+                .filter(r -> r.getMemberId().equals(memberId) && r.isMatchable())
+                .collect(Collectors.toList());
+
+        if (memberRequests.isEmpty()) {
+            return new MatchingResult(tx, REASON_NO_PENDING, null);
+        }
+
+        // 금액 + 날짜 일치하는 요청 찾기
+        PaymentRequest matched = null;
+        for (PaymentRequest req : memberRequests) {
+            if (isBasicMatch(tx, req)) {
+                if (matched != null) {
+                    // 같은 멤버의 요청이 여러 건 매칭됨 → AMBIGUOUS
+                    return new MatchingResult(tx, REASON_AMBIGUOUS, memberRequests);
+                }
+                matched = req;
+            }
+        }
+
+        if (matched != null) {
+            System.out.println("[Matching] ✓ 유일 멤버 매칭: TxId=" + tx.getHistoryId() +
+                    " → ReqId=" + matched.getRequestId() +
+                    ", Member=" + member.getRealName());
+            return new MatchingResult(tx, matched);
+        }
+
+        return new MatchingResult(tx, REASON_AMOUNT_MISMATCH, null);
+    }
+
+    // ========================================================================
+    // Case B: 이름 매칭 없음 → Fallback (금액+날짜 유일 시 매칭)
+    // ========================================================================
+    private MatchingResult fallbackMatch(BankTransactionHistory tx, List<PaymentRequest> allRequests) {
+        List<PaymentRequest> candidates = allRequests.stream()
+                .filter(r -> r.isMatchable() && isBasicMatch(tx, r))
+                .collect(Collectors.toList());
+
+        if (candidates.size() == 1) {
+            System.out.println("[Matching] ✓ Fallback 매칭 (후보 유일): TxId=" + tx.getHistoryId());
+            return new MatchingResult(tx, candidates.get(0));
+        } else if (candidates.isEmpty()) {
+            return new MatchingResult(tx, determineFailureReason(tx, allRequests), null);
+        } else {
+            System.out.println("[Matching] ⚠️ Fallback 실패 (후보 다수): " + candidates.size());
+            return new MatchingResult(tx, REASON_AMBIGUOUS, candidates);
+        }
+    }
+
+    // ========================================================================
+    // Case C: 동명이인 → 자동 매칭 금지, 후보만 저장
+    // ========================================================================
+    private MatchingResult handleDuplicateNames(BankTransactionHistory tx,
+            List<back.repository.club.projection.MemberNameView> duplicateMembers,
+            List<PaymentRequest> allRequests) {
+
+        // 동명이인 멤버들의 요청만 후보로 저장
+        List<Long> memberIds = duplicateMembers.stream()
+                .map(back.repository.club.projection.MemberNameView::getMemberId)
+                .collect(Collectors.toList());
+
+        List<PaymentRequest> candidateRequests = allRequests.stream()
+                .filter(r -> memberIds.contains(r.getMemberId()) && r.isMatchable())
+                .collect(Collectors.toList());
+
+        System.out.println("[Matching] ⚠️ 동명이인 감지: TxId=" + tx.getHistoryId() +
+                ", 멤버 수=" + duplicateMembers.size() +
+                ", 후보 요청 수=" + candidateRequests.size());
+
+        return new MatchingResult(tx, REASON_NAME_DUPLICATE, candidateRequests);
+    }
+
+    // ========================================================================
+    // 기본 매칭 조건 (금액 + 날짜 + 타입)
+    // ========================================================================
+    private boolean isBasicMatch(BankTransactionHistory tx, PaymentRequest req) {
+        // 금액 비교
         if (tx.getAmount().abs().compareTo(req.getExpectedAmount().abs()) != 0)
             return false;
 
-        System.out.println("타입매칭");
-
-        // 1-1) 타입 매칭 확인
-        String txType = extractTransactionType(tx);
-
+        // 타입 매칭
+        String txType = tx.getInoutType();
         if ("DEPOSIT".equalsIgnoreCase(txType)) {
-            // 입금 트랜잭션은 DEPOSIT, MEMBERSHIP_FEE 등과 매칭
             if (req.getRequestType() == PaymentRequest.RequestType.SETTLEMENT)
                 return false;
         } else if ("WITHDRAW".equalsIgnoreCase(txType)) {
-            // 출금 트랜잭션은 SETTLEMENT와 매칭
             if (req.getRequestType() != PaymentRequest.RequestType.SETTLEMENT)
                 return false;
         }
 
-        System.out.println("날짜 범위");
-
-        // 2) 날짜 범위 - 한국 시간대(Asia/Seoul) 기준으로 날짜 변환
+        // 날짜 범위
         ZoneId koreaZone = ZoneId.of("Asia/Seoul");
         LocalDate txDate = tx.getBankTransactionAt().atZone(koreaZone).toLocalDate();
         LocalDate expected = req.getExpectedDate();
         int range = req.getMatchDaysRange() != null ? req.getMatchDaysRange() : 10;
 
-        LocalDate rangeStart = expected.minusDays(range);
-        LocalDate rangeEnd = expected.plusDays(range);
-
-        System.out.println("  거래 날짜: " + txDate + ", 예상 날짜: " + expected + ", 범위: ±" + range + "일 (" + rangeStart
-                + " ~ " + rangeEnd + ")");
-
-        if (txDate.isBefore(rangeStart) || txDate.isAfter(rangeEnd)) {
-            System.out.println("  ✗ 날짜 범위 밖: " + txDate + "가 범위(" + rangeStart + " ~ " + rangeEnd + ") 밖에 있음");
-            return false;
-        }
-
-        System.out.println("  ✓ 날짜 범위 내");
-
-        System.out.println("적요");
-
-        // 3) 적요
-        String content = normalize(tx.getPrintContent());
-        if (content.isBlank())
-            return false;
-
-        // 4) memberId로 실명/닉네임 조회 (방법 A면 member 가져와서 member.realName() 써도 됨)
-        System.out.println("지불 요청 클럽, 멤버 아이디 : " + req.getClubId() + " , " + req.getMemberId());
-
-        var viewOpt = clubMemberRepository.findNameView(req.getClubId(), req.getMemberId());
-        if (viewOpt.isEmpty()) {
-            System.out.println("사람을 찾을 수 없습니다");
-            return false;
-        }
-
-        String realNameRaw = viewOpt.get().getRealName();
-        String nickRaw = viewOpt.get().getClubNickname();
-
-        String realName = normalize(realNameRaw);
-        String nick = normalize(nickRaw);
-
-        System.out.println("멤버 실명: [" + realName + "], 닉네임: [" + nick + "]");
-        System.out.println("거래 내용: [" + content + "]");
-        System.out.println("  → 이름 검사: 실명[" + realName + "], 닉네임[" + nick + "] vs 거래내용[" + content + "]");
-
-        // 5) 실명/닉네임이 클럽 내 유일한지 확인
-        boolean realNameUnique = !realName.isBlank()
-                && clubMemberRepository.countByClubIdAndRealName(req.getClubId(), realNameRaw) == 1;
-
-        boolean nickUnique = !nick.isBlank()
-                && clubMemberRepository.countByClubIdAndClubNickname(req.getClubId(), nickRaw) == 1;
-
-        System.out.println("  실명 유일성: " + realNameUnique + ", 닉네임 유일성: " + nickUnique);
-
-        // 6) 이름 매칭 로직 (완화된 버전)
-        // 6-1) 이름이 정확히 일치하면 매칭 (유일성 무관, 최우선)
-        if (!realName.isBlank() && content.equals(realName)) {
-            System.out.println("  ✓ 실명 정확 일치: [" + realName + "] == [" + content + "]");
-            return true;
-        }
-        if (!nick.isBlank() && content.equals(nick)) {
-            System.out.println("  ✓ 닉네임 정확 일치: [" + nick + "] == [" + content + "]");
-            return true;
-        }
-
-        // 6-2) 이름이 포함되어 있고 유일하면 매칭
-        if (realNameUnique && !realName.isBlank() && content.contains(realName)) {
-            System.out.println("  ✓ 실명 포함 매칭 (유일): [" + realName + "]이(가) [" + content + "]에 포함됨");
-            return true;
-        }
-        if (nickUnique && !nick.isBlank() && content.contains(nick)) {
-            System.out.println("  ✓ 닉네임 포함 매칭 (유일): [" + nick + "]이(가) [" + content + "]에 포함됨");
-            return true;
-        }
-
-        // 6-3) 유일하지 않더라도 이름이 포함되어 있으면 매칭 허용 (금액과 날짜가 맞으면)
-        // 금액과 날짜가 이미 확인되었으므로, 이름만 포함되어 있으면 매칭
-        if (!realName.isBlank() && content.contains(realName)) {
-            System.out.println("  ⚠️ 실명 포함되지만 유일하지 않음: [" + realName + "]이(가) [" + content + "]에 포함됨 (유일성: "
-                    + realNameUnique + ")");
-            System.out.println("  → 금액과 날짜가 일치하므로 매칭 허용");
-            return true;
-        }
-        if (!nick.isBlank() && content.contains(nick)) {
-            System.out.println(
-                    "  ⚠️ 닉네임 포함되지만 유일하지 않음: [" + nick + "]이(가) [" + content + "]에 포함됨 (유일성: " + nickUnique + ")");
-            System.out.println("  → 금액과 날짜가 일치하므로 매칭 허용");
-            return true;
-        }
-
-        System.out.println("  ✗ 이름 매칭 실패");
-        return false;
+        return !txDate.isBefore(expected.minusDays(range)) && !txDate.isAfter(expected.plusDays(range));
     }
 
     private String determineFailureReason(BankTransactionHistory tx, List<PaymentRequest> requests) {
         if (requests.isEmpty())
-            return "NO_PENDING_REQUESTS";
+            return REASON_NO_PENDING;
 
-        boolean amountMatchFound = false;
-        boolean dateMatchFound = false;
+        ZoneId koreaZone = ZoneId.of("Asia/Seoul");
+        LocalDate txDate = tx.getBankTransactionAt().atZone(koreaZone).toLocalDate();
 
+        boolean amountFound = false, dateFound = false;
         for (PaymentRequest req : requests) {
-            boolean amountMatch = tx.getAmount().abs().compareTo(req.getExpectedAmount().abs()) == 0;
-            if (amountMatch)
-                amountMatchFound = true;
-
-            LocalDate txDate = tx.getBankTransactionAt().toLocalDate();
-            LocalDate expected = req.getExpectedDate();
+            if (tx.getAmount().abs().compareTo(req.getExpectedAmount().abs()) == 0)
+                amountFound = true;
             int range = req.getMatchDaysRange() != null ? req.getMatchDaysRange() : 10;
-            boolean dateMatch = !txDate.isBefore(expected.minusDays(range))
-                    && !txDate.isAfter(expected.plusDays(range));
-            if (dateMatch)
-                dateMatchFound = true;
-
-            if (amountMatch && dateMatch) {
-                // 이름 문제일 가능성 높음
-                return "NAME_MISMATCH_OR_DUPLICATE";
-            }
+            if (!txDate.isBefore(req.getExpectedDate().minusDays(range))
+                    && !txDate.isAfter(req.getExpectedDate().plusDays(range)))
+                dateFound = true;
         }
 
-        if (!amountMatchFound)
-            return "AMOUNT_MISMATCH";
-        if (!dateMatchFound)
-            return "DATE_OUT_OF_RANGE";
-
-        return "UNKNOWN_MISMATCH";
+        if (!amountFound)
+            return REASON_AMOUNT_MISMATCH;
+        if (!dateFound)
+            return REASON_DATE_OUT_OF_RANGE;
+        return "UNKNOWN";
     }
 
-    /**
-     * 이미 매칭된 거래인지 확인
-     */
-    private boolean isAlreadyMatched(BankTransactionHistory transaction, List<PaymentRequest> requests) {
-        Long historyId = transaction.getHistoryId();
-        return requests.stream()
-                .anyMatch(req -> historyId.equals(req.getMatchedHistoryId()));
+    // ========================================================================
+    // 매칭 결과 홀더
+    // ========================================================================
+    private static class MatchingResult {
+        BankTransactionHistory transaction;
+        boolean isMatched;
+        PaymentRequest matchedRequest;
+        List<PaymentRequest> candidates;
+        String failureReason;
+
+        public MatchingResult(BankTransactionHistory transaction, PaymentRequest matchedRequest) {
+            this.transaction = transaction;
+            this.isMatched = true;
+            this.matchedRequest = matchedRequest;
+            this.candidates = Collections.emptyList();
+        }
+
+        public MatchingResult(BankTransactionHistory transaction, String failureReason,
+                List<PaymentRequest> candidates) {
+            this.transaction = transaction;
+            this.isMatched = false;
+            this.failureReason = failureReason;
+            this.candidates = candidates != null ? candidates : Collections.emptyList();
+        }
     }
 
-    /**
-     * 거래 타입 추출 (BankTransactionHistory의 inoutType 사용)
-     */
-    private String extractTransactionType(BankTransactionHistory transaction) {
-        return transaction.getInoutType();
+    // ========================================================================
+    // DB 업데이트 처리
+    // ========================================================================
+    @Transactional
+    protected void processMatchingResults(List<MatchingResult> results,
+            boolean isFairSettlement, Map<Long, TransactionLog> newTransactionLogs) {
+
+        for (MatchingResult result : results) {
+            BankTransactionHistory tx = result.transaction;
+
+            if (result.isMatched && result.matchedRequest != null) {
+                PaymentRequest req = result.matchedRequest;
+                if (req.getStatus() == PaymentRequest.RequestStatus.MATCHED)
+                    continue;
+
+                req.autoMatch(tx.getHistoryId());
+                paymentRequestRepository.save(req);
+
+                tx.markAsMatched();
+                tx.updateUnmatchReason(null);
+                tx.updateCandidateRequestIds(null);
+                transactionHistoryRepository.save(tx);
+
+                updateScheduleParticipantStatus(req, tx.getHistoryId());
+
+                if (isFairSettlement && newTransactionLogs != null
+                        && newTransactionLogs.containsKey(tx.getHistoryId())) {
+                    TransactionLog log = newTransactionLogs.get(tx.getHistoryId());
+                    if (log != null && req.getScheduleId() != null) {
+                        log.updateScheduleId(req.getScheduleId());
+                        transactionLogRepository.save(log);
+                    }
+                }
+            } else {
+                // 매칭 실패 → 후보 저장
+                String candidateIds = result.candidates.isEmpty() ? null
+                        : result.candidates.stream()
+                                .map(r -> String.valueOf(r.getRequestId()))
+                                .collect(Collectors.joining(","));
+
+                tx.updateUnmatchReason(result.failureReason);
+                tx.updateCandidateRequestIds(candidateIds);
+                transactionHistoryRepository.save(tx);
+            }
+        }
     }
 
-    /**
-     * 수동 매칭 처리
-     */
+    // ========================================================================
+    // 3단계: 재매칭 (후보군 재평가)
+    // ========================================================================
+    @Transactional
+    public void retryNameMatching(Long historyId) {
+        BankTransactionHistory tx = transactionHistoryRepository.findById(historyId).orElse(null);
+        if (tx == null || Boolean.TRUE.equals(tx.getIsMatched()))
+            return;
+
+        String candidateIdsStr = tx.getCandidateRequestIds();
+        if (candidateIdsStr == null || candidateIdsStr.isBlank())
+            return;
+
+        List<Long> candidateIds = java.util.Arrays.stream(candidateIdsStr.split(","))
+                .map(String::trim)
+                .map(Long::parseLong)
+                .collect(Collectors.toList());
+
+        List<PaymentRequest> candidates = paymentRequestRepository.findAllById(candidateIds);
+        List<PaymentRequest> validCandidates = candidates.stream()
+                .filter(PaymentRequest::isMatchable)
+                .collect(Collectors.toList());
+
+        if (validCandidates.isEmpty()) {
+            tx.updateCandidateRequestIds(null);
+            tx.updateUnmatchReason(REASON_NAME_NOT_FOUND);
+            transactionHistoryRepository.save(tx);
+            return;
+        }
+
+        if (validCandidates.size() == 1) {
+            PaymentRequest matchedReq = validCandidates.get(0);
+            matchedReq.autoMatch(tx.getHistoryId());
+            paymentRequestRepository.save(matchedReq);
+
+            tx.markAsMatched();
+            tx.updateUnmatchReason(null);
+            tx.updateCandidateRequestIds(null);
+            transactionHistoryRepository.save(tx);
+
+            updateScheduleParticipantStatus(matchedReq, tx.getHistoryId());
+        } else {
+            String updatedIds = validCandidates.stream()
+                    .map(r -> String.valueOf(r.getRequestId()))
+                    .collect(Collectors.joining(","));
+            tx.updateCandidateRequestIds(updatedIds);
+            transactionHistoryRepository.save(tx);
+        }
+    }
+
+    @Transactional
+    public void matchRequestsWithExistingTransactions(Long clubId, List<PaymentRequest> newRequests) {
+        // 미매칭 거래내역 조회
+        List<BankTransactionHistory> pendingHistories = transactionHistoryRepository
+                .findByClubIdAndIsMatchedFalse(clubId);
+
+        if (pendingHistories.isEmpty() || newRequests.isEmpty()) {
+            System.out.println("[Matching] 미매칭 거래 또는 새 요청 없음. 스킵.");
+            return;
+        }
+
+        // 클럽 멤버 전체 조회
+        List<back.repository.club.projection.MemberNameView> allMembers = clubMemberRepository
+                .findAllNameViewsByClubId(clubId);
+
+        // 전체 matchable 요청 조회 (새 요청 포함)
+        List<PaymentRequest> allRequests = paymentRequestRepository.findMatchableRequests(clubId);
+
+        System.out.println(
+                "[Matching] 미매칭 거래 " + pendingHistories.size() + "건과 새 요청 " + newRequests.size() + "건 매칭 시도...");
+
+        for (BankTransactionHistory tx : pendingHistories) {
+            // 이미 매칭된 건 스킵
+            if (Boolean.TRUE.equals(tx.getIsMatched()))
+                continue;
+
+            MatchingResult result = matchTransaction(tx, allRequests, allMembers);
+
+            if (result.isMatched && result.matchedRequest != null) {
+                PaymentRequest req = result.matchedRequest;
+                if (req.getStatus() == PaymentRequest.RequestStatus.MATCHED)
+                    continue;
+
+                req.autoMatch(tx.getHistoryId());
+                paymentRequestRepository.save(req);
+
+                tx.markAsMatched();
+                tx.updateUnmatchReason(null);
+                tx.updateCandidateRequestIds(null);
+                transactionHistoryRepository.save(tx);
+
+                updateScheduleParticipantStatus(req, tx.getHistoryId());
+
+                // 매칭된 요청은 다음 거래와 중복 매칭되지 않도록 제거
+                allRequests.remove(req);
+
+                System.out.println("[Matching] ✓ 매칭 성공: TxId=" + tx.getHistoryId() +
+                        " → ReqId=" + req.getRequestId() + ", Member=" + req.getMemberName());
+            } else {
+                // 매칭 실패 → 후보 저장
+                String candidateIds = result.candidates.isEmpty() ? null
+                        : result.candidates.stream()
+                                .map(r -> String.valueOf(r.getRequestId()))
+                                .collect(Collectors.joining(","));
+
+                tx.updateUnmatchReason(result.failureReason);
+                tx.updateCandidateRequestIds(candidateIds);
+                transactionHistoryRepository.save(tx);
+            }
+        }
+    }
+
+    // ========================================================================
+    // 수동 매칭 메서드들 (기존 유지)
+    // ========================================================================
     @Transactional
     public void manualMatch(Long requestId, Long historyId, Long matchedBy) {
         PaymentRequest request = paymentRequestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("입금요청을 찾을 수 없습니다. requestId: " + requestId));
+                .orElseThrow(() -> new IllegalArgumentException("Not found"));
+        if (!request.isMatchable())
+            throw new IllegalStateException("Already matched");
 
-        if (!request.isMatchable()) {
-            throw new IllegalStateException("이미 매칭되었거나 만료된 요청입니다."); // TODO: isMatchable이 EXPIRED를 허용했으므로 문구 수정 필요할 수도
-                                                                     // 있음
-        }
-
-        // 수동 매칭 처리
         request.confirmMatch(historyId, matchedBy);
         paymentRequestRepository.save(request);
 
-        // 거래내역 매칭 상태 업데이트
         if (historyId != null) {
-            BankTransactionHistory transaction = transactionHistoryRepository.findById(historyId)
-                    .orElseThrow(() -> new IllegalArgumentException("거래내역을 찾을 수 없습니다. historyId: " + historyId));
-
-            if (Boolean.TRUE.equals(transaction.getIsMatched())) {
-                throw new IllegalStateException("이미 매칭된 거래내역입니다. historyId: " + historyId);
-            }
-
-            // [Strict Amount Policy] 수동 매칭이라도 금액 불일치 시 절대 허용 안 함
-            if (transaction.getAmount().abs().compareTo(request.getExpectedAmount().abs()) != 0) {
-                throw new IllegalStateException("금액이 일치하지 않아 매칭할 수 없습니다. (요청: "
-                        + request.getExpectedAmount() + ", 실제: " + transaction.getAmount().abs() + ")");
-            }
-
-            transaction.markAsMatched();
-            transaction.updateUnmatchReason(null); // 매칭되었으므로 사유 제거
-            transactionHistoryRepository.save(transaction);
-        }
-
-        // 일정 참가자 상태 업데이트
-        updateScheduleParticipantStatus(request, historyId);
-
-        // 감사 로그 기록
-        auditLogsRepository.save(new back.domain.ledger.AuditLogs(
-                historyId != null ? historyId : -1L,
-                matchedBy,
-                "PENDING",
-                "MATCHED (Manual)"));
-    }
-
-    /**
-     * 거래내역 없이 수동 확인 (현금 수령 등)
-     */
-    @Transactional
-    public void confirmPaymentWithoutHistory(Long requestId, Long matchedBy) {
-        PaymentRequest request = paymentRequestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("입금요청을 찾을 수 없습니다. requestId: " + requestId));
-
-        if (!request.isMatchable()) {
-            throw new IllegalStateException("이미 매칭되어 처리할 수 없습니다.");
-        }
-
-        // 수동 확인 처리 (현금)
-        request.confirmManualCashPayment(matchedBy);
-        paymentRequestRepository.save(request);
-
-        // 일정 참가자 상태 업데이트 (historyId는 null)
-        updateScheduleParticipantStatus(request, null);
-
-        // 감사 로그 기록
-        auditLogsRepository.save(new back.domain.ledger.AuditLogs(
-                -1L,
-                matchedBy,
-                "PENDING",
-                "MATCHED (Manual Cash)"));
-    }
-
-    /**
-     * 매칭 취소 처리
-     */
-    @Transactional
-    public void cancelMatch(Long requestId, Long adminId) {
-        System.out.println("=== 매칭 취소 시작 ===");
-        System.out.println("requestId: " + requestId);
-
-        PaymentRequest request = paymentRequestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("입금요청을 찾을 수 없습니다. requestId: " + requestId));
-
-        if (request.getStatus() != PaymentRequest.RequestStatus.MATCHED) {
-            throw new IllegalStateException("매칭된 요청만 취소할 수 있습니다. 현재 상태: " + request.getStatus());
-        }
-
-        Long primaryHistoryId = request.getMatchedHistoryId();
-        System.out.println("primaryHistoryId: " + primaryHistoryId);
-
-        // 1. 입금요청 원복
-        request.unmatch();
-        paymentRequestRepository.save(request);
-        System.out.println("✓ 입금요청 매칭 취소 완료");
-
-        // 2. 거래내역 원복 - primaryHistoryId와 매칭된 모든 거래 찾기
-        if (primaryHistoryId != null) {
-            // 먼저 primary 거래 원복
-            transactionHistoryRepository.findById(primaryHistoryId).ifPresent(history -> {
-                history.unmarkAsMatched();
-                transactionHistoryRepository.save(history);
-                System.out.println("✓ 주 거래내역 " + primaryHistoryId + " 매칭 취소");
-            });
-
-            // 같은 요청과 연결된 다른 거래들도 찾아서 원복 (다중 거래 매칭 케이스)
-            // matchedHistoryId가 같은 다른 PaymentRequest가 있는지 확인
-            List<PaymentRequest> relatedRequests = paymentRequestRepository
-                    .findByClubIdAndMatchedHistoryId(request.getClubId(), primaryHistoryId);
-
-            if (relatedRequests.size() > 1) {
-                System.out.println("다중 거래 매칭 감지: " + relatedRequests.size() + "건");
-                // 이 경우는 드물지만, 모든 관련 요청도 취소
-                for (PaymentRequest relatedReq : relatedRequests) {
-                    if (!relatedReq.getRequestId().equals(requestId)) {
-                        relatedReq.unmatch();
-                        paymentRequestRepository.save(relatedReq);
-                    }
-                }
-            }
-        }
-
-        // 3. 일정 참가자 상태 원복
-        if (request.getScheduleId() != null) {
-            clubMemberRepository.findById(request.getMemberId()).ifPresent(member -> {
-                scheduleParticipantRepository.findByScheduleIdAndUserId(request.getScheduleId(), member.getUserId())
-                        .ifPresent(participant -> {
-                            participant.resetPayment();
-                            scheduleParticipantRepository.save(participant);
-                            System.out.println("✓ 일정 참가자 상태 원복");
-                        });
-            });
-        }
-
-        // 감사 로그 기록
-        auditLogsRepository.save(new back.domain.ledger.AuditLogs(
-                primaryHistoryId != null ? primaryHistoryId : -1L,
-                adminId,
-                "MATCHED",
-                "CANCELLED (Unmatched)"));
-        System.out.println("=== 매칭 취소 완료 ===");
-    }
-
-    /**
-     * 다중 매칭 처리 (하나의 거래내역에 여러 요청 매칭)
-     */
-    @Transactional
-    public void manualMatchMultipleRequests(List<Long> requestIds, Long historyId, Long adminId) {
-        BankTransactionHistory transaction = transactionHistoryRepository.findById(historyId)
-                .orElseThrow(() -> new IllegalArgumentException("거래내역을 찾을 수 없습니다."));
-
-        List<PaymentRequest> requests = paymentRequestRepository.findAllById(requestIds);
-        if (requests.size() != requestIds.size()) {
-            throw new IllegalArgumentException("일부 입금요청을 찾을 수 없습니다.");
-        }
-
-        // 금액 검증
-        BigDecimal totalExpected = requests.stream()
-                .map(PaymentRequest::getExpectedAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        if (transaction.getAmount().abs().compareTo(totalExpected.abs()) != 0) {
-            throw new IllegalStateException(
-                    "선택한 요청들의 합계 금액(" + totalExpected + ")이 거래 금액(" + transaction.getAmount().abs() + ")과 일치하지 않습니다.");
-        }
-
-        for (PaymentRequest request : requests) {
-            if (!request.isMatchable()) {
-                throw new IllegalStateException("이미 매칭되었거나 만료된 요청이 포함되어 있습니다. ID: " + request.getRequestId());
-            }
-
-            request.confirmMatch(historyId, adminId);
-            paymentRequestRepository.save(request);
-            updateScheduleParticipantStatus(request, historyId);
-        }
-
-        // 거래내역 상태 업데이트
-        transaction.markAsMatched();
-        transaction.updateUnmatchReason(null);
-        transactionHistoryRepository.save(transaction);
-
-        // 감사 로그 기록
-        auditLogsRepository.save(new back.domain.ledger.AuditLogs(
-                historyId,
-                adminId,
-                "PENDING",
-                "MULTI_MATCHED (" + requests.size() + " requests)"));
-    }
-
-    /**
-     * 다중 거래 매칭 처리 (여러 거래내역을 하나의 요청에 매칭)
-     */
-    @Transactional
-    public void manualMatchMultipleTransactions(Long requestId, List<Long> historyIds, Long adminId) {
-        System.out.println("=== 다중 거래 매칭 시작 ===");
-        System.out.println("requestId: " + requestId);
-        System.out.println("historyIds: " + historyIds);
-        System.out.println("adminId: " + adminId);
-
-        PaymentRequest request = paymentRequestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("입금요청을 찾을 수 없습니다. requestId: " + requestId));
-
-        System.out.println("입금요청 조회 성공: " + request.getRequestId() + ", 금액: " + request.getExpectedAmount());
-
-        if (!request.isMatchable()) {
-            throw new IllegalStateException("이미 매칭되었거나 만료된 요청입니다.");
-        }
-
-        List<BankTransactionHistory> transactions = transactionHistoryRepository.findAllById(historyIds);
-        if (transactions.size() != historyIds.size()) {
-            System.out.println("⚠️ 거래내역 개수 불일치: 요청=" + historyIds.size() + ", 조회=" + transactions.size());
-            throw new IllegalArgumentException("일부 거래내역을 찾을 수 없습니다.");
-        }
-
-        System.out.println("거래내역 조회 성공: " + transactions.size() + "건");
-        for (BankTransactionHistory tx : transactions) {
-            System.out.println("  - historyId=" + tx.getHistoryId() + ", amount=" + tx.getAmount() + ", isMatched="
-                    + tx.getIsMatched());
-        }
-
-        // 금액 검증
-        BigDecimal totalActual = transactions.stream()
-                .map(tx -> tx.getAmount().abs())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        System.out.println("거래 합계: " + totalActual + ", 요청 금액: " + request.getExpectedAmount());
-
-        if (totalActual.compareTo(request.getExpectedAmount().abs()) != 0) {
-            throw new IllegalStateException(
-                    "선택한 거래들의 합계 금액(" + totalActual + ")이 요청 금액(" + request.getExpectedAmount() + ")과 일치하지 않습니다.");
-        }
-
-        // 이미 매칭된 거래가 있는지 확인
-        for (BankTransactionHistory tx : transactions) {
-            if (Boolean.TRUE.equals(tx.getIsMatched())) {
-                throw new IllegalStateException("이미 매칭된 거래내역이 포함되어 있습니다. historyId: " + tx.getHistoryId());
-            }
-        }
-
-        // 첫 번째 거래의 historyId를 대표로 사용
-        Long primaryHistoryId = historyIds.get(0);
-
-        // 요청 매칭 처리
-        request.confirmMatch(primaryHistoryId, adminId);
-        paymentRequestRepository.save(request);
-        System.out.println("✓ 입금요청 매칭 완료");
-
-        // 모든 거래내역 매칭 상태 업데이트
-        for (BankTransactionHistory tx : transactions) {
+            BankTransactionHistory tx = transactionHistoryRepository.findById(historyId).orElseThrow();
             tx.markAsMatched();
             tx.updateUnmatchReason(null);
-            BankTransactionHistory saved = transactionHistoryRepository.save(tx);
-            System.out
-                    .println("✓ 거래내역 " + tx.getHistoryId() + " 매칭 상태 업데이트 완료 (isMatched=" + saved.getIsMatched() + ")");
+            tx.updateCandidateRequestIds(null);
+            transactionHistoryRepository.save(tx);
         }
 
-        // 명시적으로 flush하여 DB에 반영
-        transactionHistoryRepository.flush();
-        System.out.println("✓ DB flush 완료");
-
-        // 일정 참가자 상태 업데이트
-        updateScheduleParticipantStatus(request, primaryHistoryId);
-        System.out.println("✓ 일정 참가자 상태 업데이트 완료");
-
-        // 감사 로그 기록
+        updateScheduleParticipantStatus(request, historyId);
         auditLogsRepository.save(new back.domain.ledger.AuditLogs(
-                primaryHistoryId,
-                adminId,
-                "PENDING",
-                "MULTI_TX_MATCHED (" + transactions.size() + " transactions)"));
-        System.out.println("=== 다중 거래 매칭 완료 ===");
+                historyId != null ? historyId : -1L, matchedBy, "PENDING", "MATCHED (Manual)"));
     }
 
-    /**
-     * 새로운 입금 요청들을 기존의 미매칭 거래내역과 매칭 시도
-     */
     @Transactional
-    public void matchRequestsWithExistingTransactions(Long clubId, List<PaymentRequest> newRequests) {
-        synchronized (clubId.toString().intern()) {
-            // 1. 미매칭 거래내역 조회 (오래된 순)
-            List<BankTransactionHistory> unmatchedHistories = transactionHistoryRepository
-                    .findByClubIdAndIsMatchedFalse(clubId);
-            unmatchedHistories.sort((h1, h2) -> h1.getBankTransactionAt().compareTo(h2.getBankTransactionAt()));
-
-            if (unmatchedHistories.isEmpty()) {
-                return;
-            }
-
-            // 2. 새로운 요청들도 오래된 날짜 순으로 정렬
-            newRequests.sort((r1, r2) -> r1.getExpectedDate().compareTo(r2.getExpectedDate()));
-
-            // 3. 각 요청에 대해 매칭 시도
-            for (PaymentRequest request : newRequests) {
-                if (!request.isMatchable()) {
-                    continue;
-                }
-
-                for (BankTransactionHistory transaction : unmatchedHistories) {
-                    // 이미 다른 요청에 매칭되었을 수 있으므로 체크
-                    if (transaction.getIsMatched()) {
-                        continue;
-                    }
-
-                    if (isMatched(transaction, request)) {
-                        request.autoMatch(transaction.getHistoryId());
-                        paymentRequestRepository.save(request);
-
-                        transaction.markAsMatched();
-                        transaction.updateUnmatchReason(null);
-                        transactionHistoryRepository.save(transaction);
-
-                        updateScheduleParticipantStatus(request, transaction.getHistoryId());
-                        break; // 다음 요청으로
-                    }
-                }
-            }
-        }
-
+    public void confirmPaymentWithoutHistory(Long requestId, Long matchedBy) {
+        PaymentRequest request = paymentRequestRepository.findById(requestId).orElseThrow();
+        request.confirmManualCashPayment(matchedBy);
+        paymentRequestRepository.save(request);
+        updateScheduleParticipantStatus(request, null);
     }
 
-    /**
-     * 만료된 입금요청 처리
-     */
     @Transactional
-    public void expireOldRequests(Long clubId) {
-        List<PaymentRequest> pendingRequests = paymentRequestRepository.findByClubIdAndStatus(
-                clubId,
-                PaymentRequest.RequestStatus.PENDING);
+    public void cancelMatch(Long requestId, Long adminId) {
+        PaymentRequest request = paymentRequestRepository.findById(requestId).orElseThrow();
+        Long historyId = request.getMatchedHistoryId();
 
-        LocalDateTime now = LocalDateTime.now();
-        for (PaymentRequest request : pendingRequests) {
-            if (request.getExpiresAt() != null && request.getExpiresAt().isBefore(now)) {
-                request.expire();
-                paymentRequestRepository.save(request);
-            }
+        request.unmatch();
+        paymentRequestRepository.save(request);
+
+        if (historyId != null) {
+            transactionHistoryRepository.findById(historyId).ifPresent(tx -> {
+                tx.unmarkAsMatched();
+                transactionHistoryRepository.save(tx);
+            });
         }
     }
 
-    /**
-     * 일정 참가자 상태 업데이트 헬퍼 메서드
-     */
+    @Transactional
+    public void manualMatchMultipleRequests(List<Long> requestIds, Long historyId, Long adminId) {
+        BankTransactionHistory tx = transactionHistoryRepository.findById(historyId).orElseThrow();
+        List<PaymentRequest> requests = paymentRequestRepository.findAllById(requestIds);
+
+        for (PaymentRequest req : requests) {
+            req.confirmMatch(historyId, adminId);
+            paymentRequestRepository.save(req);
+            updateScheduleParticipantStatus(req, historyId);
+        }
+        tx.markAsMatched();
+        tx.updateUnmatchReason(null);
+        tx.updateCandidateRequestIds(null);
+        transactionHistoryRepository.save(tx);
+    }
+
+    @Transactional
+    public void manualMatchMultipleTransactions(Long requestId, List<Long> historyIds, Long adminId) {
+        PaymentRequest request = paymentRequestRepository.findById(requestId).orElseThrow();
+        Long primary = historyIds.get(0);
+        request.confirmMatch(primary, adminId);
+        paymentRequestRepository.save(request);
+
+        List<BankTransactionHistory> txs = transactionHistoryRepository.findAllById(historyIds);
+        for (BankTransactionHistory tx : txs) {
+            tx.markAsMatched();
+            tx.updateUnmatchReason(null);
+            tx.updateCandidateRequestIds(null);
+            transactionHistoryRepository.save(tx);
+        }
+        updateScheduleParticipantStatus(request, primary);
+    }
+
     private void updateScheduleParticipantStatus(PaymentRequest request, Long historyId) {
         if (request.getScheduleId() != null) {
-            // memberId를 통해 userId를 가져와야 함 (PaymentRequest에는 memberId=ClubMemberId 인지 UserId
-            // 인지 확인 필요)
-            // PaymentRequest.java 를 다시 보니 memberId 가 있음.
-            // ClubMemberRepository에서 해당 member의 userId를 가져옴
             clubMemberRepository.findById(request.getMemberId()).ifPresent(member -> {
                 scheduleParticipantRepository.findByScheduleIdAndUserId(request.getScheduleId(), member.getUserId())
                         .ifPresent(participant -> {
@@ -657,15 +585,4 @@ public class TransactionMatchingService {
             });
         }
     }
-
-    private String normalize(String s) {
-        if (s == null)
-            return "";
-        // NFC 정규화 (Mac/Windows 등 OS 간 한글 자모 분리 호환성 해결)
-        String normalized = Normalizer.normalize(s, Normalizer.Form.NFC);
-        return normalized.replaceAll("\\s+", "")
-                .replaceAll("[^0-9a-zA-Z가-힣]", "")
-                .toLowerCase();
-    }
-
 }

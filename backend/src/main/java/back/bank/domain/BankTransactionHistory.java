@@ -47,6 +47,9 @@ public class BankTransactionHistory {
     @Column(name = "unmatch_reason", length = 100)
     private String unmatchReason;
 
+    @Column(name = "candidate_request_ids", length = 500)
+    private String candidateRequestIds;
+
     // 생성자
     public BankTransactionHistory(Long clubId, LocalDateTime bankTransactionAt,
             String printContent,
@@ -70,5 +73,9 @@ public class BankTransactionHistory {
 
     public void updateUnmatchReason(String reason) {
         this.unmatchReason = reason;
+    }
+
+    public void updateCandidateRequestIds(String candidateIds) {
+        this.candidateRequestIds = candidateIds;
     }
 }

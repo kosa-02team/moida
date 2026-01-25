@@ -322,9 +322,9 @@ export function ScheduleListView() {
   };
 
   const activeStatusPriority: Record<Schedule['status'], number> = {
-    ongoing: 0,
-    confirmed: 1,
-    voting: 2,
+    voting: 0,
+    ongoing: 1,
+    confirmed: 2,
     completed: 0,
     cancelled: 0,
   };
@@ -616,8 +616,8 @@ export function ScheduleListView() {
                             size="sm"
                             variant={attendingVariant}
                             className={`flex-1 h-10 ${item.myResponse === 'attending'
-                                ? 'bg-green-500 hover:bg-green-600 text-white'
-                                : 'border-stone-200'
+                              ? 'bg-green-500 hover:bg-green-600 text-white'
+                              : 'border-stone-200'
                               }`}
                             onClick={(e) => {
                               e.preventDefault();
@@ -638,8 +638,8 @@ export function ScheduleListView() {
                             size="sm"
                             variant={notAttendingVariant}
                             className={`flex-1 h-10 ${item.myResponse === 'not_attending'
-                                ? 'bg-red-500 hover:bg-red-600 text-white'
-                                : 'border-stone-200'
+                              ? 'bg-red-500 hover:bg-red-600 text-white'
+                              : 'border-stone-200'
                               }`}
                             onClick={(e) => {
                               e.preventDefault();

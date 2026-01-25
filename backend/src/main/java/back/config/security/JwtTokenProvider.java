@@ -30,7 +30,7 @@ public class JwtTokenProvider {
     }
 
     // Access Token 생성
-    public String createAccessToken(String loginId, String role,Long userId) {
+    public String createAccessToken(String loginId, String role, Long userId) {
         Claims claims = Jwts.claims()
                 .subject(loginId)
                 .add("ROLE", role)

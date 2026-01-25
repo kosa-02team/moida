@@ -55,6 +55,7 @@ public class EventFundService {
     private final ClubAuthService clubAuthService;
     private final ClubMemberRepository clubMemberRepository;
     private final BankTransactionHistoryRepository bankTransactionHistoryRepository;
+    private final TransactionMatchingService transactionMatchingService;
 
     @Transactional
     public void collectEntryFees(Long clubId, Long scheduleId, Long userId) {
@@ -122,6 +123,8 @@ public class EventFundService {
         }
 
         // PaymentRequest 생성
+        List<PaymentRequest> createdRequests = new ArrayList<>();
+
         for (ScheduleParticipants p : attendingParticipants) {
             // userId를 club_members.member_id로 변환
             Long memberId = clubMemberRepository.findByClubIdAndUserIdAndStatus(
@@ -160,6 +163,7 @@ public class EventFundService {
                     null);
 
             PaymentRequest savedReq = paymentRequestRepository.save(req);
+            createdRequests.add(savedReq);
 
             // 디버깅: 입금 요청 생성 로그
             System.out.println("💰 [참가비 요청 생성] requestId=" + savedReq.getRequestId() +
@@ -182,6 +186,13 @@ public class EventFundService {
         }
 
         scheduleRepository.save(schedule);
+
+        // 생성된 요청들을 기존 미매칭 거래내역과 자동 매칭 시도
+        if (!createdRequests.isEmpty()) {
+            System.out.println("🔄 [자동 매칭 시작] clubId=" + clubId + ", 생성된 요청 수=" + createdRequests.size());
+            transactionMatchingService.matchRequestsWithExistingTransactions(clubId, createdRequests);
+            System.out.println("🔄 [자동 매칭 완료]");
+        }
     }
 
     // 수동 처리용

@@ -19,6 +19,7 @@ import back.domain.ledger.TransactionLog;
 import back.repository.ledger.TransactionLogRepository;
 import back.service.ledger.TransactionMatchingService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -204,8 +205,21 @@ public class BankService {
          * @param to     조회 종료 날짜
          * @return 저장된 TransactionLog 목록
          */
-        @Transactional
+        /**
+         * 모임 가상계좌 거래내역 동기화
+         * - 오픈뱅킹 API를 호출하여 실제 은행 거래내역을 가져옴
+         * - BankTransactionHistory에 은행 거래내역 저장
+         * - TransactionLog에 회계 원장 저장
+         * 
+         * @param clubId 모임 ID
+         * @param from   조회 시작 날짜
+         * @param to     조회 종료 날짜
+         * @return 저장된 TransactionLog 목록
+         */
+        @Transactional(propagation = Propagation.REQUIRES_NEW)
         public List<TransactionLog> syncTransactions(Long clubId, LocalDate from, LocalDate to) {
+                // ... implementation
+
                 // 0. 날짜 범위 자동 설정
                 LocalDate actualFrom = from;
                 LocalDate actualTo = to;
@@ -404,7 +418,7 @@ public class BankService {
                 return savedLogs;
         }
 
-        @Transactional
+        @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
         public List<TransactionLog> syncTransactionsStub(Long clubId, Long stubId, LocalDate from, LocalDate to) {
                 // 0. 날짜 범위 자동 설정
                 LocalDate actualFrom = from;

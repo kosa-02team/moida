@@ -9,6 +9,8 @@ public record PostDetailResponse(
         Long postId,
         Long clubId,
         Long writerId,
+        String writerName,
+        String writerProfileImageUrl,
         PostCategory category,
         String title,
         String content,
@@ -18,14 +20,26 @@ public record PostDetailResponse(
         LocalDateTime updatedAt,
         List<String> imagesUrl,
         Long postLikes,
-        Boolean isLiked){
-    public static PostDetailResponse from(Posts post, List<String> imagesUrl, Long postLikes, Boolean isLiked) {
+        Boolean isLiked,
+        Boolean isMyPost,
+        List<Long> taggedMemberIds) {
+
+    public static PostDetailResponse from(
+            Posts post,
+            List<String> imagesUrl,
+            Long postLikes,
+            Boolean isLiked,
+            Boolean isMyPost,
+            List<Long> taggedMemberIds) {
+
         Long scheduleId = (post.getSchedule() == null) ? null : post.getSchedule().getScheduleId();
 
         return new PostDetailResponse(
                 post.getPostId(),
                 post.getClub().getClubId(),
                 post.getWriter().getUserId(),
+                post.getWriter().getNickname(),
+                null, // writerProfileImageUrl (User entity has no profile image)
                 post.getCategory(),
                 post.getTitle(),
                 post.getContent(),
@@ -35,6 +49,8 @@ public record PostDetailResponse(
                 post.getUpdatedAt(),
                 imagesUrl,
                 postLikes,
-                isLiked);
+                isLiked,
+                isMyPost,
+                taggedMemberIds);
     }
 }

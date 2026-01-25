@@ -33,14 +33,15 @@ export interface PostDetailResponse {
   place: string | null;
   createdAt: string;
   updatedAt: string;
-  imagesUrl: string[]; // 백엔드에서 이제 포함됨
-  // 아래 필드들은 백엔드 DTO에 없으므로 optional로 처리 (별도 조회 필요)
-  writerName?: string;
-  writerProfileImageUrl?: string | null;
-  postLikes?: number;
-  isLiked?: boolean;
-  isMyPost?: boolean;
-  taggedMemberIds?: number[];
+  imagesUrl: string[];
+
+  // 백엔드에서 추가된 필드함
+  writerName: string;
+  writerProfileImageUrl: string | null;
+  postLikes: number;
+  isLiked: boolean;
+  isMyPost: boolean;
+  taggedMemberIds: number[];
 }
 
 export interface StoryCreateRequest {
