@@ -122,7 +122,7 @@ public class LedgerService {
                 .stream()
                 .collect(Collectors.toMap(
                         PaymentRequest::getMatchedHistoryId,
-                        req -> getMemberName(req.getClubId(), req.getMemberId()),
+                        PaymentRequest::getMemberName,
                         (existing, replacement) -> existing // 중복 시 첫 번째 값 유지
                 ));
 
