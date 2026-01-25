@@ -24,6 +24,7 @@ public class ClubResponse {
     private String visibility;
     private String type;
     private String category;
+    private String coverImageUrl;
     private Integer maxMembers;
     private Integer currentMembers;
     private LocalDateTime createdAt;
@@ -43,12 +44,14 @@ public class ClubResponse {
                 .visibility(entity.getVisibility().name())
                 .type(entity.getType().name())
                 .category(entity.getCategory().name())
+                .coverImageUrl(entity.getCoverImageUrl())
                 .maxMembers(entity.getMaxMembers())
                 .currentMembers(currentMembers)
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .closedAt(entity.getClosedAt())
-                .deletionRequestStatus(entity.getDeletionRequestStatus() != null ? entity.getDeletionRequestStatus().name() : null)
+                .deletionRequestStatus(
+                        entity.getDeletionRequestStatus() != null ? entity.getDeletionRequestStatus().name() : null)
                 .deletionRequestedAt(entity.getDeletionRequestedAt())
                 .build();
     }
@@ -61,6 +64,7 @@ public class ClubResponse {
                 .category(entity.getCategory().name())
                 .visibility(entity.getVisibility().name())
                 .status(entity.getStatus().name())
+                .coverImageUrl(entity.getCoverImageUrl())
                 .build();
     }
 

@@ -106,7 +106,7 @@ export function GroupLayout() {
         )}
 
         {/* Scrollable Tabs */}
-        <div 
+        <div
           className="flex overflow-x-auto scrollbar-hide bg-white sticky z-[80] shadow-sm md:justify-center"
           style={{ top: `${tabsTop}px` }}
         >

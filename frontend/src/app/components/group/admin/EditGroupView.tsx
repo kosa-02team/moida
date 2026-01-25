@@ -14,10 +14,10 @@ export function EditGroupView() {
   const { groupId } = useParams();
   const [loading, setLoading] = useState(true);
   const [canEdit, setCanEdit] = useState(false);
-  
+
   const [name, setName] = useState('');
   const [image, setImage] = useState<string | null>(null);
-  
+
   useEffect(() => {
     async function checkPermission() {
       if (!groupId) return;
@@ -44,11 +44,13 @@ export function EditGroupView() {
         setLoading(true);
         const club = await getClub(Number(groupId));
         setName(club.clubName || '');
-        
-        // localStorage에서 기존 이미지 불러오기
-        const savedImage = localStorage.getItem(`club_image_${groupId}`);
-        if (savedImage) {
-          setImage(savedImage);
+
+        // 서버 이미지 URL 사용
+        if (club.coverImageUrl) {
+          const imageUrl = club.coverImageUrl.startsWith('http')
+            ? club.coverImageUrl
+            : `http://localhost:8080${club.coverImageUrl}`;
+          setImage(imageUrl);
         }
       } catch (error) {
         console.error('모임 정보 조회 실패:', error);
@@ -68,18 +70,18 @@ export function EditGroupView() {
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-      
+
       if (!file.type.startsWith('image/')) {
         toast.error('이미지 파일만 업로드 가능합니다');
         return;
       }
-      
+
       const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
       if (file.size > MAX_FILE_SIZE) {
         toast.error('이미지 크기는 5MB 이하만 가능합니다');
         return;
       }
-      
+
       const reader = new FileReader();
       reader.onload = (event) => {
         const result = event.target?.result as string;
@@ -112,17 +114,10 @@ export function EditGroupView() {
     try {
       const request: ClubUpdateRequest = {
         clubName: name.trim(),
+        coverImage: image || undefined,
       };
       await updateClub(Number(groupId), request);
-      
-      // 모임 이미지를 로컬 스토리지에 저장
-      if (image && groupId) {
-        localStorage.setItem(`club_image_${groupId}`, image);
-      } else if (!image && groupId) {
-        // 이미지가 제거된 경우 localStorage에서도 삭제
-        localStorage.removeItem(`club_image_${groupId}`);
-      }
-      
+
       toast.success('모임 정보가 저장되었습니다');
       setTimeout(() => navigate(-1), 500);
     } catch (error) {
@@ -178,14 +173,14 @@ export function EditGroupView() {
               )}
             </div>
             {image ? (
-              <button 
+              <button
                 className="absolute bottom-0 right-0 p-2 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-colors"
                 onClick={removeImage}
               >
                 <X className="w-4 h-4" />
               </button>
             ) : (
-              <button 
+              <button
                 className="absolute bottom-0 right-0 p-2 bg-orange-500 text-white rounded-full shadow-lg hover:bg-orange-600 transition-colors"
                 onClick={handleImageUpload}
               >
@@ -198,9 +193,9 @@ export function EditGroupView() {
         {/* Name */}
         <div className="space-y-2">
           <Label htmlFor="name" className="text-base font-medium">모임 이름</Label>
-          <Input 
-            id="name" 
-            placeholder="모임 이름을 입력하세요" 
+          <Input
+            id="name"
+            placeholder="모임 이름을 입력하세요"
             className="h-12 text-lg bg-white border-stone-200 focus-visible:ring-orange-500 rounded-xl"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -209,7 +204,7 @@ export function EditGroupView() {
 
         {/* Submit Button */}
         <div className="pt-4">
-          <Button 
+          <Button
             onClick={handleSubmit}
             className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white text-lg font-medium rounded-xl"
           >

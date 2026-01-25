@@ -34,56 +34,61 @@ public class LedgerService {
 
     // 조회 (최신순 정렬: createdAt DESC, transactionId DESC)
     @Transactional(readOnly = true)
-    public List<TransactionLogResponse> getTransactions(Long clubId, LocalDate startDate, LocalDate endDate, Long scheduleId) {
-        System.out.println("📊 [거래 내역 조회] clubId=" + clubId + ", startDate=" + startDate + ", endDate=" + endDate + ", scheduleId=" + scheduleId);
-        
+    public List<TransactionLogResponse> getTransactions(Long clubId, LocalDate startDate, LocalDate endDate,
+            Long scheduleId) {
+        System.out.println("📊 [거래 내역 조회] clubId=" + clubId + ", startDate=" + startDate + ", endDate=" + endDate
+                + ", scheduleId=" + scheduleId);
+
         List<TransactionLog> logs;
         if (scheduleId != null) {
-            logs = transactionLogRepository.findByClubIdAndScheduleIdOrderByCreatedAtDescTransactionIdDesc(clubId, scheduleId);
+            logs = transactionLogRepository.findByClubIdAndScheduleIdOrderByCreatedAtDescTransactionIdDesc(clubId,
+                    scheduleId);
             System.out.println("  → 일정별 조회: " + logs.size() + "건");
         } else {
             // 넓은 범위로 조회 (동기화 지연 고려)
             LocalDateTime queryStart = startDate.atStartOfDay().minusDays(7);
             LocalDateTime queryEnd = endDate.atTime(23, 59, 59).plusDays(7);
-            
-            logs = transactionLogRepository.findByClubIdAndCreatedAtBetweenOrderByCreatedAtDescTransactionIdDesc(clubId, queryStart, queryEnd);
-            System.out.println("  → 날짜 범위 조회 (전체): " + logs.size() + "건 (조회 범위: " + queryStart + " ~ " + queryEnd + ")");
-            
+
+            logs = transactionLogRepository.findByClubIdAndCreatedAtBetweenOrderByCreatedAtDescTransactionIdDesc(clubId,
+                    queryStart, queryEnd);
+            System.out
+                    .println("  → 날짜 범위 조회 (전체): " + logs.size() + "건 (조회 범위: " + queryStart + " ~ " + queryEnd + ")");
+
             // 실제 거래 날짜 기준으로 필터링
             List<TransactionLog> filteredLogs = new ArrayList<>();
             LocalDateTime filterStart = startDate.atStartOfDay();
             LocalDateTime filterEnd = endDate.atTime(23, 59, 59);
-            
+
             for (TransactionLog log : logs) {
                 LocalDateTime actualTransactionDate = getActualTransactionDate(log);
-                
+
                 // 실제 거래 날짜가 필터 기간 내에 있는지 확인
                 if (!actualTransactionDate.isBefore(filterStart) && !actualTransactionDate.isAfter(filterEnd)) {
                     filteredLogs.add(log);
                 }
             }
-            
+
             logs = filteredLogs;
-            System.out.println("  → 실제 거래 날짜 기준 필터링 후: " + logs.size() + "건 (필터 범위: " + filterStart + " ~ " + filterEnd + ")");
+            System.out.println(
+                    "  → 실제 거래 날짜 기준 필터링 후: " + logs.size() + "건 (필터 범위: " + filterStart + " ~ " + filterEnd + ")");
         }
-        
+
         // 1. 모든 로그의 날짜 정보를 미리 조회 (Pre-fetch) to Avoid N+1 & ensure consistency
         Map<Long, LocalDateTime> logIdToDateMap = new java.util.HashMap<>();
-        
+
         // bankHistoryId 수집
         List<Long> allHistoryIds = logs.stream()
                 .map(TransactionLog::getBankHistoryId)
                 .filter(id -> id != null)
                 .distinct()
                 .collect(Collectors.toList());
-        
+
         // 한 번에 조회
         Map<Long, LocalDateTime> historyDateMap = bankTransactionHistoryRepository.findAllById(allHistoryIds).stream()
                 .collect(Collectors.toMap(
                         BankTransactionHistory::getHistoryId,
-                        BankTransactionHistory::getBankTransactionAt
-                ));
-        
+                        BankTransactionHistory::getBankTransactionAt));
+
         // Map 구축 (TransactionId -> ActualDate)
         for (TransactionLog log : logs) {
             LocalDateTime date = log.getCreatedAt(); // 기본값
@@ -97,19 +102,19 @@ public class LedgerService {
         Collections.sort(logs, (log1, log2) -> {
             LocalDateTime date1 = logIdToDateMap.get(log1.getTransactionId());
             LocalDateTime date2 = logIdToDateMap.get(log2.getTransactionId());
-            
+
             // 내림차순: date2.compareTo(date1)
             int dateCompare = date2.compareTo(date1);
             if (dateCompare != 0) {
                 return dateCompare;
             }
-            
+
             // 날짜가 같으면 ID 내림차순 (최신순)
             return Long.compare(log2.getTransactionId(), log1.getTransactionId());
         });
-        
+
         System.out.println("  → 실제 거래 날짜 기준 정렬 완료 (최신순: 날짜 DESC, ID DESC)");
-        
+
         // bankHistoryId가 있는 로그들의 매칭 정보 조회
         // 매칭된 PaymentRequest 조회
         Map<Long, String> matchedMemberNames = paymentRequestRepository
@@ -117,10 +122,10 @@ public class LedgerService {
                 .stream()
                 .collect(Collectors.toMap(
                         PaymentRequest::getMatchedHistoryId,
-                        req -> getMemberName(req.getClubId(), req.getMemberId()),
+                        PaymentRequest::getMemberName,
                         (existing, replacement) -> existing // 중복 시 첫 번째 값 유지
                 ));
-        
+
         // DTO 변환
         return logs.stream()
                 .map(log -> new TransactionLogResponse(
@@ -131,23 +136,20 @@ public class LedgerService {
                         log.getType(),
                         log.getAmount(),
                         log.getBalanceAfter(),
-                        (log.getDescription() != null ? log.getDescription() : "") + 
-                        " [Act:" + logIdToDateMap.get(log.getTransactionId()).toString() + 
-                        " / ID:" + log.getTransactionId() + "]", // 디버깅용: ActualTime, ID 표시
+                        (log.getDescription() != null ? log.getDescription() : ""), // 디버깅용: ActualTime, ID 표시 제거
                         log.getEditorId(),
                         log.getCreatedAt(),
                         log.getBankHistoryId(),
-                        log.getBankHistoryId() != null ? matchedMemberNames.get(log.getBankHistoryId()) : null
-                ))
+                        log.getBankHistoryId() != null ? matchedMemberNames.get(log.getBankHistoryId()) : null))
                 .collect(Collectors.toList());
     }
-    
+
     private String getMemberName(Long clubId, Long memberId) {
         return clubMemberRepository.findNameView(clubId, memberId)
                 .map(view -> view.getRealName())
                 .orElse("알 수 없음");
     }
-    
+
     /**
      * TransactionLog의 실제 거래 날짜를 조회
      * bankHistoryId가 있으면 BankTransactionHistory의 bankTransactionAt을 사용,
@@ -156,7 +158,8 @@ public class LedgerService {
     private LocalDateTime getActualTransactionDate(TransactionLog log) {
         if (log.getBankHistoryId() != null) {
             // bankHistoryId가 있으면 실제 거래 날짜 조회
-            Optional<BankTransactionHistory> history = bankTransactionHistoryRepository.findById(log.getBankHistoryId());
+            Optional<BankTransactionHistory> history = bankTransactionHistoryRepository
+                    .findById(log.getBankHistoryId());
             if (history.isPresent()) {
                 return history.get().getBankTransactionAt();
             }

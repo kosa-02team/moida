@@ -6,8 +6,8 @@ import { Card, CardContent } from '../../ui/card';
 import { Link } from 'react-router-dom';
 import { Badge } from '../../ui/badge';
 import { Progress } from '../../ui/progress';
-import { 
-  useUserRole, 
+import {
+  useUserRole,
   useUserPermissions,
   getRoleLabel,
   getRoleColor,
@@ -23,11 +23,11 @@ interface GroupContextType {
 export function DuesView() {
   const { groupId } = useParams();
   const { club, loading: clubLoading } = useOutletContext<GroupContextType>();
-  
+
   // 모임별 역할 가져오기
   const { userRole } = useUserRole(groupId || '1');
   const permissions = useUserPermissions(groupId || '1');
-  
+
   // 권한 체크
   const showWithdrawButton = permissions.canWithdraw;
 
@@ -81,7 +81,7 @@ export function DuesView() {
         </Badge>
       </div>
 
-          {/* Balance Card */}
+      {/* Balance Card */}
       <Card className="bg-gradient-to-br from-stone-900 to-stone-800 text-white border-none shadow-lg rounded-2xl overflow-hidden relative">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-2xl"></div>
         <CardContent className="p-6 relative z-10">
@@ -89,8 +89,8 @@ export function DuesView() {
             <div>
               <p className="text-stone-400 text-sm mb-1">총 모임 통장 잔액</p>
               <h2 className="text-3xl font-bold">
-                {transactions.length > 0 
-                  ? transactions[0].balanceAfter.toLocaleString() 
+                {transactions.length > 0
+                  ? transactions[0].balanceAfter.toLocaleString()
                   : '0'}원
               </h2>
             </div>
@@ -103,7 +103,7 @@ export function DuesView() {
           <div className="mb-4">
             <Badge className={
               isFairType
-                ? 'bg-green-500/20 text-green-300 border-green-500/30' 
+                ? 'bg-green-500/20 text-green-300 border-green-500/30'
                 : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
             }>
               {isFairType ? '공정정산형' : '운영비형'}
@@ -117,7 +117,7 @@ export function DuesView() {
               <span className="text-sm text-stone-300">멤버 수: {club.currentMembers || 0}명</span>
             </div>
           </div>
-          
+
           {/* Action Buttons */}
           <div className="flex gap-4">
             <Link to="deposit" className="flex-1">
@@ -126,7 +126,7 @@ export function DuesView() {
                 채우기
               </Button>
             </Link>
-            
+
             {showWithdrawButton ? (
               <Link to="withdraw" className="flex-1">
                 <Button variant="secondary" className="w-full bg-white/10 hover:bg-white/20 text-white border-none h-12 rounded-xl">
@@ -135,9 +135,9 @@ export function DuesView() {
                 </Button>
               </Link>
             ) : (
-              <Button 
-                variant="secondary" 
-                disabled 
+              <Button
+                variant="secondary"
+                disabled
                 className="flex-1 bg-white/5 text-white/50 border-none h-12 rounded-xl cursor-not-allowed"
               >
                 <ArrowUpRight className="w-4 h-4 mr-2" />
@@ -145,7 +145,7 @@ export function DuesView() {
               </Button>
             )}
           </div>
-          
+
           {!showWithdrawButton && (
             <p className="text-xs text-stone-500 text-center mt-2">
               보내기는 모임장/총무만 가능합니다
@@ -174,27 +174,29 @@ export function DuesView() {
         </Link>
       </div>
 
-      {/* 장부 관리 Link (총무/모임장만) */}
+      {/* 장부 관리 Link (모든 멤버 가능) */}
+      <Link to="ledger">
+        <Card className="border-indigo-200 bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                  <History className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-indigo-900">장부 관리</p>
+                  <p className="text-xs text-indigo-700">모임통장 사용 내역 조회</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-indigo-600" />
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
+
+      {/* 관리자 메뉴 (총무/모임장만) */}
       {showWithdrawButton && (
         <>
-          <Link to="ledger">
-            <Card className="border-indigo-200 bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                      <History className="w-5 h-5 text-indigo-600" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-indigo-900">장부 관리</p>
-                      <p className="text-xs text-indigo-700">모임통장 사용 내역 조회</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-indigo-600" />
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
           <Link to="payment-requests">
             <Card className="border-purple-200 bg-purple-50 hover:bg-purple-100 transition-colors cursor-pointer">
               <CardContent className="p-4">
