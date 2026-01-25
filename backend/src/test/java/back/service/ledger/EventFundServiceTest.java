@@ -124,8 +124,10 @@ class EventFundServiceTest {
                         given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
                         given(participantRepository.findByScheduleId(scheduleId)).willReturn(List.of(p1, p2));
                         given(userRepository.findAllById(any())).willReturn(List.of(user1, user2));
-                        given(paymentRequestRepository.existsByScheduleIdAndMemberId(scheduleId, 10L)).willReturn(false);
-                        given(paymentRequestRepository.existsByScheduleIdAndMemberId(scheduleId, 11L)).willReturn(false);
+                        given(paymentRequestRepository.existsByScheduleIdAndMemberId(scheduleId, 10L))
+                                        .willReturn(false);
+                        given(paymentRequestRepository.existsByScheduleIdAndMemberId(scheduleId, 11L))
+                                        .willReturn(false);
                         given(notificationsRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
                         willDoNothing().given(notificationService).send(any(), any());
 
@@ -191,7 +193,9 @@ class EventFundServiceTest {
                                         .willReturn(List.of(req1, req2));
 
                         // 기간 내 지출 내역
-                        given(transactionLogRepository.findByClubIdAndCreatedAtBetween(any(), any(), any()))
+                        given(transactionLogRepository
+                                        .findByClubIdAndCreatedAtBetweenOrderByCreatedAtDescTransactionIdDesc(any(),
+                                                        any(), any()))
                                         .willReturn(List.of(log1));
 
                         // 환급 필터링용 (환급된 내역 없음)
@@ -248,7 +252,9 @@ class EventFundServiceTest {
                                         BigDecimal.valueOf(-3000),
                                         BigDecimal.ZERO, "환급이체", null, 301L);
 
-                        given(transactionLogRepository.findByClubIdAndCreatedAtBetween(any(), any(), any()))
+                        given(transactionLogRepository
+                                        .findByClubIdAndCreatedAtBetweenOrderByCreatedAtDescTransactionIdDesc(any(),
+                                                        any(), any()))
                                         .willReturn(List.of(normalExpense, refundExpense));
 
                         // 환급 지출 필터링 설정
