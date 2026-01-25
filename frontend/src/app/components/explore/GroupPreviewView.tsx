@@ -91,7 +91,7 @@ export function GroupPreviewView() {
         setGroup({
           id: groupId,
           name: clubData.clubName,
-          image: '',
+          image: clubData.coverImageUrl || '',
           description: '', // 백엔드에 description 필드가 없음
           tags: [], // 백엔드에 tags 필드가 없음
           memberCount: clubData.currentMembers || 0,

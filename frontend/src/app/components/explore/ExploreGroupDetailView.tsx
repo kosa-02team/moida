@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { 
+import {
   ArrowLeft, Users, Calendar, Eye, Lock, Heart, MessageCircle, Flag, Share2, UserPlus
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -81,7 +81,7 @@ export function ExploreGroupDetailView() {
         setLoading(true);
         const clubId = parseInt(groupId);
         const clubData = await getClub(clubId);
-        
+
         // 최근 게시글 조회 (게시글 공개 모임인 경우)
         let recentPosts: PublicGroup['recentPosts'] = undefined;
         if (clubData.visibility === 'PUBLIC') {
@@ -113,11 +113,11 @@ export function ExploreGroupDetailView() {
         console.log('이미지 시작 부분:', storedImage?.substring(0, 100));
         console.log('로컬 스토리지 전체 키:', Object.keys(localStorage).filter(key => key.includes('club_image')));
         console.log('==========================');
-        
+
         const groupData: PublicGroup = {
           id: clubData.clubId.toString(),
           name: clubData.clubName,
-          image: storedImage || '',
+          image: clubData.coverImageUrl || storedImage || '',
           description: '', // 백엔드에 description 필드가 없음
           tags: [], // 백엔드에 tags 필드가 없음
           memberCount: clubData.currentMembers || 0,
@@ -138,30 +138,30 @@ export function ExploreGroupDetailView() {
           response: error?.response,
           errorData: error?.response?.data
         });
-        
+
         // 비공개 모임 접근 권한 없음 에러 처리
         const errorMessage = error?.message || '';
         const errorData = error?.response?.data || {};
         // 백엔드 ErrorResponse 구조: { status, code, message }
         const errorCode = errorData?.code || errorData?.errorCode || '';
-        
+
         // AuthenticationError 체크 (client.ts에서 403 에러 시 던지는 에러)
         const isAuthenticationError = error instanceof AuthenticationError;
-        
+
         // 403 에러 또는 CA01 에러 코드 또는 관련 메시지 확인
-        const isPermissionError = error?.status === 403 || 
-                                  errorCode === 'CA01' ||
-                                  isAuthenticationError ||
-                                  errorMessage.includes('활성 멤버가 아닙니다') ||
-                                  errorMessage.includes('권한') ||
-                                  errorMessage.includes('멤버가 아닙니다');
-        
+        const isPermissionError = error?.status === 403 ||
+          errorCode === 'CA01' ||
+          isAuthenticationError ||
+          errorMessage.includes('활성 멤버가 아닙니다') ||
+          errorMessage.includes('권한') ||
+          errorMessage.includes('멤버가 아닙니다');
+
         if (isPermissionError) {
           toast.error('비공개 모임입니다. 해당 모임의 멤버만 상세 정보를 조회할 수 있습니다.');
           navigate('/explore');
           return;
         }
-        
+
         toast.error('모임 정보를 불러오는데 실패했습니다.');
         navigate('/explore');
       } finally {
@@ -202,7 +202,7 @@ export function ExploreGroupDetailView() {
       return;
     }
     if (!groupId) return;
-    
+
     try {
       setIsJoining(true);
       await joinClub(Number(groupId), {
@@ -263,7 +263,7 @@ export function ExploreGroupDetailView() {
         })()}
         {/* Gradient Overlay - 더 밝게 조정 */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-black/50 pointer-events-none" style={{ zIndex: 1 }} />
-        
+
         {/* Back Button */}
         <Button
           variant="ghost"
@@ -429,7 +429,7 @@ export function ExploreGroupDetailView() {
       {isLoggedIn ? (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-100 p-4">
           <div className="max-w-[500px] mx-auto">
-            <Button 
+            <Button
               onClick={() => setShowJoinDialog(true)}
               className="w-full h-12 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-lg"
             >
@@ -479,7 +479,7 @@ export function ExploreGroupDetailView() {
             <Button variant="outline" onClick={() => setShowJoinDialog(false)}>
               취소
             </Button>
-            <Button 
+            <Button
               onClick={handleJoinRequest}
               disabled={!joinNickname.trim() || isJoining}
               className="bg-orange-500 hover:bg-orange-600"
