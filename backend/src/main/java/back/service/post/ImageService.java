@@ -68,7 +68,7 @@ public class ImageService {
             log.info("Image saved to: {}", filePath.toAbsolutePath());
 
             // 웹에서 접근 가능한 경로 반환
-            return "/uploads/images/" + fileName;
+            return "/uploads/images/new" + fileName;
 
         } catch (Exception e) {
             log.error("Failed to save base64 image", e);
