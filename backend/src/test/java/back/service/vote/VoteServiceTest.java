@@ -124,9 +124,7 @@ class VoteServiceTest {
                     null, // deadline
                     List.of( // options (최소 2개 필요)
                             new VoteOptionCreateRequest("옵션1", 1, null, null),
-                            new VoteOptionCreateRequest("옵션2", 2, null, null)
-                    )
-            );
+                            new VoteOptionCreateRequest("옵션2", 2, null, null)));
 
             Clubs clubRef = club(clubId, 1L);
             ClubMembers userRef = user(userId);
@@ -176,7 +174,7 @@ class VoteServiceTest {
                     false,
                     scheduleId, // scheduleId
                     null, // deadline
-                    null  // options (ATTENDANCE는 null)
+                    null // options (ATTENDANCE는 null)
             );
 
             Schedules schedule = schedule(scheduleId, clubId);
@@ -224,7 +222,7 @@ class VoteServiceTest {
                     false,
                     null, // scheduleId 없음
                     null, // deadline
-                    null  // options
+                    null // options
             );
 
             // when & then
@@ -252,7 +250,7 @@ class VoteServiceTest {
                     false,
                     scheduleId, // scheduleId
                     null, // deadline
-                    null  // options (ATTENDANCE는 null)
+                    null // options (ATTENDANCE는 null)
             );
 
             Schedules schedule = schedule(scheduleId, otherClubId); // 다른 모임
@@ -506,6 +504,8 @@ class VoteServiceTest {
             Posts post = Posts.vote(club, user(userId), null, "제목", "설명");
             ReflectionTestUtils.setField(post, "postId", 1L);
             given(postRepository.findByIdWithClub(1L)).willReturn(Optional.of(post));
+            doThrow(new back.exception.ClubException.AuthStaffRequired())
+                    .when(clubsAuthorizationService).assertAtLeastManager(clubId, userId);
 
             // when & then
             assertThatThrownBy(() -> voteService.answerVote(clubId, voteId, userId, request))

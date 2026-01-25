@@ -60,6 +60,9 @@ class EventFundServiceTest {
         @Mock
         private back.repository.club.ClubMemberRepository clubMemberRepository;
 
+        @Mock
+        private back.bank.repository.BankTransactionHistoryRepository bankTransactionHistoryRepository;
+
         @InjectMocks
         private EventFundService eventFundService;
 
@@ -96,6 +99,14 @@ class EventFundServiceTest {
                 return u;
         }
 
+        // ClubMembers 생성 헬퍼
+        private back.domain.club.ClubMembers createClubMember(Long memberId, Long userId) {
+                back.domain.club.ClubMembers m = newEntity(back.domain.club.ClubMembers.class);
+                ReflectionTestUtils.setField(m, "memberId", memberId);
+                ReflectionTestUtils.setField(m, "userId", userId);
+                return m;
+        }
+
         @Nested
         @DisplayName("참가비 일괄 걷기")
         class CollectEntryFees {
@@ -118,18 +129,47 @@ class EventFundServiceTest {
                         Users user1 = createUser(10L, "홍길동");
                         Users user2 = createUser(11L, "김철수");
 
+                        back.domain.club.ClubMembers m1 = createClubMember(10L, 10L);
+                        back.domain.club.ClubMembers m2 = createClubMember(11L, 11L);
+
                         // Mock 설정
                         willDoNothing().given(clubAuthService).assertAtLeastAccountant(clubId, userId);
-                        given(bankService.syncTransactionsStub(any(), any(), any(), any())).willReturn(List.of());
-                        given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
-                        given(participantRepository.findByScheduleId(scheduleId)).willReturn(List.of(p1, p2));
-                        given(userRepository.findAllById(any())).willReturn(List.of(user1, user2));
-                        given(paymentRequestRepository.existsByScheduleIdAndMemberId(scheduleId, 10L))
-                                        .willReturn(false);
-                        given(paymentRequestRepository.existsByScheduleIdAndMemberId(scheduleId, 11L))
-                                        .willReturn(false);
-                        given(notificationsRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
-                        willDoNothing().given(notificationService).send(any(), any());
+                        org.mockito.Mockito.lenient().when(bankService.syncTransactionsStub(any(), any(), any(), any()))
+                                        .thenReturn(List.of());
+                        org.mockito.Mockito.lenient().when(bankAccountRepository.findByClubId(any())).thenReturn(
+                                        Optional.of(org.mockito.Mockito.mock(back.bank.domain.BankAccounts.class)));
+                        org.mockito.Mockito.lenient().when(bankTransactionHistoryRepository.findById(any()))
+                                        .thenReturn(Optional.empty());
+                        org.mockito.Mockito.lenient().when(transactionLogRepository.findLatestByClubId(any()))
+                                        .thenReturn(Optional.empty());
+                        org.mockito.Mockito.lenient()
+                                        .when(participantRepository.findByScheduleIdAndUserId(any(), any()))
+                                        .thenReturn(Optional.empty());
+                        org.mockito.Mockito.lenient().when(scheduleRepository.findById(scheduleId))
+                                        .thenReturn(Optional.of(schedule));
+                        org.mockito.Mockito.lenient().when(participantRepository.findByScheduleId(scheduleId))
+                                        .thenReturn(List.of(p1, p2));
+                        org.mockito.Mockito.lenient().when(userRepository.findAllById(any()))
+                                        .thenReturn(List.of(user1, user2));
+                        org.mockito.Mockito.lenient().when(clubMemberRepository.findByClubIdAndUserIdAndStatus(
+                                        org.mockito.ArgumentMatchers.eq(clubId), org.mockito.ArgumentMatchers.eq(10L),
+                                        any()))
+                                        .thenReturn(Optional.of(m1));
+                        org.mockito.Mockito.lenient().when(clubMemberRepository.findByClubIdAndUserIdAndStatus(
+                                        org.mockito.ArgumentMatchers.eq(clubId), org.mockito.ArgumentMatchers.eq(11L),
+                                        any()))
+                                        .thenReturn(Optional.of(m2));
+                        org.mockito.Mockito.lenient()
+                                        .when(paymentRequestRepository.existsByScheduleIdAndMemberId(scheduleId, 10L))
+                                        .thenReturn(false);
+                        org.mockito.Mockito.lenient()
+                                        .when(paymentRequestRepository.existsByScheduleIdAndMemberId(scheduleId, 11L))
+                                        .thenReturn(false);
+                        org.mockito.Mockito.lenient().when(notificationsRepository.save(any()))
+                                        .thenAnswer(invocation -> invocation.getArgument(0));
+                        org.mockito.Mockito.lenient().when(paymentRequestRepository.save(any()))
+                                        .thenAnswer(invocation -> invocation.getArgument(0));
+                        org.mockito.Mockito.lenient().doNothing().when(notificationService).send(any(), any());
 
                         // when
                         eventFundService.collectEntryFees(clubId, scheduleId, userId);
@@ -181,10 +221,20 @@ class EventFundServiceTest {
                         TransactionLog log1 = new TransactionLog(clubId, scheduleId, 1L, "WITHDRAW",
                                         BigDecimal.valueOf(-5000),
                                         BigDecimal.ZERO, "간식", null, 201L);
+                        ReflectionTestUtils.setField(log1, "createdAt", LocalDateTime.now());
 
                         // Mock 설정
                         willDoNothing().given(clubAuthService).assertAtLeastAccountant(clubId, userId);
-                        given(bankService.syncTransactionsStub(any(), any(), any(), any())).willReturn(List.of());
+                        org.mockito.Mockito.lenient().when(bankService.syncTransactionsStub(any(), any(), any(), any()))
+                                        .thenReturn(List.of());
+                        org.mockito.Mockito.lenient().when(bankAccountRepository.findByClubId(any())).thenReturn(
+                                        Optional.of(org.mockito.Mockito.mock(back.bank.domain.BankAccounts.class)));
+                        org.mockito.Mockito.lenient().when(bankTransactionHistoryRepository.findById(any()))
+                                        .thenReturn(Optional.empty());
+                        org.mockito.Mockito.lenient().when(transactionLogRepository.findLatestByClubId(any()))
+                                        .thenReturn(Optional.empty());
+                        given(participantRepository.findByScheduleIdAndUserId(any(), any()))
+                                        .willReturn(Optional.empty());
                         given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
 
                         // 실제 납부자 리스트
@@ -230,7 +280,16 @@ class EventFundServiceTest {
 
                         // Mock 설정
                         willDoNothing().given(clubAuthService).assertAtLeastAccountant(clubId, userId);
-                        given(bankService.syncTransactionsStub(any(), any(), any(), any())).willReturn(List.of());
+                        org.mockito.Mockito.lenient().when(bankService.syncTransactionsStub(any(), any(), any(), any()))
+                                        .thenReturn(List.of());
+                        org.mockito.Mockito.lenient().when(bankAccountRepository.findByClubId(any())).thenReturn(
+                                        Optional.of(org.mockito.Mockito.mock(back.bank.domain.BankAccounts.class)));
+                        org.mockito.Mockito.lenient().when(bankTransactionHistoryRepository.findById(any()))
+                                        .thenReturn(Optional.empty());
+                        org.mockito.Mockito.lenient().when(transactionLogRepository.findLatestByClubId(any()))
+                                        .thenReturn(Optional.empty());
+                        given(participantRepository.findByScheduleIdAndUserId(any(), any()))
+                                        .willReturn(Optional.empty());
                         given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(schedule));
 
                         // 수입: 20000원 (실제 납부자)
@@ -247,10 +306,12 @@ class EventFundServiceTest {
                         // 지출: 정상 지출 5000원 + 환급 지출 3000원 (제외되어야 함)
                         TransactionLog normalExpense = new TransactionLog(clubId, scheduleId, 1L, "WITHDRAW",
                                         BigDecimal.valueOf(-5000), BigDecimal.ZERO, "간식", null, 200L);
+                        ReflectionTestUtils.setField(normalExpense, "createdAt", LocalDateTime.now());
 
                         TransactionLog refundExpense = new TransactionLog(clubId, null, 1L, "WITHDRAW",
                                         BigDecimal.valueOf(-3000),
                                         BigDecimal.ZERO, "환급이체", null, 301L);
+                        ReflectionTestUtils.setField(refundExpense, "createdAt", LocalDateTime.now());
 
                         given(transactionLogRepository
                                         .findByClubIdAndCreatedAtBetweenOrderByCreatedAtDescTransactionIdDesc(any(),

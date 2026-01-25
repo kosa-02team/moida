@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -129,7 +130,8 @@ public class TransactionMatchingService {
      * 3. print_content에 회원 이름, 닉네임 포함
      */
     private boolean isMatched(BankTransactionHistory tx, PaymentRequest req) {
-        System.out.println("=== [isMatched 호출] 거래내역: " + tx.getPrintContent() + " (" + tx.getAmount() + "원), 요청: " + req.getMemberName() + " (" + req.getExpectedAmount() + "원) ===");
+        System.out.println("=== [isMatched 호출] 거래내역: " + tx.getPrintContent() + " (" + tx.getAmount() + "원), 요청: "
+                + req.getMemberName() + " (" + req.getExpectedAmount() + "원) ===");
         System.out.println("은행거래내역 금액 : " + tx.getAmount() + ", 지불 요청 금액 : " + req.getExpectedAmount());
 
         // 1) 금액 먼저 (절대값 비교)
@@ -158,17 +160,18 @@ public class TransactionMatchingService {
         LocalDate txDate = tx.getBankTransactionAt().atZone(koreaZone).toLocalDate();
         LocalDate expected = req.getExpectedDate();
         int range = req.getMatchDaysRange() != null ? req.getMatchDaysRange() : 10;
-        
+
         LocalDate rangeStart = expected.minusDays(range);
         LocalDate rangeEnd = expected.plusDays(range);
 
-        System.out.println("  거래 날짜: " + txDate + ", 예상 날짜: " + expected + ", 범위: ±" + range + "일 (" + rangeStart + " ~ " + rangeEnd + ")");
+        System.out.println("  거래 날짜: " + txDate + ", 예상 날짜: " + expected + ", 범위: ±" + range + "일 (" + rangeStart
+                + " ~ " + rangeEnd + ")");
 
         if (txDate.isBefore(rangeStart) || txDate.isAfter(rangeEnd)) {
             System.out.println("  ✗ 날짜 범위 밖: " + txDate + "가 범위(" + rangeStart + " ~ " + rangeEnd + ") 밖에 있음");
             return false;
         }
-        
+
         System.out.println("  ✓ 날짜 범위 내");
 
         System.out.println("적요");
@@ -195,6 +198,7 @@ public class TransactionMatchingService {
 
         System.out.println("멤버 실명: [" + realName + "], 닉네임: [" + nick + "]");
         System.out.println("거래 내용: [" + content + "]");
+        System.out.println("  → 이름 검사: 실명[" + realName + "], 닉네임[" + nick + "] vs 거래내용[" + content + "]");
 
         // 5) 실명/닉네임이 클럽 내 유일한지 확인
         boolean realNameUnique = !realName.isBlank()
@@ -229,12 +233,14 @@ public class TransactionMatchingService {
         // 6-3) 유일하지 않더라도 이름이 포함되어 있으면 매칭 허용 (금액과 날짜가 맞으면)
         // 금액과 날짜가 이미 확인되었으므로, 이름만 포함되어 있으면 매칭
         if (!realName.isBlank() && content.contains(realName)) {
-            System.out.println("  ⚠️ 실명 포함되지만 유일하지 않음: [" + realName + "]이(가) [" + content + "]에 포함됨 (유일성: " + realNameUnique + ")");
+            System.out.println("  ⚠️ 실명 포함되지만 유일하지 않음: [" + realName + "]이(가) [" + content + "]에 포함됨 (유일성: "
+                    + realNameUnique + ")");
             System.out.println("  → 금액과 날짜가 일치하므로 매칭 허용");
             return true;
         }
         if (!nick.isBlank() && content.contains(nick)) {
-            System.out.println("  ⚠️ 닉네임 포함되지만 유일하지 않음: [" + nick + "]이(가) [" + content + "]에 포함됨 (유일성: " + nickUnique + ")");
+            System.out.println(
+                    "  ⚠️ 닉네임 포함되지만 유일하지 않음: [" + nick + "]이(가) [" + content + "]에 포함됨 (유일성: " + nickUnique + ")");
             System.out.println("  → 금액과 날짜가 일치하므로 매칭 허용");
             return true;
         }
@@ -375,7 +381,7 @@ public class TransactionMatchingService {
     public void cancelMatch(Long requestId, Long adminId) {
         System.out.println("=== 매칭 취소 시작 ===");
         System.out.println("requestId: " + requestId);
-        
+
         PaymentRequest request = paymentRequestRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("입금요청을 찾을 수 없습니다. requestId: " + requestId));
 
@@ -399,12 +405,12 @@ public class TransactionMatchingService {
                 transactionHistoryRepository.save(history);
                 System.out.println("✓ 주 거래내역 " + primaryHistoryId + " 매칭 취소");
             });
-            
+
             // 같은 요청과 연결된 다른 거래들도 찾아서 원복 (다중 거래 매칭 케이스)
             // matchedHistoryId가 같은 다른 PaymentRequest가 있는지 확인
             List<PaymentRequest> relatedRequests = paymentRequestRepository
                     .findByClubIdAndMatchedHistoryId(request.getClubId(), primaryHistoryId);
-            
+
             if (relatedRequests.size() > 1) {
                 System.out.println("다중 거래 매칭 감지: " + relatedRequests.size() + "건");
                 // 이 경우는 드물지만, 모든 관련 요청도 취소
@@ -511,7 +517,8 @@ public class TransactionMatchingService {
 
         System.out.println("거래내역 조회 성공: " + transactions.size() + "건");
         for (BankTransactionHistory tx : transactions) {
-            System.out.println("  - historyId=" + tx.getHistoryId() + ", amount=" + tx.getAmount() + ", isMatched=" + tx.getIsMatched());
+            System.out.println("  - historyId=" + tx.getHistoryId() + ", amount=" + tx.getAmount() + ", isMatched="
+                    + tx.getIsMatched());
         }
 
         // 금액 검증
@@ -535,7 +542,7 @@ public class TransactionMatchingService {
 
         // 첫 번째 거래의 historyId를 대표로 사용
         Long primaryHistoryId = historyIds.get(0);
-        
+
         // 요청 매칭 처리
         request.confirmMatch(primaryHistoryId, adminId);
         paymentRequestRepository.save(request);
@@ -546,9 +553,10 @@ public class TransactionMatchingService {
             tx.markAsMatched();
             tx.updateUnmatchReason(null);
             BankTransactionHistory saved = transactionHistoryRepository.save(tx);
-            System.out.println("✓ 거래내역 " + tx.getHistoryId() + " 매칭 상태 업데이트 완료 (isMatched=" + saved.getIsMatched() + ")");
+            System.out
+                    .println("✓ 거래내역 " + tx.getHistoryId() + " 매칭 상태 업데이트 완료 (isMatched=" + saved.getIsMatched() + ")");
         }
-        
+
         // 명시적으로 flush하여 DB에 반영
         transactionHistoryRepository.flush();
         System.out.println("✓ DB flush 완료");
@@ -653,7 +661,9 @@ public class TransactionMatchingService {
     private String normalize(String s) {
         if (s == null)
             return "";
-        return s.replaceAll("\\s+", "")
+        // NFC 정규화 (Mac/Windows 등 OS 간 한글 자모 분리 호환성 해결)
+        String normalized = Normalizer.normalize(s, Normalizer.Form.NFC);
+        return normalized.replaceAll("\\s+", "")
                 .replaceAll("[^0-9a-zA-Z가-힣]", "")
                 .toLowerCase();
     }
