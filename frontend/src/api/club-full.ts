@@ -12,6 +12,7 @@ export interface ClubDetailResponse {
   ownerId: number;
   mainAccountId: string;
   inviteCode: string;
+  ownerName?: string;
   status: string;
   visibility: string;
   type: string;

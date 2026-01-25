@@ -18,6 +18,7 @@ public class ClubResponse {
     private Long clubId;
     private String clubName;
     private Long ownerId;
+    private String ownerName;
     private String mainAccountId;
     private String inviteCode;
     private String status;
@@ -33,11 +34,12 @@ public class ClubResponse {
     private String deletionRequestStatus;
     private LocalDateTime deletionRequestedAt;
 
-    public static ClubResponse from(Clubs entity, Integer currentMembers) {
+    public static ClubResponse from(Clubs entity, Integer currentMembers, String ownerName) {
         return ClubResponse.builder()
                 .clubId(entity.getClubId())
                 .clubName(entity.getClubName())
                 .ownerId(entity.getOwnerId())
+                .ownerName(ownerName)
                 .mainAccountId(entity.getMainAccountId())
                 .inviteCode(entity.getInviteCode())
                 .status(entity.getStatus().name())
@@ -56,6 +58,10 @@ public class ClubResponse {
                 .build();
     }
 
+    public static ClubResponse from(Clubs entity, Integer currentMembers) {
+        return from(entity, currentMembers, null);
+    }
+
     public static ClubResponse limited(Clubs entity) {
         return ClubResponse.builder()
                 .clubId(entity.getClubId())
@@ -69,6 +75,10 @@ public class ClubResponse {
     }
 
     public static ClubResponse full(Clubs entity, Integer currentMembers) {
-        return from(entity, currentMembers);
+        return from(entity, currentMembers, null);
+    }
+
+    public static ClubResponse full(Clubs entity, Integer currentMembers, String ownerName) {
+        return from(entity, currentMembers, ownerName);
     }
 }

@@ -108,7 +108,11 @@ public class ClubService {
         }
 
         Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE);
-        return ClubResponse.full(club, currentMembers);
+        String ownerName = userRepository.findById(club.getOwnerId())
+                .map(Users::getRealName)
+                .orElse("알 수 없음");
+
+        return ClubResponse.full(club, currentMembers, ownerName);
     }
 
     public ClubResponse getClub(Long clubId) {
