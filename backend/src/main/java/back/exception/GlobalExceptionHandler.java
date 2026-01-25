@@ -78,4 +78,17 @@ public class GlobalExceptionHandler {
                 .status(ErrorCode.INVALID_INPUT.getHttpStatus())
                 .body(ErrorResponse.error(ErrorCode.INVALID_INPUT));
     }
+
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleHttpRequestMethodNotSupportedException(
+            final org.springframework.web.HttpRequestMethodNotSupportedException e) {
+        log.error("HttpRequestMethodNotSupportedException: method={}, supportedMethods={}, requestURI={}",
+                e.getMethod(),
+                e.getSupportedHttpMethods(),
+                e.getMessage(),
+                e);
+        return ResponseEntity
+                .status(ErrorCode.INVALID_INPUT.getHttpStatus())
+                .body(ErrorResponse.error(ErrorCode.INVALID_INPUT));
+    }
 }

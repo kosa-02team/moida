@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, X, UserCheck, UserX, AlertTriangle, Calculator, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -8,7 +8,7 @@ import { Label } from '../../ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
 import { Badge } from '../../ui/badge';
-import { getSchedule, getScheduleParticipants, updateParticipantAttendance, updateParticipantAttendanceByUserId, finalizeSchedule, type ScheduleResponse, type ScheduleParticipantResponse, type ScheduleParticipantUpdateRequest } from '../../../../api/schedule';
+import { getSchedule, getScheduleParticipants, updateParticipantAttendance, updateParticipantAttendanceByUserId, finalizeSchedule, getSettlementPreview, type ScheduleResponse, type ScheduleParticipantResponse, type ScheduleParticipantUpdateRequest, type SettlementPreviewResponse } from '../../../../api/schedule';
 import { getMembers, type MemberListResponse } from '../../../../api/member';
 import { useUserPermissions } from '../../../data/userRoles';
 import {
@@ -43,22 +43,24 @@ export function ScheduleFinalizeView() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [totalSpent, setTotalSpent] = useState(0);
+  const [autoCalculatedSpent, setAutoCalculatedSpent] = useState(0); // 자동 계산된 지출액
+  const [useAutoCalculate, setUseAutoCalculate] = useState(true); // 자동 계산 기본값
+  const [settlementPreview, setSettlementPreview] = useState<SettlementPreviewResponse | null>(null);
   const [refundPerPerson, setRefundPerPerson] = useState(0);
   const [updatingUserId, setUpdatingUserId] = useState<number | null>(null);
 
   // 참가자 목록 병합 함수 (participants + members)
-  const mergeParticipantsWithMembers = useCallback((participantsData: ScheduleParticipantResponse[], membersToMerge?: MemberListResponse[]): ScheduleParticipantResponse[] => {
-    if (!scheduleId) return participantsData;
+  const mergeParticipantsWithMembers = useCallback((participantsData: ScheduleParticipantResponse[], membersToMerge: MemberListResponse[], scheduleIdParam: string): ScheduleParticipantResponse[] => {
+    if (!scheduleIdParam) return participantsData;
     
-    const membersList = membersToMerge || members;
     const participantUserIds = new Set(participantsData.map(p => p.userId));
     const allParticipants: ScheduleParticipantResponse[] = [
       ...participantsData,
-      ...membersList
+      ...membersToMerge
         .filter(member => !participantUserIds.has(member.userId))
         .map(member => ({
           participantId: 0,
-          scheduleId: Number(scheduleId),
+          scheduleId: Number(scheduleIdParam),
           userId: member.userId,
           userName: member.realName || 'Unknown',
           attendanceStatus: 'UNDECIDED' as const,
@@ -69,7 +71,7 @@ export function ScheduleFinalizeView() {
         }))
     ];
     return allParticipants;
-  }, [members, scheduleId]);
+  }, []);
 
   useEffect(() => {
     async function fetchData() {
@@ -86,16 +88,19 @@ export function ScheduleFinalizeView() {
         
         // 모든 ACTIVE 멤버를 포함하도록 participants 확장
         setMembers(membersData);
-        const allParticipants = mergeParticipantsWithMembers(participantsData, membersData);
+        const allParticipants = mergeParticipantsWithMembers(participantsData, membersData, scheduleId);
         setParticipants(allParticipants);
-        setTotalSpent(scheduleData.totalSpent || 0);
         
-        // refundPerPerson 계산: 총 비용을 참석자 수로 나누기
-        const attendingCount = allParticipants.filter(p => p.attendanceStatus === 'ATTENDING').length;
-        const calculatedRefundPerPerson = attendingCount > 0 && scheduleData.totalSpent 
-          ? scheduleData.totalSpent / attendingCount 
-          : 0;
-        setRefundPerPerson(calculatedRefundPerPerson);
+        // 정산 미리보기 조회 (자동 계산된 지출 및 환급액)
+        try {
+          const preview = await getSettlementPreview(Number(groupId), Number(scheduleId));
+          setSettlementPreview(preview);
+          setAutoCalculatedSpent(preview.totalSpent);
+          setTotalSpent(scheduleData.totalSpent || preview.totalSpent);
+        } catch (error) {
+          console.log('정산 미리보기 조회 실패 (권한 없음 또는 데이터 없음):', error);
+          setTotalSpent(scheduleData.totalSpent || 0);
+        }
       } catch (error) {
         console.error('일정 정보 불러오기 실패:', error);
         toast.error('일정 정보를 불러오는데 실패했습니다.');
@@ -105,70 +110,7 @@ export function ScheduleFinalizeView() {
       }
     }
     fetchData();
-  }, [groupId, scheduleId, navigate]);
-
-  // refundPerPerson 재계산 (participants, totalSpent 변경 시)
-  // 돈 낸 사람들(PAID 상태) 기준으로 계산
-  useEffect(() => {
-    if (participants.length > 0 && schedule) {
-      // 납부 완료한 사람들만 필터링
-      const paidParticipants = participants.filter(p => p.feeStatus === 'PAID');
-      const paidCount = paidParticipants.length;
-      
-      if (paidCount > 0 && schedule.entryFee) {
-        // 총 수입 = 납부 완료 인원 × 참가비
-        const totalIncome = paidCount * schedule.entryFee;
-        // 잔액 = 총 수입 - 총 지출
-        const balance = totalIncome - totalSpent;
-        // 환급액 = 잔액 / 납부 인원수 (FLOOR 처리)
-        const calculatedRefundPerPerson = balance > 0 
-          ? Math.floor(balance / paidCount)
-          : 0;
-        setRefundPerPerson(calculatedRefundPerPerson);
-      } else {
-        setRefundPerPerson(0);
-      }
-    }
-  }, [participants, totalSpent, schedule]);
-
-  if (loading || !schedule) {
-    return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
-        <div className="text-stone-500">로딩 중...</div>
-      </div>
-    );
-  }
-
-  const participantsDisplay: Participant[] = participants.map(p => {
-    const isAttending = p.attendanceStatus === 'ATTENDING';
-    const isNotAttending = p.attendanceStatus === 'NOT_ATTENDING';
-    const hasPaid = p.feeStatus === 'PAID';
-    const entryFee = schedule.entryFee || 0;
-    const amountPaid = hasPaid ? entryFee : 0;
-    
-    // 정산 계산 로직
-    let amountDue = 0;
-    if (isAttending) {
-      // 참석한 경우: 1인당 비용 - 이미 낸 참가비
-      amountDue = refundPerPerson - amountPaid;
-    } else if (isNotAttending && hasPaid) {
-      // 불참했지만 참가비를 낸 경우: 환불
-      amountDue = -amountPaid;
-    } else if (isNotAttending && !hasPaid) {
-      // 불참하고 참가비도 안 낸 경우: 정산 없음
-      amountDue = 0;
-    }
-    
-    return {
-      id: String(p.userId), // userId로 고유 식별 (participantId는 0일 수 있음)
-      name: p.userName,
-      avatar: '',
-      voteStatus: isAttending ? 'yes' as const : isNotAttending ? 'no' as const : 'pending' as const,
-      actualStatus: isAttending ? 'attended' as const : isNotAttending ? 'absent' as const : 'pending' as const,
-      amountPaid,
-      amountDue,
-    };
-  });
+  }, [groupId, scheduleId, navigate, mergeParticipantsWithMembers]);
 
   const toggleActualStatus = async (id: string, status: 'attended' | 'absent') => {
     if (!groupId || !scheduleId) return;
@@ -206,7 +148,7 @@ export function ScheduleFinalizeView() {
       const participantsData = await getScheduleParticipants(Number(groupId), Number(scheduleId));
       const updatedMembers = await getMembers(Number(groupId), 'ACTIVE').catch(() => [] as MemberListResponse[]);
       setMembers(updatedMembers);
-      const allParticipants = mergeParticipantsWithMembers(participantsData, updatedMembers);
+      const allParticipants = mergeParticipantsWithMembers(participantsData, updatedMembers, scheduleId || '');
       setParticipants(allParticipants);
       
       toast.success('참석 상태가 업데이트되었습니다');
@@ -218,18 +160,151 @@ export function ScheduleFinalizeView() {
     }
   };
 
-  // 통계
-  const stats = {
-    totalAttended: participantsDisplay.filter(p => p.actualStatus === 'attended').length,
-    totalAbsent: participantsDisplay.filter(p => p.actualStatus === 'absent').length,
-    totalPending: participantsDisplay.filter(p => p.actualStatus === 'pending').length,
-    totalRefund: participantsDisplay.filter(p => p.amountDue < 0).reduce((sum, p) => sum + Math.abs(p.amountDue), 0),
-    totalCollect: participantsDisplay.filter(p => p.amountDue > 0).reduce((sum, p) => sum + p.amountDue, 0),
-  };
+  // 통계 (납부 완료한 사람 기준으로 계산) - useMemo로 메모이제이션
+  // 백엔드의 정산 미리보기 결과를 우선 사용
+  const stats = useMemo(() => {
+    if (!schedule) {
+      return {
+        totalPaid: 0,
+        totalAttended: 0,
+        totalAbsent: 0,
+        totalPending: 0,
+        totalRefund: 0,
+        refundPerPerson: 0,
+      };
+    }
 
-  // 이상 케이스 분류
-  const voteYesActualNo = participantsDisplay.filter(p => p.voteStatus === 'yes' && p.actualStatus === 'absent');
-  const voteNoActualYes = participantsDisplay.filter(p => (p.voteStatus === 'no' || p.voteStatus === 'pending') && p.actualStatus === 'attended');
+    // 백엔드 정산 미리보기 결과가 있으면 우선 사용
+    if (settlementPreview) {
+      // 납부한 사람만 기준으로 참석자 수 계산
+      const paidParticipants = participants.filter(p => p.feeStatus === 'PAID');
+      return {
+        totalPaid: settlementPreview.paidCount,
+        totalAttended: paidParticipants.filter(p => p.attendanceStatus === 'ATTENDING').length,
+        totalAbsent: paidParticipants.filter(p => p.attendanceStatus === 'NOT_ATTENDING').length,
+        totalPending: paidParticipants.filter(p => p.attendanceStatus === 'UNDECIDED').length,
+        totalRefund: Math.max(0, settlementPreview.totalRefund), // 음수 방지
+        refundPerPerson: Math.max(0, settlementPreview.refundPerPerson), // 음수 방지
+      };
+    }
+
+    // 백엔드 결과가 없으면 프론트엔드에서 계산 (fallback)
+    const paidParticipants = participants.filter(p => p.feeStatus === 'PAID');
+    const paidCount = paidParticipants.length;
+
+    // 잔액 계산
+    const totalIncome = paidCount * (schedule.entryFee || 0);
+    const effectiveTotalSpent = useAutoCalculate ? autoCalculatedSpent : totalSpent;
+    const balance = totalIncome - effectiveTotalSpent;
+    const actualRefundPerPerson = balance > 0 && paidCount > 0
+      ? Math.floor(balance / paidCount) 
+      : 0;
+
+    return {
+      totalPaid: paidCount, // 납부한 사람 수
+      totalAttended: paidParticipants.filter(p => p.attendanceStatus === 'ATTENDING').length,
+      totalAbsent: paidParticipants.filter(p => p.attendanceStatus === 'NOT_ATTENDING').length,
+      totalPending: paidParticipants.filter(p => p.attendanceStatus === 'UNDECIDED').length,
+      totalRefund: actualRefundPerPerson * paidCount,
+      refundPerPerson: actualRefundPerPerson,
+    };
+  }, [participants, schedule, useAutoCalculate, autoCalculatedSpent, totalSpent, settlementPreview]);
+
+  // participantsDisplay (stats 이후에 정의 - refundPerPerson 사용) - useMemo로 메모이제이션
+  // 납부한 사람만 표시
+  const participantsDisplay: Participant[] = useMemo(() => {
+    if (!schedule) return [];
+    
+    // 납부한 사람만 필터링
+    return participants
+      .filter(p => p.feeStatus === 'PAID')
+      .map(p => {
+        const isAttending = p.attendanceStatus === 'ATTENDING';
+        const isNotAttending = p.attendanceStatus === 'NOT_ATTENDING';
+        const hasPaid = p.feeStatus === 'PAID';
+        const entryFee = schedule.entryFee || 0;
+        const amountPaid = hasPaid ? entryFee : 0;
+        
+        // 정산 계산 로직 (백엔드와 일치: 납부한 사람만 환급 대상)
+        let amountDue = 0;
+        if (hasPaid && stats.refundPerPerson > 0) {
+          // 납부한 사람만 환급 대상
+          amountDue = -stats.refundPerPerson; // 환급은 음수로 표시
+        }
+        
+        return {
+          id: String(p.userId), // userId로 고유 식별 (participantId는 0일 수 있음)
+          name: p.userName,
+          avatar: '',
+          voteStatus: isAttending ? 'yes' as const : isNotAttending ? 'no' as const : 'pending' as const,
+          actualStatus: isAttending ? 'attended' as const : isNotAttending ? 'absent' as const : 'pending' as const,
+          amountPaid,
+          amountDue,
+        };
+      });
+  }, [participants, schedule, stats.refundPerPerson]);
+
+  // 이상 케이스 분류 - useMemo로 메모이제이션
+  const { voteYesActualNo, voteNoActualYes } = useMemo(() => {
+    const voteYesActualNo = participantsDisplay.filter(p => p.voteStatus === 'yes' && p.actualStatus === 'absent');
+    const voteNoActualYes = participantsDisplay.filter(p => (p.voteStatus === 'no' || p.voteStatus === 'pending') && p.actualStatus === 'attended');
+    return { voteYesActualNo, voteNoActualYes };
+  }, [participantsDisplay]);
+
+  // 잔액 계산 - useMemo로 메모이제이션 (컴포넌트 최상위에서)
+  // 백엔드 정산 미리보기 결과를 우선 사용
+  const balanceDisplay = useMemo(() => {
+    if (!schedule) {
+      return {
+        balance: 0,
+        totalIncome: 0,
+        effectiveTotalSpent: 0
+      };
+    }
+    
+    // 백엔드 정산 미리보기 결과가 있으면 우선 사용
+    if (settlementPreview) {
+      console.log('💰 [잔액 표시] 백엔드 정산 미리보기 결과 사용:', {
+        balance: settlementPreview.balance,
+        totalIncome: settlementPreview.totalIncome,
+        totalSpent: settlementPreview.totalSpent,
+        paidCount: settlementPreview.paidCount
+      });
+      return {
+        balance: settlementPreview.balance,
+        totalIncome: settlementPreview.totalIncome,
+        effectiveTotalSpent: settlementPreview.totalSpent
+      };
+    }
+    
+    // 백엔드 결과가 없으면 프론트엔드에서 계산 (fallback)
+    const paidCount = stats.totalPaid;
+    const totalIncome = schedule.entryFee ? paidCount * schedule.entryFee : 0;
+    const effectiveTotalSpent = useAutoCalculate ? autoCalculatedSpent : totalSpent;
+    const balance = totalIncome - effectiveTotalSpent;
+    
+    console.warn('💰 [잔액 표시] 백엔드 결과 없음, 프론트엔드 계산 사용:', {
+      balance,
+      totalIncome,
+      effectiveTotalSpent,
+      paidCount,
+      entryFee: schedule.entryFee
+    });
+    
+    return {
+      balance,
+      totalIncome,
+      effectiveTotalSpent
+    };
+  }, [stats.totalPaid, schedule, useAutoCalculate, autoCalculatedSpent, totalSpent, settlementPreview]);
+
+  if (loading || !schedule) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <div className="text-stone-500">로딩 중...</div>
+      </div>
+    );
+  }
 
   const handleFinalize = () => {
     if (stats.totalPending > 0) {
@@ -245,7 +320,8 @@ export function ScheduleFinalizeView() {
     setIsSubmitting(true);
     try {
       // 일정 마무리 (정산 및 환급 처리)
-      await finalizeSchedule(Number(groupId), Number(scheduleId), {
+      // 자동 계산일 때는 totalSpent를 undefined로 전송 (백엔드에서 자동 계산)
+      await finalizeSchedule(Number(groupId), Number(scheduleId), useAutoCalculate ? undefined : {
         totalSpent: totalSpent || 0,
       });
       
@@ -292,30 +368,66 @@ export function ScheduleFinalizeView() {
                 )}
               </div>
               {permissions.canWithdraw && (
-                <div className="space-y-2">
-                  <Label htmlFor="totalSpent" className="text-sm font-medium text-orange-800">
-                    총 지출 금액 (총무 이상 수정 가능)
-                  </Label>
-                  <Input
-                    id="totalSpent"
-                    type="number"
-                    value={totalSpent}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value) || 0;
-                      setTotalSpent(value);
-                    }}
-                    className="bg-white border-orange-200"
-                    placeholder="0"
-                    min="0"
-                  />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="totalSpent" className="text-sm font-medium text-orange-800">
+                      총 지출 금액
+                    </Label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={useAutoCalculate}
+                        onChange={(e) => setUseAutoCalculate(e.target.checked)}
+                        className="w-4 h-4 text-orange-500 rounded border-stone-300 focus:ring-orange-500"
+                      />
+                      <span className="text-xs text-orange-700">자동 계산</span>
+                    </label>
+                  </div>
+                  {useAutoCalculate ? (
+                    <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
+                      <p className="text-sm text-orange-700">
+                        총 지출이 자동으로 계산됩니다
+                      </p>
+                      <p className="text-xs text-orange-600 mt-1">
+                        (참석 마감 이후 ~ 일정 종료 +1일까지의 출금 내역 합산)
+                      </p>
+                    </div>
+                  ) : (
+                    <Input
+                      id="totalSpent"
+                      type="number"
+                      value={totalSpent}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 0;
+                        setTotalSpent(value);
+                      }}
+                      className="bg-white border-orange-200"
+                      placeholder="0"
+                      min="0"
+                    />
+                  )}
                 </div>
               )}
               {!permissions.canWithdraw && (
                 <div>
                   <span className="text-orange-600">총 지출:</span>
-                  <span className="font-bold text-orange-900 ml-1">{totalSpent.toLocaleString()}원</span>
+                  {useAutoCalculate ? (
+                    <span className="text-sm text-orange-700 ml-1">자동 계산됩니다</span>
+                  ) : (
+                    <span className="font-bold text-orange-900 ml-1">{totalSpent.toLocaleString()}원</span>
+                  )}
                 </div>
               )}
+              {/* 잔액 표시 */}
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-blue-700">잔액</span>
+                  <span className="text-lg font-bold text-blue-900">{balanceDisplay.balance.toLocaleString()}원</span>
+                </div>
+                <p className="text-xs text-blue-600 mt-1">
+                  총 수입 {balanceDisplay.totalIncome.toLocaleString()}원 - 총 지출 {balanceDisplay.effectiveTotalSpent.toLocaleString()}원
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -357,11 +469,11 @@ export function ScheduleFinalizeView() {
             <CardContent className="pt-0">
               {voteYesActualNo.length > 0 && (
                 <div className="mb-2">
-                  <p className="text-xs text-amber-700 font-medium">투표 참여 → 실제 불참 (환불 대상)</p>
+                  <p className="text-xs text-amber-700 font-medium">투표 참여 → 실제 불참</p>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {voteYesActualNo.map(p => (
                       <Badge key={p.id} variant="secondary" className="bg-red-100 text-red-700">
-                        {p.name}
+                        {p.name} {p.amountPaid > 0 ? '(환급 대상)' : ''}
                       </Badge>
                     ))}
                   </div>
@@ -369,7 +481,7 @@ export function ScheduleFinalizeView() {
               )}
               {voteNoActualYes.length > 0 && (
                 <div>
-                  <p className="text-xs text-amber-700 font-medium">투표 미참여/불참 → 실제 참석 (추가 납부 대상)</p>
+                  <p className="text-xs text-amber-700 font-medium">투표 미참여/불참 → 실제 참석</p>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {voteNoActualYes.map(p => (
                       <Badge key={p.id} variant="secondary" className="bg-blue-100 text-blue-700">
@@ -408,9 +520,14 @@ export function ScheduleFinalizeView() {
                         투표: {p.voteStatus === 'yes' ? '참여' : p.voteStatus === 'no' ? '불참' : '미응답'}
                       </Badge>
                     </div>
-                    {p.amountDue !== 0 && (
-                      <p className={`text-xs mt-1 ${p.amountDue > 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                        {p.amountDue > 0 ? `추가 납부: +${p.amountDue.toLocaleString()}원` : `환불: ${p.amountDue.toLocaleString()}원`}
+                    {p.amountPaid > 0 && (
+                      <p className="text-xs mt-1 text-green-600">
+                        납부 완료: +{p.amountPaid.toLocaleString()}원
+                      </p>
+                    )}
+                    {p.amountDue < 0 && (
+                      <p className="text-xs mt-1 text-blue-600">
+                        환급 예상: {Math.abs(p.amountDue).toLocaleString()}원
                       </p>
                     )}
                   </div>
@@ -465,19 +582,26 @@ export function ScheduleFinalizeView() {
           </CardHeader>
           <CardContent className="pt-0 space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-blue-700">환불 예정</span>
-              <span className="font-bold text-red-600">-{stats.totalRefund.toLocaleString()}원</span>
+              <span className="text-blue-700">납부 인원</span>
+              <span className="font-bold text-green-600">{stats.totalPaid}명</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-blue-700">추가 수금</span>
-              <span className="font-bold text-blue-600">+{stats.totalCollect.toLocaleString()}원</span>
-            </div>
-            <div className="border-t border-blue-200 pt-2 flex justify-between">
-              <span className="text-blue-800 font-medium">순 정산액</span>
-              <span className={`font-bold ${stats.totalCollect - stats.totalRefund >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {(stats.totalCollect - stats.totalRefund >= 0 ? '+' : '')}{(stats.totalCollect - stats.totalRefund).toLocaleString()}원
-              </span>
-            </div>
+            {stats.refundPerPerson > 0 && (
+              <>
+                <div className="flex justify-between text-sm">
+                  <span className="text-blue-700">1인당 환급액</span>
+                  <span className="font-bold text-blue-600">{stats.refundPerPerson.toLocaleString()}원</span>
+                </div>
+                <div className="flex justify-between text-sm border-t border-blue-200 pt-2">
+                  <span className="text-blue-700">총 환급액</span>
+                  <span className="font-bold text-red-600">-{stats.totalRefund.toLocaleString()}원</span>
+                </div>
+              </>
+            )}
+            {stats.refundPerPerson === 0 && (
+              <div className="text-sm text-center text-stone-500 py-2">
+                환급액이 없습니다
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -511,6 +635,10 @@ export function ScheduleFinalizeView() {
                 <p>아래 내용으로 일정을 마무리하시겠습니까?</p>
                 <div className="bg-stone-50 rounded-lg p-4 space-y-2 text-sm">
                   <div className="flex justify-between">
+                    <span className="text-stone-600">납부 인원</span>
+                    <span className="font-bold text-green-600">{stats.totalPaid}명</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-stone-600">참석자</span>
                     <span className="font-bold">{stats.totalAttended}명</span>
                   </div>
@@ -519,12 +647,12 @@ export function ScheduleFinalizeView() {
                     <span className="font-bold">{stats.totalAbsent}명</span>
                   </div>
                   <div className="flex justify-between border-t pt-2">
-                    <span className="text-stone-600">환불 예정</span>
-                    <span className="font-bold text-red-600">-{stats.totalRefund.toLocaleString()}원</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-600">추가 수금</span>
-                    <span className="font-bold text-blue-600">+{stats.totalCollect.toLocaleString()}원</span>
+                    <span className="text-stone-600">환급 예정</span>
+                    {stats.totalRefund > 0 ? (
+                      <span className="font-bold text-red-600">-{stats.totalRefund.toLocaleString()}원</span>
+                    ) : (
+                      <span className="text-sm text-stone-500">0원</span>
+                    )}
                   </div>
                 </div>
                 <p className="text-xs text-amber-600">

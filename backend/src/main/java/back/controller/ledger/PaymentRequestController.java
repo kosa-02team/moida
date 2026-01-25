@@ -179,6 +179,22 @@ public class PaymentRequestController {
     }
 
     /**
+     * [일정] 정산 미리보기 (자동 계산된 총 지출 및 환급액 조회)
+     * GET /clubs/{id}/schedules/{scheduleId}/settlement-preview
+     */
+    @GetMapping("/schedules/{scheduleId}/settlement-preview")
+    public ResponseEntity<back.dto.schedule.SettlementPreviewResponse> getSettlementPreview(
+            @PathVariable Long clubId,
+            @PathVariable Long scheduleId,
+            @AuthenticationPrincipal UserPrincipal user) {
+        Long userId = user.getUserId();
+        clubAuthService.assertAtLeastAccountant(clubId, userId);
+        
+        back.dto.schedule.SettlementPreviewResponse preview = eventFundService.previewSettlement(clubId, scheduleId);
+        return ResponseEntity.ok(preview);
+    }
+
+    /**
      * [일정] 일정 마무리 (총 지출 입력 → 정산 → 환급 → 마감)
      * POST /clubs/{id}/schedules/{scheduleId}/finalize
      */

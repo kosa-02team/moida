@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../ui/alert-dialog';
-import { getSchedule, getScheduleParticipants, updateSchedule, closeSchedule, cancelSchedule, finalizeSchedule, updateParticipantFeeStatus, updateParticipantRefundStatus, updateParticipantAttendance, type ScheduleResponse, type ScheduleParticipantResponse, type ScheduleUpdateRequest, type ScheduleCancelRequest } from '../../../../api/schedule';
+import { getSchedule, getScheduleParticipants, updateSchedule, closeSchedule, cancelSchedule, finalizeSchedule, updateParticipantFeeStatus, updateParticipantRefundStatus, updateParticipantAttendance, updateParticipantAttendanceByUserId, type ScheduleResponse, type ScheduleParticipantResponse, type ScheduleUpdateRequest, type ScheduleCancelRequest } from '../../../../api/schedule';
 import { getMyInfo } from '../../../../api/user';
 import { getVotes, getVote, answerVote, type VoteDetailResponse, type VoteAnswerRequest, type VoteListResponse } from '../../../../api/vote';
 import { getRecentPosts } from '../../../../api/post';
@@ -109,10 +109,20 @@ export function ScheduleDetailView() {
   const mergeParticipantsWithMembers = useCallback((participantsData: ScheduleParticipantResponse[], membersToMerge?: MemberListResponse[]): ScheduleParticipantResponse[] => {
     if (!scheduleId) return participantsData;
     
+    // 참가자 목록에서 userId 기준으로 중복 제거 (같은 userId가 여러 개 있으면 participantId가 큰 것 우선)
+    const uniqueParticipantsMap = new Map<number, ScheduleParticipantResponse>();
+    for (const participant of participantsData) {
+      const existing = uniqueParticipantsMap.get(participant.userId);
+      if (!existing || participant.participantId > existing.participantId) {
+        uniqueParticipantsMap.set(participant.userId, participant);
+      }
+    }
+    const uniqueParticipants = Array.from(uniqueParticipantsMap.values());
+    
     const membersList = membersToMerge || members;
-    const participantUserIds = new Set(participantsData.map(p => p.userId));
+    const participantUserIds = new Set(uniqueParticipants.map(p => p.userId));
     const allParticipants: ScheduleParticipantResponse[] = [
-      ...participantsData,
+      ...uniqueParticipants,
       ...membersList
         .filter(member => !participantUserIds.has(member.userId))
         .map(member => ({
@@ -127,7 +137,17 @@ export function ScheduleDetailView() {
           updatedAt: new Date().toISOString()
         }))
     ];
-    return allParticipants;
+    
+    // 최종 결과에서도 userId 기준으로 중복 제거 (안전장치)
+    const finalMap = new Map<number, ScheduleParticipantResponse>();
+    for (const participant of allParticipants) {
+      const existing = finalMap.get(participant.userId);
+      if (!existing || participant.participantId > existing.participantId) {
+        finalMap.set(participant.userId, participant);
+      }
+    }
+    
+    return Array.from(finalMap.values());
   }, [members, scheduleId]);
 
   // 일정과 연결된 게시글 찾기 및 댓글 조회
@@ -635,47 +655,25 @@ export function ScheduleDetailView() {
   const handleUpdateAttendanceStatus = async (participantId: number, newStatus: 'ATTENDING' | 'NOT_ATTENDING' | 'UNDECIDED', userId?: number) => {
     if (!groupId || !scheduleId) return;
 
-    // participantId가 0이면 먼저 투표를 통해 participant 생성
+    // participantId가 0이면 userId를 사용하여 participant 생성 및 상태 변경
     if (participantId === 0) {
       // userId로 participant 찾기
       const participant = userId ? participants.find(p => p.userId === userId) : participants.find(p => p.participantId === 0);
-      if (!participant) {
+      if (!participant || !participant.userId) {
         toast.error('참가자 정보를 찾을 수 없습니다.');
         return;
       }
 
-      // 투표 옵션 찾기
-      if (!vote) {
-        toast.error('투표 정보를 찾을 수 없습니다.');
-        return;
-      }
-
-      const attendingOption = vote.options.find(opt =>
-        opt.optionText === '참석' || opt.optionText.includes('참석')
-      );
-      const notAttendingOption = vote.options.find(opt =>
-        opt.optionText === '불참' || opt.optionText.includes('불참')
-      );
-
-      const selectedOptionId = newStatus === 'ATTENDING' 
-        ? attendingOption?.optionId 
-        : newStatus === 'NOT_ATTENDING'
-        ? notAttendingOption?.optionId
-        : null;
-
-      if (!selectedOptionId) {
-        toast.error('투표 옵션을 찾을 수 없습니다.');
-        return;
-      }
-
       try {
-        // 투표 API 호출하여 participant 생성 (운영진은 투표 마감 후에도 가능)
-        const request: VoteAnswerRequest = {
-          optionIds: [selectedOptionId]
-        };
-        await answerVote(Number(groupId), vote.voteId, request);
+        // userId 기반 API 호출 (백엔드에서 자동으로 participant 생성 후 상태 변경)
+        await updateParticipantAttendanceByUserId(
+          Number(groupId),
+          Number(scheduleId),
+          participant.userId,
+          { attendanceStatus: newStatus }
+        );
         
-        const statusLabel = newStatus === 'ATTENDING' ? '참석' : '불참';
+        const statusLabel = newStatus === 'ATTENDING' ? '참석' : newStatus === 'NOT_ATTENDING' ? '불참' : '미정';
         toast.success(`참석 상태가 '${statusLabel}'으로 변경되었습니다.`);
         
         // 참가자 목록 새로고침
@@ -1187,7 +1185,7 @@ export function ScheduleDetailView() {
 
                 return (
                   <div
-                    key={participant.participantId}
+                    key={`${participant.userId}-${participant.participantId}`}
                     className={`flex items-center justify-between py-2 px-2 rounded-lg border-b border-stone-50 last:border-0 ${isAnomaly ? 'bg-yellow-50 border border-yellow-200' : ''
                       }`}
                   >
@@ -1222,8 +1220,8 @@ export function ScheduleDetailView() {
                               </span>
                             ) : null}
                             {isScheduleClosed && isPaid ? (
-                              <span className={`text-xs ${isRefunded ? 'text-blue-600' : 'text-stone-400'}`}>
-                                • {isRefunded ? '환급완료' : '환급대기'}
+                              <span className={`text-xs ${isRefunded || schedule.status === 'CLOSED' ? 'text-blue-600' : 'text-stone-400'}`}>
+                                • {isRefunded || schedule.status === 'CLOSED' ? '환급완료' : '환급대기'}
                               </span>
                             ) : null}
                           </div>
@@ -1275,8 +1273,8 @@ export function ScheduleDetailView() {
                               {isPaid ? '납부취소' : '납부확인'}
                             </Button>
                           ) : null}
-                          {/* 환급 상태 토글 (일정이 마감되고 납부한 사람만) */}
-                          {hasEntryFee && isScheduleClosed && isPaid ? (
+                          {/* 환급 상태 토글 (일정이 마감되고 납부한 사람만, 정산 완료 전에만 표시) */}
+                          {hasEntryFee && isScheduleClosed && isPaid && schedule.status !== 'CLOSED' ? (
                             <Button
                               variant="ghost"
                               size="sm"

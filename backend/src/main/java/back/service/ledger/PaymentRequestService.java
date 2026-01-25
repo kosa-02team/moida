@@ -52,7 +52,23 @@ public class PaymentRequestService {
 
         // 새로운 요청들을 기존 미매칭 거래내역과 매칭 시도
         if (!createdRequests.isEmpty()) {
+            System.out.println("🔄 [입금요청 생성] clubId=" + clubId + ", 생성된 요청 수=" + createdRequests.size());
+            for (PaymentRequest req : createdRequests) {
+                System.out.println("  - requestId=" + req.getRequestId() + ", memberName=" + req.getMemberName() + 
+                        ", status=" + req.getStatus() + ", expectedAmount=" + req.getExpectedAmount());
+            }
+            
             transactionMatchingService.matchRequestsWithExistingTransactions(clubId, createdRequests);
+            
+            // 매칭 후 상태 확인
+            System.out.println("🔄 [자동 매칭 후] 매칭 결과 확인:");
+            for (PaymentRequest req : createdRequests) {
+                PaymentRequest updated = paymentRequestRepository.findById(req.getRequestId()).orElse(null);
+                if (updated != null) {
+                    System.out.println("  - requestId=" + updated.getRequestId() + ", status=" + updated.getStatus() + 
+                            ", matchedHistoryId=" + updated.getMatchedHistoryId());
+                }
+            }
         }
 
         return createdRequests;

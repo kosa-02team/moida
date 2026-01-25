@@ -68,7 +68,8 @@ export function LedgerView() {
           startDate || undefined,
           endDate || undefined
         );
-        setTransactions(data);
+        // 백엔드에서 오래된 것부터 정렬되어 오므로, 최신순으로 표시하기 위해 reverse
+        setTransactions([...data].reverse());
         
         // 미매칭 거래도 함께 조회
         if (permissions.canWithdraw) {

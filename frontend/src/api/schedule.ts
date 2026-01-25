@@ -73,6 +73,15 @@ export interface ScheduleFinalizeRequest {
   totalSpent: number;
 }
 
+export interface SettlementPreviewResponse {
+  paidCount: number;          // 납부 인원
+  totalIncome: number;        // 총 수입
+  totalSpent: number;         // 총 지출 (자동 계산)
+  balance: number;            // 잔액
+  refundPerPerson: number;    // 1인당 환급액
+  totalRefund: number;        // 총 환급액
+}
+
 export interface ScheduleParticipantFeeStatusRequest {
   feeStatus: 'PENDING' | 'PAID';
 }
@@ -193,6 +202,18 @@ export const updateParticipantAttendanceByUserId = async (
   return patch<ScheduleParticipantResponse>(
     `/api/clubs/${clubId}/schedules/${scheduleId}/participants/by-user/${userId}`,
     request
+  );
+};
+
+/**
+ * 정산 미리보기 (자동 계산된 총 지출 및 환급액 조회)
+ */
+export const getSettlementPreview = async (
+  clubId: number,
+  scheduleId: number
+): Promise<SettlementPreviewResponse> => {
+  return get<SettlementPreviewResponse>(
+    `/api/clubs/${clubId}/schedules/${scheduleId}/settlement-preview`
   );
 };
 

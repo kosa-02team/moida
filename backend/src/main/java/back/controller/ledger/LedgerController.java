@@ -1,5 +1,6 @@
 package back.controller.ledger;
 
+import back.bank.service.BankService;
 import back.config.security.UserPrincipal;
 import back.domain.ledger.TransactionLog;
 import back.service.ledger.LedgerService;
@@ -21,17 +22,38 @@ import java.util.List;
 public class LedgerController {
 
     private final LedgerService ledgerService;
+    private final BankService bankService;
 
     /**
      * 장부 내역 조회 (필터링 포함)
-     * GET /clubs/{clubId}/ledger?startDate=2024-01-01&endDate=2024-01-31
+     * GET /clubs/{clubId}/ledger?startDate=2024-01-01&endDate=2024-01-31&sync=true
+     * @param sync - true인 경우 조회 전 은행 동기화 실행 (기본값: true, 최신 거래 내역 반영)
      */
     @GetMapping
     public ResponseEntity<List<TransactionLogResponse>> getLedger(
             @PathVariable Long clubId,
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate,
-            @RequestParam(required = false) Long scheduleId) {
+            @RequestParam(required = false) Long scheduleId,
+            @RequestParam(required = false, defaultValue = "true") boolean sync) {
+
+        // 조회 전 은행 동기화 (최신 거래내역 반영) - sync=true인 경우 실행
+        if (sync) {
+            try {
+                System.out.println("🔄 [거래 내역 조회] 동기화 시작: clubId=" + clubId);
+                List<TransactionLog> depositLogs = bankService.syncTransactionsStub(clubId, 1L, null, null); // 입금 내역
+                System.out.println("  ✓ 입금 내역 동기화 완료: " + depositLogs.size() + "건");
+                
+                List<TransactionLog> withdrawLogs = bankService.syncTransactionsStub(clubId, 2L, null, null); // 출금 내역
+                System.out.println("  ✓ 출금 내역 동기화 완료: " + withdrawLogs.size() + "건");
+                
+                System.out.println("🔄 [거래 내역 조회] 동기화 완료: 총 " + (depositLogs.size() + withdrawLogs.size()) + "건");
+            } catch (Exception e) {
+                // 동기화 실패 시 로깅만 하고 계속 진행
+                System.err.println("❌ [거래 내역 조회] 동기화 실패: clubId=" + clubId + ", error=" + e.getMessage());
+                e.printStackTrace();
+            }
+        }
 
         // 날짜 없으면 이번 달 1일 ~ 오늘로 기본 설정
         if (startDate == null)

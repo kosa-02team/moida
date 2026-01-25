@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
@@ -128,6 +129,7 @@ public class TransactionMatchingService {
      * 3. print_content에 회원 이름, 닉네임 포함
      */
     private boolean isMatched(BankTransactionHistory tx, PaymentRequest req) {
+        System.out.println("=== [isMatched 호출] 거래내역: " + tx.getPrintContent() + " (" + tx.getAmount() + "원), 요청: " + req.getMemberName() + " (" + req.getExpectedAmount() + "원) ===");
         System.out.println("은행거래내역 금액 : " + tx.getAmount() + ", 지불 요청 금액 : " + req.getExpectedAmount());
 
         // 1) 금액 먼저 (절대값 비교)
@@ -151,16 +153,23 @@ public class TransactionMatchingService {
 
         System.out.println("날짜 범위");
 
-        // 2) 날짜 범위
-        LocalDate txDate = tx.getBankTransactionAt().toLocalDate();
+        // 2) 날짜 범위 - 한국 시간대(Asia/Seoul) 기준으로 날짜 변환
+        ZoneId koreaZone = ZoneId.of("Asia/Seoul");
+        LocalDate txDate = tx.getBankTransactionAt().atZone(koreaZone).toLocalDate();
         LocalDate expected = req.getExpectedDate();
         int range = req.getMatchDaysRange() != null ? req.getMatchDaysRange() : 10;
+        
+        LocalDate rangeStart = expected.minusDays(range);
+        LocalDate rangeEnd = expected.plusDays(range);
 
-        if (txDate.isBefore(expected.minusDays(range)) || txDate.isAfter(expected.plusDays(range))) {
-            System.out.println("입금 날짜: txDate : " + txDate + " 가 " + expected.minusDays(range) + "와" +
-                    expected.plusDays(range) + "사이?");
+        System.out.println("  거래 날짜: " + txDate + ", 예상 날짜: " + expected + ", 범위: ±" + range + "일 (" + rangeStart + " ~ " + rangeEnd + ")");
+
+        if (txDate.isBefore(rangeStart) || txDate.isAfter(rangeEnd)) {
+            System.out.println("  ✗ 날짜 범위 밖: " + txDate + "가 범위(" + rangeStart + " ~ " + rangeEnd + ") 밖에 있음");
             return false;
         }
+        
+        System.out.println("  ✓ 날짜 범위 내");
 
         System.out.println("적요");
 
@@ -184,24 +193,53 @@ public class TransactionMatchingService {
         String realName = normalize(realNameRaw);
         String nick = normalize(nickRaw);
 
-        System.out.println("멤버 실명 : " + realName);
+        System.out.println("멤버 실명: [" + realName + "], 닉네임: [" + nick + "]");
+        System.out.println("거래 내용: [" + content + "]");
 
-        // 5) 실명/닉네임이 클럽 내 유일할 때만 매칭 허용
+        // 5) 실명/닉네임이 클럽 내 유일한지 확인
         boolean realNameUnique = !realName.isBlank()
                 && clubMemberRepository.countByClubIdAndRealName(req.getClubId(), realNameRaw) == 1;
 
         boolean nickUnique = !nick.isBlank()
                 && clubMemberRepository.countByClubIdAndClubNickname(req.getClubId(), nickRaw) == 1;
 
-        // 6) 유일한 경우에만 contains 허용
-        if (realNameUnique && content.contains(realName))
-            return true;
-        if (nickUnique && content.contains(nick))
-            return true;
+        System.out.println("  실명 유일성: " + realNameUnique + ", 닉네임 유일성: " + nickUnique);
 
-        if (nickUnique && content.contains(nick))
+        // 6) 이름 매칭 로직 (완화된 버전)
+        // 6-1) 이름이 정확히 일치하면 매칭 (유일성 무관, 최우선)
+        if (!realName.isBlank() && content.equals(realName)) {
+            System.out.println("  ✓ 실명 정확 일치: [" + realName + "] == [" + content + "]");
             return true;
+        }
+        if (!nick.isBlank() && content.equals(nick)) {
+            System.out.println("  ✓ 닉네임 정확 일치: [" + nick + "] == [" + content + "]");
+            return true;
+        }
 
+        // 6-2) 이름이 포함되어 있고 유일하면 매칭
+        if (realNameUnique && !realName.isBlank() && content.contains(realName)) {
+            System.out.println("  ✓ 실명 포함 매칭 (유일): [" + realName + "]이(가) [" + content + "]에 포함됨");
+            return true;
+        }
+        if (nickUnique && !nick.isBlank() && content.contains(nick)) {
+            System.out.println("  ✓ 닉네임 포함 매칭 (유일): [" + nick + "]이(가) [" + content + "]에 포함됨");
+            return true;
+        }
+
+        // 6-3) 유일하지 않더라도 이름이 포함되어 있으면 매칭 허용 (금액과 날짜가 맞으면)
+        // 금액과 날짜가 이미 확인되었으므로, 이름만 포함되어 있으면 매칭
+        if (!realName.isBlank() && content.contains(realName)) {
+            System.out.println("  ⚠️ 실명 포함되지만 유일하지 않음: [" + realName + "]이(가) [" + content + "]에 포함됨 (유일성: " + realNameUnique + ")");
+            System.out.println("  → 금액과 날짜가 일치하므로 매칭 허용");
+            return true;
+        }
+        if (!nick.isBlank() && content.contains(nick)) {
+            System.out.println("  ⚠️ 닉네임 포함되지만 유일하지 않음: [" + nick + "]이(가) [" + content + "]에 포함됨 (유일성: " + nickUnique + ")");
+            System.out.println("  → 금액과 날짜가 일치하므로 매칭 허용");
+            return true;
+        }
+
+        System.out.println("  ✗ 이름 매칭 실패");
         return false;
     }
 

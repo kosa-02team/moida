@@ -1,4 +1,14 @@
+-- UTF-8 인코딩 설정
+SET NAMES utf8mb4;
+SET CHARACTER SET utf8mb4;
+
 SET FOREIGN_KEY_CHECKS = 0;
+
+-- 기존 테스트 데이터 삭제 (중복 방지)
+DELETE FROM club_members WHERE club_id IN (1, 2, 3, 8);
+DELETE FROM bank_accounts WHERE club_id IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+DELETE FROM clubs WHERE club_id IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+DELETE FROM users WHERE user_id IN (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28);
 
 -- ============================================================
 -- 1. 은행 데이터 (모든 은행 코드 포함)
