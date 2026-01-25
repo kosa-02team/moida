@@ -66,17 +66,20 @@ export interface ManualMatchRequest {
 
 /**
  * 모임의 장부 내역 조회
+ * @param sync - true인 경우 조회 전 은행 동기화 실행 (기본값: true, 최신 거래 내역 반영)
  */
 export const getLedger = async (
   clubId: number,
   startDate?: string,
   endDate?: string,
-  scheduleId?: number
+  scheduleId?: number,
+  sync: boolean = true
 ): Promise<TransactionLogResponse[]> => {
   const params = new URLSearchParams();
   if (startDate) params.append('startDate', startDate);
   if (endDate) params.append('endDate', endDate);
   if (scheduleId) params.append('scheduleId', scheduleId.toString());
+  params.append('sync', sync.toString());
   
   const queryString = params.toString();
   const url = `/api/clubs/${clubId}/ledger${queryString ? `?${queryString}` : ''}`;

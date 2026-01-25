@@ -88,7 +88,10 @@ public enum ErrorCode {
     SCHEDULE_INVALID_DATE_RANGE(HttpStatus.BAD_REQUEST,"SC02", "종료일시는 시작일시보다 이후여야 합니다"),
     SCHEDULE_STAFF_ONLY(HttpStatus.FORBIDDEN,"SC03", "일정 종료는 모임장 또는 운영진만 가능합니다"),
     SCHEDULE_ALREADY_CLOSED(HttpStatus.BAD_REQUEST,"SC04", "이미 종료된 일정입니다"),
-    SCHEDULE_ALREADY_CANCELLED(HttpStatus.BAD_REQUEST,"SC05", "이미 취소된 일정입니다")
+    SCHEDULE_ALREADY_CANCELLED(HttpStatus.BAD_REQUEST,"SC05", "이미 취소된 일정입니다"),
+    SCHEDULE_NOT_OPEN(HttpStatus.BAD_REQUEST,"SC06", "일정이 진행 중이 아닙니다"),
+    SCHEDULE_NOT_STARTED(HttpStatus.BAD_REQUEST,"SC07", "일정이 아직 시작되지 않았습니다"),
+    SCHEDULE_NO_ATTENDEES(HttpStatus.BAD_REQUEST,"SC08", "참석자가 없습니다")
     ;
     private final HttpStatus httpStatus;
     private final String code;

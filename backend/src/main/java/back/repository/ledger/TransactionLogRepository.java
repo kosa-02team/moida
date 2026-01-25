@@ -19,12 +19,19 @@ public interface TransactionLogRepository extends JpaRepository<TransactionLog, 
 
     List<TransactionLog> findByScheduleId(Long scheduleId);
 
-    // 날짜 범위 조회
-    List<TransactionLog> findByClubIdAndCreatedAtBetween(Long clubId, LocalDateTime start, LocalDateTime end);
+    // 날짜 범위 조회 (최신순 정렬: createdAt DESC, transactionId DESC)
+    List<TransactionLog> findByClubIdAndCreatedAtBetweenOrderByCreatedAtDescTransactionIdDesc(Long clubId, LocalDateTime start, LocalDateTime end);
 
-    // 일정별 조회
-    List<TransactionLog> findByClubIdAndScheduleId(Long clubId, Long scheduleId);
+    // 일정별 조회 (최신순 정렬: createdAt DESC, transactionId DESC)
+    List<TransactionLog> findByClubIdAndScheduleIdOrderByCreatedAtDescTransactionIdDesc(Long clubId, Long scheduleId);
 
     // 스냅샷 이후의 특정 타입(WITHDRAW) 거래 조회
     List<TransactionLog> findByClubIdAndTransactionIdGreaterThanAndType(Long clubId, Long transactionId, String type);
+
+    // bankHistoryId로 TransactionLog 조회
+    Optional<TransactionLog> findByBankHistoryId(Long bankHistoryId);
+
+    // 수동 거래(BankHistoryId IS NULL) 중 특정 시점 이전의 최신 거래 조회
+    Optional<TransactionLog> findFirstByClubIdAndBankHistoryIdIsNullAndCreatedAtBeforeOrderByCreatedAtDescTransactionIdDesc(
+            Long clubId, LocalDateTime createdAt);
 }

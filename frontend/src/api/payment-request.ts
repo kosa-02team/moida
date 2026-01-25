@@ -97,3 +97,20 @@ export const settleSchedule = async (
   const url = `/api/clubs/${clubId}/schedules/${scheduleId}/settle`;
   return post<void>(url);
 };
+
+/**
+ * 추가 회비 요청
+ */
+export interface AdditionalFeeRequest {
+  amountPerPerson: number;
+  reason?: string;
+}
+
+export const requestAdditionalFee = async (
+  clubId: number,
+  scheduleId: number,
+  request: AdditionalFeeRequest
+): Promise<void> => {
+  const url = `/api/clubs/${clubId}/schedules/${scheduleId}/request-additional-fee`;
+  return post<void>(url, request);
+};

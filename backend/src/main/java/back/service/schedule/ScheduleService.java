@@ -10,6 +10,7 @@ import back.dto.schedule.*;
 import back.event.ScheduleRegisteredEvent;
 import back.exception.ScheduleException;
 import back.repository.UserRepository;
+import back.repository.club.ClubMemberRepository;
 import back.repository.ledger.TransactionLogRepository;
 import back.repository.schedule.ScheduleParticipantRepository;
 import back.repository.schedule.ScheduleRepository;
@@ -43,6 +44,7 @@ public class ScheduleService {
     private final VoteOptionRepository voteOptionRepository;
     private final ClubAuthService clubAuthService;
     private final UserRepository userRepository;
+    private final ClubMemberRepository clubMemberRepository;
     private final TransactionLogRepository transactionLogRepository;
     private final EventFundService eventFundService;
 
@@ -254,7 +256,9 @@ public class ScheduleService {
     }
 
     /**
-     * 일정을 마감합니다.
+     * 참석 투표를 마감합니다.
+     * 일정은 OPEN 상태로 유지되며, 일정 마감은 "일정 마무리" 기능에서만 수행됩니다.
+     * 참가비가 있으면 참가비 요청을 발송합니다.
      *
      * @param clubId     모임 ID
      * @param scheduleId 일정 ID
@@ -287,24 +291,24 @@ public class ScheduleService {
             throw new ScheduleException.AlreadyCancelled();
         }
 
-        schedule.close();
+         // 연관된 ATTENDANCE 투표는 항상 종료
+        voteRepository.findByScheduleId(scheduleId).ifPresent(v -> {
+            v.close();
+            voteRepository.save(v);
+        });
 
-        // 연관된 ATTENDANCE 투표도 종료
-        voteRepository.findByScheduleId(scheduleId).ifPresent(Votes::close);
-
-        // 참가비가 설정되어 있으면 참석한 사람에게 자동으로 참가비 요청 발송
-        hasEntryFee = schedule.getEntryFee() != null
-                && schedule.getEntryFee().compareTo(java.math.BigDecimal.ZERO) > 0;
+        // 참가비 유무와 관계없이 투표만 마감하고 일정은 OPEN 유지
+        // 일정 마감은 "일정 마무리" 기능에서만 수행
         if (hasEntryFee) {
+            // 참가비 있음: 참가비 요청 발송
             try {
-                eventFundService.collectEntryFees(clubId, scheduleId);
+                eventFundService.collectEntryFees(clubId, scheduleId, userId);
             } catch (Exception e) {
-                // 참가비 요청 실패해도 일정 마감은 완료된 것으로 처리
-                // 로그만 남기고 예외는 전파하지 않음
                 org.slf4j.LoggerFactory.getLogger(ScheduleService.class)
-                        .warn("일정 마감 후 참가비 요청 발송 실패: scheduleId={}, error={}", scheduleId, e.getMessage());
+                        .warn("참가비 요청 발송 실패: scheduleId={}, error={}", scheduleId, e.getMessage());
             }
         }
+        // 참가비 없음: 투표만 마감하고 일정은 OPEN 유지 (일정 마감은 "일정 마무리"에서만)
     }
 
     /**
@@ -455,6 +459,67 @@ public class ScheduleService {
         if (!participant.getScheduleId().equals(scheduleId)) {
             throw new ScheduleException.NotFound();
         }
+
+        // 참석 상태 업데이트
+        String status = request.attendanceStatus();
+        if ("ATTENDING".equals(status)) {
+            participant.attend();
+        } else if ("NOT_ATTENDING".equals(status)) {
+            participant.notAttend();
+        } else if ("UNDECIDED".equals(status)) {
+            participant.undecided();
+        }
+
+        // 사용자 정보 조회
+        Users user = userRepository.findById(participant.getUserId())
+                .orElseThrow(() -> new back.exception.AuthException.UserNotFound());
+
+        return new ScheduleParticipantResponse(
+                participant.getParticipantId(),
+                participant.getScheduleId(),
+                participant.getUserId(),
+                user.getRealName(),
+                participant.getAttendanceStatus(),
+                participant.getFeeStatus(),
+                participant.getIsRefunded(),
+                participant.getCreatedAt(),
+                participant.getUpdatedAt()
+        );
+    }
+
+    /**
+     * userId를 사용하여 참석 상태 업데이트 (참가자가 없으면 생성)
+     */
+    @Transactional
+    public ScheduleParticipantResponse updateParticipantAttendanceByUserId(
+            Long clubId,
+            Long scheduleId,
+            Long targetUserId,
+            ScheduleParticipantUpdateRequest request,
+            Long currentUserId) {
+        // 권한 체크: 운영진 이상만 가능
+        clubAuthService.assertAtLeastManager(clubId, currentUserId);
+
+        Schedules schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(ScheduleException.NotFound::new);
+
+        // 일정이 해당 모임에 속하는지 확인
+        if (!schedule.getClubId().equals(clubId)) {
+            throw new ScheduleException.NotFound();
+        }
+
+        // 대상 사용자가 모임 멤버인지 확인
+        if (!clubMemberRepository.existsByClubIdAndUserId(clubId, targetUserId)) {
+            throw new ScheduleException.NotFound();
+        }
+
+        // 참가자 찾거나 생성
+        ScheduleParticipants participant = scheduleParticipantRepository
+                .findByScheduleIdAndUserId(scheduleId, targetUserId)
+                .orElseGet(() -> {
+                    ScheduleParticipants newParticipant = new ScheduleParticipants(scheduleId, targetUserId);
+                    return scheduleParticipantRepository.save(newParticipant);
+                });
 
         // 참석 상태 업데이트
         String status = request.attendanceStatus();

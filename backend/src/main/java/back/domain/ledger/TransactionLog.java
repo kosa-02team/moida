@@ -101,4 +101,8 @@ public class TransactionLog {
     public void updateScheduleId(Long scheduleId) {
         this.scheduleId = scheduleId;
     }
+
+    public void updateBalanceAfter(BigDecimal balanceAfter) {
+        this.balanceAfter = balanceAfter;
+    }
 }

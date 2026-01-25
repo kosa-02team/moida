@@ -40,6 +40,9 @@ public class VoteAutoCloseService {
     /**
      * 일정 시작 5분 전이 지난 일정 투표 자동 종료
      * 매 1분마다 실행
+     *
+     * 주의: ATTENDANCE 투표를 마감할 때 일정은 마감하지 않음
+     * 일정 마감은 "일정 마무리" 기능에서만 수행
      */
     @Scheduled(cron = "0 * * * * ?") // 매 분마다 실행
     @Transactional
@@ -50,6 +53,7 @@ public class VoteAutoCloseService {
         if (!expiredVotes.isEmpty()) {
             log.info("일정 시작 5분 전이 지난 일정 투표 {}개를 자동 종료합니다", expiredVotes.size());
             expiredVotes.forEach(vote -> {
+                // 투표만 마감하고 일정은 OPEN 상태로 유지
                 vote.close();
                 voteRepository.save(vote);
             });

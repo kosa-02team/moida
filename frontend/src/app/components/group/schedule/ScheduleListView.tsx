@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import * as React from 'react';
 import { Plus, Calendar as CalendarIcon, MapPin, CheckCircle2, ClipboardCheck, ArrowUp, ArrowDown, Check, X, Search } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { Button } from '../../ui/button';
@@ -314,6 +313,22 @@ export function ScheduleListView() {
     }
   };
 
+  const statusGroup: Record<Schedule['status'], number> = {
+    ongoing: 0,
+    confirmed: 0,
+    voting: 0,
+    completed: 1,
+    cancelled: 1,
+  };
+
+  const activeStatusPriority: Record<Schedule['status'], number> = {
+    ongoing: 0,
+    confirmed: 1,
+    voting: 2,
+    completed: 0,
+    cancelled: 0,
+  };
+
   // 검색 및 정렬 적용 (일정 시작일 기준)
   const filteredAndSortedSchedules = [...schedules]
     .filter(schedule => {
@@ -323,14 +338,28 @@ export function ScheduleListView() {
     .sort((a, b) => {
       const aDate = new Date(a.eventDate).getTime();
       const bDate = new Date(b.eventDate).getTime();
+      const aGroup = statusGroup[a.status] ?? 1;
+      const bGroup = statusGroup[b.status] ?? 1;
+
+      if (aGroup !== bGroup) {
+        return aGroup - bGroup;
+      }
+
+      if (aGroup === 0) {
+        const aPriority = activeStatusPriority[a.status] ?? 99;
+        const bPriority = activeStatusPriority[b.status] ?? 99;
+        if (aPriority !== bPriority) {
+          return aPriority - bPriority;
+        }
+      }
 
       if (sortOrder === 'newest') {
         // 최신순: 일정 시작일이 늦은 순서 (내림차순)
         return bDate - aDate;
-      } else {
-        // 오래된순: 일정 시작일이 빠른 순서 (오름차순)
-        return aDate - bDate;
       }
+
+      // 오래된순: 일정 시작일이 빠른 순서 (오름차순)
+      return aDate - bDate;
     });
 
   const handleSortChange = (order: 'newest' | 'oldest') => {
@@ -353,26 +382,10 @@ export function ScheduleListView() {
         opt.optionText === '불참' || opt.optionText.includes('불참')
       );
 
-      // 토글 기능: 같은 버튼을 다시 누르면 취소 (null)
-      const currentSchedule = schedules.find(s => s.id === scheduleId);
-      let selectedOptionId: number | undefined;
-      let isCancelling = false;
-
-      if ((response === 'attending' && currentSchedule?.myResponse === 'attending') ||
-        (response === 'not_attending' && currentSchedule?.myResponse === 'not_attending')) {
-        // 이미 선택된 옵션을 다시 클릭하면 취소
-        isCancelling = true;
-        // 빈 배열을 보내면 투표 취소 (백엔드가 지원하는 경우)
-        // 지원하지 않으면 다른 옵션으로 변경
-        selectedOptionId = response === 'attending'
-          ? notAttendingOption?.optionId
-          : attendingOption?.optionId;
-      } else {
-        // 새로운 선택
-        selectedOptionId = response === 'attending'
-          ? attendingOption?.optionId
-          : notAttendingOption?.optionId;
-      }
+      // 선택한 옵션 결정
+      const selectedOptionId = response === 'attending'
+        ? attendingOption?.optionId
+        : notAttendingOption?.optionId;
 
       if (!selectedOptionId) {
         toast.error('투표 옵션을 찾을 수 없습니다');
@@ -380,7 +393,7 @@ export function ScheduleListView() {
       }
 
       const request: VoteAnswerRequest = {
-        optionIds: isCancelling ? [] : [selectedOptionId]
+        optionIds: [selectedOptionId]
       };
       await answerVote(Number(groupId), voteId, request);
 
@@ -482,11 +495,7 @@ export function ScheduleListView() {
 
       setSchedules(updatedSchedules as Schedule[]);
 
-      if (isCancelling) {
-        toast.success('투표가 취소되었습니다');
-      } else {
-        toast.success(response === 'attending' ? '참석으로 응답했습니다' : '불참으로 응답했습니다');
-      }
+      toast.success(response === 'attending' ? '참석으로 응답했습니다' : '불참으로 응답했습니다');
     } catch (error) {
       console.error('투표 실패:', error);
       toast.error('투표에 실패했습니다.');
@@ -647,8 +656,8 @@ export function ScheduleListView() {
                     </div>
                   )}
 
-                  {/* 입금 상태 알림 (참석한 경우, 취소된 일정 제외) */}
-                  {item.myResponse === 'attending' && item.entryFee && item.entryFee > 0 && item.status !== 'cancelled' && (
+                  {/* 입금 상태 알림 (참석한 경우, 취소된 일정 제외, 참가비가 0보다 클 때만) */}
+                  {item.myResponse === 'attending' && item.entryFee != null && item.entryFee > 0 && item.status !== 'cancelled' ? (
                     <>
                       {item.myFeeStatus === 'PAID' ? (
                         <div className="p-2 bg-green-50 rounded-lg border border-green-200">
@@ -663,12 +672,14 @@ export function ScheduleListView() {
                           </p>
                           {bankAccount ? (
                             <div className="mt-2 space-y-1">
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-orange-600">입금 계좌:</span>
+                              <div className="flex text-xs">
+                                <span className="text-orange-600 w-16 text-right">입금 계좌</span>
+                                <span className="text-orange-600 mx-1">:</span>
                                 <span className="font-medium text-orange-700">{getBankName(bankAccount.bankCode)}</span>
                               </div>
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-orange-600">계좌번호:</span>
+                              <div className="flex text-xs">
+                                <span className="text-orange-600 w-16 text-right">계좌번호</span>
+                                <span className="text-orange-600 mx-1">:</span>
                                 <div className="flex items-center gap-1">
                                   <span className="font-mono font-medium text-orange-700">{bankAccount.accountNumber}</span>
                                   <Button
@@ -693,8 +704,9 @@ export function ScheduleListView() {
                                   </Button>
                                 </div>
                               </div>
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-orange-600">예금주:</span>
+                              <div className="flex text-xs">
+                                <span className="text-orange-600 w-16 text-right">예금주</span>
+                                <span className="text-orange-600 mx-1">:</span>
                                 <span className="font-medium text-orange-700">{bankAccount.depositorName}</span>
                               </div>
                               <p className="text-xs text-orange-500 mt-1">
@@ -709,7 +721,7 @@ export function ScheduleListView() {
                         </div>
                       )}
                     </>
-                  )}
+                  ) : null}
 
                   <div className="flex justify-between items-center">
                     <div className="flex gap-2">

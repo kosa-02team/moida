@@ -146,6 +146,23 @@ public class ScheduleController {
     }
 
     /**
+     * userId로 참석 상태 업데이트 (참가자가 없으면 생성)
+     */
+    @PatchMapping("/{clubId}/schedules/{scheduleId}/participants/by-user/{userId}")
+    public SuccessResponse<ScheduleParticipantResponse> updateParticipantAttendanceByUserId(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable("clubId") Long clubId,
+            @PathVariable("scheduleId") Long scheduleId,
+            @PathVariable("userId") Long targetUserId,
+            @Valid @RequestBody ScheduleParticipantUpdateRequest request
+    ) {
+        Long currentUserId = requireUserId(principal);
+        ScheduleParticipantResponse response = scheduleService.updateParticipantAttendanceByUserId(
+                clubId, scheduleId, targetUserId, request, currentUserId);
+        return SuccessResponse.success(HttpStatus.OK, response);
+    }
+
+    /**
      * 참가자 납부 상태 수정 (총무 이상)
      */
     @PatchMapping("/{clubId}/schedules/{scheduleId}/participants/{participantId}/fee-status")

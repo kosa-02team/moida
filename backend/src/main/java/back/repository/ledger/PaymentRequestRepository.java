@@ -22,12 +22,22 @@ public interface PaymentRequestRepository extends JpaRepository<PaymentRequest, 
 
         /**
          * 매칭 가능한 입금요청 조회 (PENDING 상태 + 만료되지 않음)
+         * 자동 매칭용
          */
         @Query("SELECT pr FROM PaymentRequest pr WHERE pr.clubId = :clubId " +
                         "AND pr.status = 'PENDING' " +
                         "AND (pr.expiresAt IS NULL OR pr.expiresAt > CURRENT_TIMESTAMP) " +
                         "ORDER BY pr.expectedDate ASC")
         List<PaymentRequest> findMatchableRequests(@Param("clubId") Long clubId);
+
+        /**
+         * 수동 매칭 가능한 입금요청 조회 (PENDING 또는 EXPIRED 상태)
+         * 수동 매칭은 만료된 요청도 매칭 가능
+         */
+        @Query("SELECT pr FROM PaymentRequest pr WHERE pr.clubId = :clubId " +
+                        "AND (pr.status = 'PENDING' OR pr.status = 'EXPIRED') " +
+                        "ORDER BY pr.expectedDate ASC")
+        List<PaymentRequest> findManualMatchableRequests(@Param("clubId") Long clubId);
 
         /**
          * 날짜 범위 내 매칭 가능한 입금요청 조회

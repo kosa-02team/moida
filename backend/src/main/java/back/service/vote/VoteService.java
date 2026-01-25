@@ -23,14 +23,25 @@ import back.repository.vote.VoteRepository;
 import back.repository.UserRepository;
 import back.domain.schedule.ScheduleParticipants;
 import back.service.club.ClubAuthService;
+import back.service.ledger.EventFundService;
+import back.service.ledger.TransactionMatchingService;
+import back.repository.ledger.PaymentRequestRepository;
+import back.domain.ledger.PaymentRequest;
+import back.domain.Users;
+import back.bank.service.BankService;
+import back.bank.repository.BankAccountRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.Map;
 import java.util.stream.Collectors;
+import java.math.BigDecimal;
 
 @Service
 @RequiredArgsConstructor
@@ -45,6 +56,12 @@ public class VoteService {
     private final ClubMemberRepository clubMembersRepository;
     private final ClubRepository clubsRepository;
     private final ClubAuthService clubsAuthorizationService;
+    private final EventFundService eventFundService;
+    private final PaymentRequestRepository paymentRequestRepository;
+    private final UserRepository userRepository;
+    private final TransactionMatchingService transactionMatchingService;
+    private final BankService bankService;
+    private final BankAccountRepository bankAccountRepository;
 
     /**
      * 모임에 속한 일정/참석 투표를 생성합니다.
@@ -57,8 +74,8 @@ public class VoteService {
     @Transactional
     public VoteResponse createVote(Long clubId, Long userId, VoteCreateRequest request) {
         // 1. voteType 검증
-        if (request.voteType() == null || 
-            (!"GENERAL".equals(request.voteType()) && !"ATTENDANCE".equals(request.voteType()))) {
+        if (request.voteType() == null ||
+                (!"GENERAL".equals(request.voteType()) && !"ATTENDANCE".equals(request.voteType()))) {
             throw new VoteException.OptionInvalid(); // voteType이 유효하지 않음
         }
 
@@ -94,44 +111,44 @@ public class VoteService {
             if (request.scheduleId() != null) {
                 throw new VoteException.OptionInvalid(); // GENERAL 타입은 scheduleId 사용 불가
             }
-            
+
             if (request.options() == null || request.options().size() < 2) {
                 throw new VoteException.OptionRequired();
             }
-            
+
             // options 리스트에 null이 포함되어 있는지 체크
             if (request.options().stream().anyMatch(option -> option == null)) {
                 throw new VoteException.OptionInvalid(); // options에 null 포함
             }
-            
+
             // 각 옵션 검증
             for (VoteOptionCreateRequest option : request.options()) {
                 // optionText null 및 빈 문자열 체크 (방어적 코딩)
                 if (option.optionText() == null || option.optionText().trim().isEmpty()) {
                     throw new VoteException.OptionInvalid(); // optionText가 null이거나 빈 문자열
                 }
-                
+
                 // optionText 길이 체크 (200자)
                 if (option.optionText().length() > 200) {
                     throw new VoteException.OptionInvalid(); // optionText가 200자 초과
                 }
-                
+
                 // location 길이 체크 (255자)
                 if (option.location() != null && option.location().length() > 255) {
                     throw new VoteException.OptionInvalid(); // location이 255자 초과
                 }
-                
+
                 // order가 null이거나 음수인지 체크
                 if (option.order() == null || option.order() < 0) {
                     throw new VoteException.OptionInvalid(); // order가 null이거나 음수
                 }
             }
-            
+
             // deadline이 과거 날짜인지 검증
             if (request.deadline() != null && request.deadline().isBefore(LocalDateTime.now())) {
                 throw new VoteException.DeadlinePassed();
             }
-            
+
             // options의 order 중복 체크
             List<Integer> orders = request.options().stream()
                     .map(VoteOptionCreateRequest::order)
@@ -171,15 +188,14 @@ public class VoteService {
                     writerRef,
                     null, // GENERAL 타입은 schedule과 무관
                     request.title(),
-                    request.description()
-            );
+                    request.description());
             post = postRepository.save(post);
         }
 
         // 2. Votes 엔티티 생성
         // GENERAL 타입일 때만 deadline 사용, ATTENDANCE 타입은 null
         LocalDateTime deadline = "GENERAL".equals(request.voteType()) ? request.deadline() : null;
-        
+
         Votes vote = new Votes(
                 post != null ? post.getPostId() : null, // GENERAL 타입일 때만 postId 설정
                 request.voteType(),
@@ -189,8 +205,7 @@ public class VoteService {
                 request.description(),
                 request.isAnonymous(),
                 request.allowMultiple(),
-                deadline
-        );
+                deadline);
         vote = voteRepository.save(vote);
 
         // 3. ATTENDANCE 타입이면 VoteOptions 자동 생성 (참석/불참)
@@ -201,8 +216,7 @@ public class VoteService {
                     "참석",
                     1,
                     schedule.getEventDate(),
-                    schedule.getLocation()
-            );
+                    schedule.getLocation());
             voteOptionRepository.save(attendOption);
 
             // "불참" 옵션 생성
@@ -211,11 +225,10 @@ public class VoteService {
                     "불참",
                     2,
                     null,
-                    null
-            );
+                    null);
             voteOptionRepository.save(absentOption);
         }
-        
+
         // 4. GENERAL 타입이면 사용자가 입력한 옵션들 생성
         if ("GENERAL".equals(request.voteType()) && request.options() != null && !request.options().isEmpty()) {
             for (VoteOptionCreateRequest optionRequest : request.options()) {
@@ -224,8 +237,7 @@ public class VoteService {
                         optionRequest.optionText(),
                         optionRequest.order(),
                         optionRequest.eventDate(),
-                        optionRequest.location()
-                );
+                        optionRequest.location());
                 voteOptionRepository.save(option);
             }
         }
@@ -238,16 +250,15 @@ public class VoteService {
                 vote.getTitle(),
                 vote.getDescription(),
                 vote.getStatus(),
-                vote.getScheduleId()
-        );
+                vote.getScheduleId());
     }
 
     /**
      * 투표를 종료합니다. (ATTENDANCE, GENERAL 모두 지원)
      *
-     * @param clubId  모임 ID
-     * @param voteId  투표 ID
-     * @param userId  현재 로그인한 사용자 ID (권한 체크용)
+     * @param clubId 모임 ID
+     * @param voteId 투표 ID
+     * @param userId 현재 로그인한 사용자 ID (권한 체크용)
      */
     @Transactional
     public void closeVote(Long clubId, Long voteId, Long userId) {
@@ -257,9 +268,18 @@ public class VoteService {
         // clubId 검증: 투표가 해당 모임에 속하는지 확인
         Long voteClubId = null;
         if ("ATTENDANCE".equals(vote.getVoteType()) && vote.getScheduleId() != null) {
+            // ATTENDANCE 투표 마감 시 일정은 마감하지 않음
+            // 일정 마감은 "일정 마무리" 기능에서만 수행
             Schedules schedule = scheduleRepository.findById(vote.getScheduleId())
                     .orElseThrow(ResourceException.NotFound::new);
             voteClubId = schedule.getClubId();
+
+            // 일정이 이미 마감되어 있지 않은지 확인 (방어적 프로그래밍)
+            if ("CLOSED".equals(schedule.getStatus())) {
+                org.slf4j.LoggerFactory.getLogger(VoteService.class)
+                        .warn("ATTENDANCE 투표 마감 시 일정이 이미 CLOSED 상태입니다. scheduleId={}", vote.getScheduleId());
+            }
+            // 일정은 OPEN 상태로 유지 (투표만 마감)
         } else if ("GENERAL".equals(vote.getVoteType()) && vote.getPostId() != null) {
             Posts post = postRepository.findByIdWithClub(vote.getPostId())
                     .orElseThrow(ResourceException.NotFound::new);
@@ -303,6 +323,46 @@ public class VoteService {
         // 투표 종료
         vote.close();
         voteRepository.save(vote);
+
+        // ATTENDANCE 투표 마감 시 투표 결과를 기반으로 참석자 상태 업데이트 및 참가비 요청 생성
+        if ("ATTENDANCE".equals(vote.getVoteType()) && vote.getScheduleId() != null) {
+            System.out.println(
+                    "🗳️ [투표 종료] ATTENDANCE 투표 마감 시작: voteId=" + voteId + ", scheduleId=" + vote.getScheduleId());
+
+            Schedules schedule = scheduleRepository.findById(vote.getScheduleId())
+                    .orElse(null);
+
+            if (schedule != null) {
+                BigDecimal entryFee = schedule.getEntryFee();
+                System.out.println("  → 일정 조회 성공: entryFee=" + entryFee);
+
+                // 투표 결과를 기반으로 참석자 상태 업데이트
+                updateParticipantsFromVoteResults(vote.getVoteId(), vote.getScheduleId());
+
+                // 참가비가 있고, 0보다 큰 경우에만 참가비 요청 생성
+                if (entryFee != null && entryFee.compareTo(BigDecimal.ZERO) > 0) {
+                    System.out.println("  → 참가비 요청 생성 시도: clubId=" + clubId + ", scheduleId=" + vote.getScheduleId()
+                            + ", userId=" + userId);
+                    try {
+                        // 투표 마감 시에는 권한 체크를 우회하고 직접 참가비 요청 생성
+                        createPaymentRequestsFromVoteResults(clubId, vote.getVoteId(), vote.getScheduleId(), entryFee);
+                        System.out.println("  ✓ 참가비 요청 생성 완료");
+                    } catch (Exception e) {
+                        // 참가비 요청 생성 실패 시 로깅만 하고 계속 진행
+                        System.err.println("  ❌ 참가비 요청 생성 실패: clubId=" + clubId + ", scheduleId=" + vote.getScheduleId()
+                                + ", error=" + e.getMessage());
+                        e.printStackTrace();
+                        org.slf4j.LoggerFactory.getLogger(VoteService.class)
+                                .warn("ATTENDANCE 투표 마감 시 참가비 요청 생성 실패: clubId={}, scheduleId={}, error={}",
+                                        clubId, vote.getScheduleId(), e.getMessage(), e);
+                    }
+                } else {
+                    System.out.println("  → 참가비가 없거나 0원이므로 요청 생성 안 함: entryFee=" + entryFee);
+                }
+            } else {
+                System.out.println("  ❌ 일정을 찾을 수 없음: scheduleId=" + vote.getScheduleId());
+            }
+        }
     }
 
     /**
@@ -343,8 +403,20 @@ public class VoteService {
         }
 
         // 2. 투표 종료 여부 확인
+        // 투표가 마감되었지만 운영진 이상 권한이 있으면 투표 가능 (뒤늦게 참석하는 사람 추가)
         if ("CLOSED".equals(vote.getStatus())) {
-            throw new VoteException.AlreadyClosed();
+            boolean hasManagerPermission = false;
+            try {
+                clubsAuthorizationService.assertAtLeastManager(clubId, userId);
+                hasManagerPermission = true;
+            } catch (back.exception.ClubException e) {
+                // 운영진 권한이 없음 - ClubException의 모든 하위 예외 처리
+                hasManagerPermission = false;
+            }
+
+            if (!hasManagerPermission) {
+                throw new VoteException.AlreadyClosed();
+            }
         }
 
         // ATTENDANCE 타입인데 scheduleId가 NULL인 경우 체크
@@ -361,8 +433,26 @@ public class VoteService {
 
         // 4. 옵션 ID 유효성 검증
         List<Long> optionIds = request.optionIds();
-        if (optionIds == null || optionIds.isEmpty()) {
+        if (optionIds == null) {
             throw new VoteException.OptionRequired();
+        }
+
+        // 빈 배열인 경우 투표 취소 처리
+        if (optionIds.isEmpty()) {
+            // 기존 투표 기록 삭제 (투표 취소)
+            List<VoteRecords> existingRecords = voteRecordRepository.findByVoteIdAndUserId(voteId, userId);
+            if (!existingRecords.isEmpty()) {
+                voteRecordRepository.deleteAll(existingRecords);
+            }
+
+            // ATTENDANCE 타입인 경우 ScheduleParticipants도 삭제
+            if ("ATTENDANCE".equals(vote.getVoteType()) && vote.getScheduleId() != null) {
+                Optional<ScheduleParticipants> participant = scheduleParticipantRepository
+                        .findByScheduleIdAndUserId(vote.getScheduleId(), userId);
+                participant.ifPresent(scheduleParticipantRepository::delete);
+            }
+
+            return; // 투표 취소 완료
         }
 
         // ATTENDANCE 타입은 반드시 1개만 선택 가능
@@ -417,11 +507,11 @@ public class VoteService {
         // 8. ATTENDANCE 타입 투표인 경우 ScheduleParticipants 자동 생성/업데이트
         if ("ATTENDANCE".equals(vote.getVoteType()) && vote.getScheduleId() != null) {
             Long scheduleId = vote.getScheduleId();
-            
+
             // 선택된 옵션 확인 (참석 또는 불참)
             VoteOptions selectedOption = validOptions.get(0); // ATTENDANCE는 항상 1개만 선택
             String optionText = selectedOption.getOptionText();
-            
+
             // ScheduleParticipants 조회 또는 생성
             ScheduleParticipants participant = scheduleParticipantRepository
                     .findByScheduleIdAndUserId(scheduleId, userId)
@@ -430,7 +520,7 @@ public class VoteService {
                         scheduleParticipantRepository.save(newParticipant);
                         return newParticipant;
                     });
-            
+
             // 참석 상태 업데이트
             if ("참석".equals(optionText) || optionText.contains("참석")) {
                 participant.attend();
@@ -439,7 +529,7 @@ public class VoteService {
             } else {
                 participant.undecided();
             }
-            
+
             scheduleParticipantRepository.save(participant);
         }
     }
@@ -477,8 +567,7 @@ public class VoteService {
                         option.getOptionOrder(),
                         option.getEventDate(),
                         option.getLocation(),
-                        voteRecordRepository.countByOptionId(option.getOptionId())
-                ))
+                        voteRecordRepository.countByOptionId(option.getOptionId())))
                 .collect(Collectors.toList());
 
         // 현재 사용자가 선택한 옵션 조회
@@ -502,8 +591,7 @@ public class VoteService {
                 vote.getCreatedAt(),
                 vote.getUpdatedAt(),
                 optionResponses,
-                mySelectedOptionIds
-        );
+                mySelectedOptionIds);
     }
 
     /**
@@ -519,7 +607,8 @@ public class VoteService {
         clubsAuthorizationService.assertActiveMember(clubId, userId);
 
         // 방법 1: 해당 모임의 Posts에서 VOTE 카테고리 게시글 조회 후 Votes 조회
-        List<Posts> votePosts = postRepository.findByClub_ClubIdAndCategoryAndDeletedAtIsNull(clubId, PostCategory.VOTE);
+        List<Posts> votePosts = postRepository.findByClub_ClubIdAndCategoryAndDeletedAtIsNull(clubId,
+                PostCategory.VOTE);
         List<Long> postIds = votePosts.stream()
                 .map(Posts::getPostId)
                 .collect(Collectors.toList());
@@ -563,8 +652,7 @@ public class VoteService {
                         vote.getDeadline(),
                         vote.getClosedAt(),
                         vote.getCreatedAt(),
-                        voteRecordRepository.countDistinctClubMembersByVoteId(vote.getVoteId())
-                ))
+                        voteRecordRepository.countDistinctClubMembersByVoteId(vote.getVoteId())))
                 .collect(Collectors.toList());
     }
 
@@ -582,5 +670,193 @@ public class VoteService {
                     .orElse(null);
         }
         return null;
+    }
+
+    /**
+     * 투표 결과를 기반으로 참석자 상태를 업데이트합니다.
+     * 투표 마감 시 "참석" 옵션을 선택한 사용자들을 ATTENDING 상태로 설정합니다.
+     */
+    @Transactional
+    private void updateParticipantsFromVoteResults(Long voteId, Long scheduleId) {
+        System.out.println("🔄 [투표 결과 기반 참석자 업데이트] voteId=" + voteId + ", scheduleId=" + scheduleId);
+
+        // 투표의 모든 옵션 조회
+        List<VoteOptions> options = voteOptionRepository.findByVoteIdOrderByOptionOrderAsc(voteId);
+
+        // 1. "참석" 옵션 처리
+        VoteOptions attendOption = options.stream()
+                .filter(opt -> "참석".equals(opt.getOptionText()) || opt.getOptionText().contains("참석"))
+                .findFirst()
+                .orElse(null);
+
+        if (attendOption != null) {
+            System.out.println("  → '참석' 옵션 찾음: optionId=" + attendOption.getOptionId());
+            List<VoteRecords> attendRecords = voteRecordRepository.findByOptionId(attendOption.getOptionId());
+
+            for (VoteRecords record : attendRecords) {
+                updateParticipantStatus(scheduleId, record.getUserId(), "ATTENDING");
+            }
+        }
+
+        // 2. "불참" 옵션 처리
+        VoteOptions absentOption = options.stream()
+                .filter(opt -> "불참".equals(opt.getOptionText()) || opt.getOptionText().contains("불참"))
+                .findFirst()
+                .orElse(null);
+
+        if (absentOption != null) {
+            System.out.println("  → '불참' 옵션 찾음: optionId=" + absentOption.getOptionId());
+            List<VoteRecords> absentRecords = voteRecordRepository.findByOptionId(absentOption.getOptionId());
+
+            for (VoteRecords record : absentRecords) {
+                updateParticipantStatus(scheduleId, record.getUserId(), "NOT_ATTENDING");
+            }
+        }
+
+        System.out.println("  ✓ 참석자/불참자 상태 업데이트 완료");
+    }
+
+    private void updateParticipantStatus(Long scheduleId, Long userId, String status) {
+        ScheduleParticipants participant = scheduleParticipantRepository
+                .findByScheduleIdAndUserId(scheduleId, userId)
+                .orElseGet(() -> {
+                    ScheduleParticipants newParticipant = new ScheduleParticipants(scheduleId, userId);
+                    return scheduleParticipantRepository.save(newParticipant);
+                });
+
+        if ("ATTENDING".equals(status)) {
+            participant.attend();
+        } else if ("NOT_ATTENDING".equals(status)) {
+            participant.notAttend();
+        }
+        scheduleParticipantRepository.save(participant);
+    }
+
+    /**
+     * 투표 결과를 기반으로 참가비 요청을 생성합니다.
+     * 투표 마감 시 "참석" 옵션을 선택한 사용자들에 대해 PaymentRequest를 생성합니다.
+     */
+    @Transactional
+    private void createPaymentRequestsFromVoteResults(Long clubId, Long voteId, Long scheduleId, BigDecimal entryFee) {
+        System.out.println(
+                "💰 [투표 결과 기반 참가비 요청 생성] clubId=" + clubId + ", voteId=" + voteId + ", scheduleId=" + scheduleId);
+
+        // 투표의 모든 옵션 조회
+        List<VoteOptions> options = voteOptionRepository.findByVoteIdOrderByOptionOrderAsc(voteId);
+
+        // "참석" 옵션 찾기
+        VoteOptions attendOption = options.stream()
+                .filter(opt -> "참석".equals(opt.getOptionText()) || opt.getOptionText().contains("참석"))
+                .findFirst()
+                .orElse(null);
+
+        if (attendOption == null) {
+            System.out.println("  ⚠️ '참석' 옵션을 찾을 수 없음");
+            return;
+        }
+
+        System.out.println("  → '참석' 옵션 찾음: optionId=" + attendOption.getOptionId());
+
+        // "참석" 옵션을 선택한 사용자 목록 조회
+        List<VoteRecords> attendRecords = voteRecordRepository.findByOptionId(attendOption.getOptionId());
+        System.out.println("  → '참석' 옵션을 선택한 사용자 수: " + attendRecords.size() + "명");
+
+        if (attendRecords.isEmpty()) {
+            System.out.println("  ⚠️ 참석자가 없어서 요청 생성 안 함");
+            return;
+        }
+
+        // 일정 정보 조회
+        Schedules schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(ResourceException.NotFound::new);
+
+        // 사용자 정보 조회
+        List<Long> userIds = attendRecords.stream()
+                .map(VoteRecords::getUserId)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<Long, Users> userMap = userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(Users::getUserId, user -> user));
+
+        LocalDate expectedDate = schedule.getEventDate().toLocalDate();
+        int createdCount = 0;
+
+        // 각 참석자에 대해 PaymentRequest 생성
+        for (VoteRecords record : attendRecords) {
+            Long userId = record.getUserId();
+
+            // userId를 club_members.member_id로 변환
+            Long memberId = clubMembersRepository.findByClubIdAndUserIdAndStatus(
+                    clubId, userId, back.domain.club.ClubMembers.Status.ACTIVE)
+                    .map(back.domain.club.ClubMembers::getMemberId)
+                    .orElse(null);
+
+            if (memberId == null) {
+                System.out.println("  ⚠️ userId=" + userId + "는 활성 멤버가 아니므로 스킵");
+                continue;
+            }
+
+            // 이미 요청이 생성되었는지 확인
+            boolean alreadyRequested = paymentRequestRepository.existsByScheduleIdAndMemberId(
+                    scheduleId, memberId);
+            if (alreadyRequested) {
+                System.out.println("  ⚠️ memberId=" + memberId + "는 이미 요청이 생성되어 있음");
+                continue;
+            }
+
+            Users user = userMap.get(userId);
+            String realName = (user != null) ? user.getRealName() : "알수없음";
+
+            PaymentRequest req = new PaymentRequest(
+                    clubId,
+                    memberId,
+                    realName,
+                    PaymentRequest.RequestType.DEPOSIT,
+                    entryFee,
+                    expectedDate, // 일정 날짜로 설정
+                    10, // ±10일 범위
+                    schedule.getEventDate().plusDays(14),
+                    scheduleId,
+                    null);
+
+            PaymentRequest savedReq = paymentRequestRepository.save(req);
+            createdCount++;
+
+            System.out.println("  ✓ 참가비 요청 생성: requestId=" + savedReq.getRequestId() +
+                    ", memberName=" + realName + ", amount=" + entryFee +
+                    ", expectedDate=" + expectedDate);
+        }
+
+        System.out.println("  ✓ 참가비 요청 생성 완료: 총 " + createdCount + "건");
+
+        // 생성된 요청들을 기존 미매칭 거래내역과 매칭 시도
+        if (createdCount > 0) {
+            try {
+                // 은행 거래내역 동기화 (입금 내역 조회)
+                // 은행 계좌가 있는 경우에만 동기화 시도
+                try {
+                    if (bankAccountRepository.findByClubId(clubId).isPresent()) {
+                        bankService.syncTransactionsStub(clubId, 1L, null, null);
+                    }
+                } catch (Exception e) {
+                    System.err.println("  ⚠️ 은행 동기화 실패: " + e.getMessage());
+                }
+
+                // 새로 생성된 요청들을 기존 미매칭 거래내역과 매칭 시도
+                List<PaymentRequest> newRequests = paymentRequestRepository.findByScheduleId(scheduleId)
+                        .stream()
+                        .filter(r -> r.getStatus() == PaymentRequest.RequestStatus.PENDING)
+                        .collect(Collectors.toList());
+
+                if (!newRequests.isEmpty()) {
+                    transactionMatchingService.matchRequestsWithExistingTransactions(clubId, newRequests);
+                    System.out.println("  ✓ 기존 거래내역과 매칭 시도 완료");
+                }
+            } catch (Exception e) {
+                System.err.println("  ⚠️ 매칭 시도 실패: " + e.getMessage());
+                // 매칭 실패해도 요청은 생성되었으므로 계속 진행
+            }
+        }
     }
 }

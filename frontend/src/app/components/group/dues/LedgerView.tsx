@@ -69,7 +69,7 @@ export function LedgerView() {
           endDate || undefined
         );
         setTransactions(data);
-        
+
         // 미매칭 거래도 함께 조회
         if (permissions.canWithdraw) {
           const unmatchedData = await getUnmatchedTransactions(Number(groupId));
@@ -262,12 +262,13 @@ export function LedgerView() {
       setShowMatchDialog(false);
       setSelectedUnmatched([]);
       setSelectedRequest('');
-      
+
       // 목록 새로고침
       const [transactionData, unmatchedDataRefresh] = await Promise.all([
         getLedger(Number(groupId), startDate || undefined, endDate || undefined),
-        getUnmatchedTransactions(Number(groupId))
-      ]);
+        getUnmatchedTransactions(Number(groupId)),
+      ]) as [TransactionLogResponse[], UnmatchedTransactionsResponse[]];
+
       setTransactions(transactionData);
       setUnmatchedData(unmatchedDataRefresh);
     } catch (error) {

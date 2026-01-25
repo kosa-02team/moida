@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useParams, Link, useLocation } from 'react-router-dom';
+import { Outlet, NavLink, useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Menu } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useState, useEffect } from 'react';
@@ -9,7 +9,7 @@ import { Badge } from '../ui/badge';
 
 export function GroupLayout() {
   const { groupId } = useParams();
-  const location = useLocation();
+  const navigate = useNavigate();
   const [club, setClub] = useState<ClubDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string>('회원');
@@ -85,7 +85,13 @@ export function GroupLayout() {
           <h1 className="font-bold text-lg text-stone-800 truncate px-2">
             {loading ? '로딩 중...' : club?.clubName || '모임'}
           </h1>
-          <Button variant="ghost" size="icon" className="-mr-2" aria-label="메뉴">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="-mr-2"
+            aria-label="프로필"
+            onClick={() => navigate('/profile')}
+          >
             <Menu className="w-6 h-6 text-stone-800" />
           </Button>
         </header>

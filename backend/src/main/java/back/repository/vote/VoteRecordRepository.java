@@ -34,4 +34,10 @@ public interface VoteRecordRepository extends JpaRepository<VoteRecords, Long> {
      * 특정 옵션을 선택한 사용자 수를 조회합니다.
      */
     long countByOptionId(Long optionId);
+    
+    /**
+     * 특정 옵션을 선택한 사용자 목록을 조회합니다.
+     */
+    @Query("SELECT vr FROM VoteRecords vr WHERE vr.optionId = :optionId")
+    List<VoteRecords> findByOptionId(@Param("optionId") Long optionId);
 }

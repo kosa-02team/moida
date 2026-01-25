@@ -157,11 +157,13 @@ export const getProcessedTransactions = async (
 
 /**
  * 미매칭 거래내역 조회
+ * @param sync - true인 경우 동기화 후 조회 (기본값: false, 동기화는 자동 매칭을 수행하므로 거래 내역이 사라질 수 있음)
  */
 export const getUnmatchedTransactions = async (
-  clubId: number
+  clubId: number,
+  sync: boolean = false
 ): Promise<UnmatchedTransactionsResponse> => {
-  const url = `/api/clubs/${clubId}/bank/transactions/unmatched`;
+  const url = `/api/clubs/${clubId}/bank/transactions/unmatched?sync=${sync}`;
   return get<UnmatchedTransactionsResponse>(url);
 };
 
