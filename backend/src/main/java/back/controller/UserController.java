@@ -83,6 +83,7 @@ public class UserController {
                             .visibility(club.getVisibility() != null ? club.getVisibility().name() : null)
                             .status(club.getStatus() != null ? club.getStatus().name() : null)
                             .category(club.getCategory() != null ? club.getCategory().name() : null)
+                            .coverImageUrl(club.getCoverImageUrl())
                             .build();
                 })
                 .filter(response -> response != null)

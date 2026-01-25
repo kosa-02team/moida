@@ -15,4 +15,5 @@ public class MyClubResponse {
     private String visibility;
     private String status;
     private String category;
+    private String coverImageUrl;
 }

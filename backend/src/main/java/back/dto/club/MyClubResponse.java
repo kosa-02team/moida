@@ -18,6 +18,7 @@ public class MyClubResponse {
     private String visibility;
     private String status;
     private String category;
+    private String coverImageUrl;
 
     public static MyClubResponse from(Clubs club, ClubMembers member) {
         return MyClubResponse.builder()
@@ -28,6 +29,7 @@ public class MyClubResponse {
                 .visibility(club.getVisibility().name())
                 .status(club.getStatus().name())
                 .category(club.getCategory() != null ? club.getCategory().name() : null)
+                .coverImageUrl(club.getCoverImageUrl())
                 .build();
     }
 }
