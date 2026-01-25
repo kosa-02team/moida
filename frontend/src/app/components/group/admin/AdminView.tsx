@@ -486,46 +486,44 @@ export function AdminView() {
         </div>
       )}
 
-      {/* 통장 관리 - 총무/모임장만 */}
-      {permissions.canWithdraw && (
-        <div className="bg-white rounded-xl border border-stone-100 divide-y divide-stone-50 overflow-hidden">
-          <div className="px-4 py-3 bg-stone-50">
-            <h3 className="font-medium text-stone-700">통장 관리</h3>
-          </div>
-
-          {/* 장부 관리 */}
-          <Link to="../dues/ledger" className="block">
-            <div className="p-4 flex items-center justify-between hover:bg-stone-50 cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
-                  <BookOpen className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="font-medium text-stone-900">장부 관리</p>
-                  <p className="text-xs text-stone-500">모임통장 사용 내역 조회</p>
-                </div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-stone-300" />
-            </div>
-          </Link>
-
-          {/* 계좌 */}
-          <button onClick={handleShowAccount} className="block w-full text-left">
-            <div className="p-4 flex items-center justify-between hover:bg-stone-50 cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
-                  <Wallet className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="font-medium text-stone-900">계좌 확인</p>
-                  <p className="text-xs text-stone-500">모임통장 계좌 정보 및 사용 안내</p>
-                </div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-stone-300" />
-            </div>
-          </button>
+      {/* 통장 관리 - 모든 멤버 */}
+      <div className="bg-white rounded-xl border border-stone-100 divide-y divide-stone-50 overflow-hidden">
+        <div className="px-4 py-3 bg-stone-50">
+          <h3 className="font-medium text-stone-700">통장 관리</h3>
         </div>
-      )}
+
+        {/* 장부 관리 */}
+        <Link to="../dues/ledger" className="block">
+          <div className="p-4 flex items-center justify-between hover:bg-stone-50 cursor-pointer">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
+                <BookOpen className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-medium text-stone-900">장부 관리</p>
+                <p className="text-xs text-stone-500">모임통장 사용 내역 조회</p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-stone-300" />
+          </div>
+        </Link>
+
+        {/* 계좌 */}
+        <button onClick={handleShowAccount} className="block w-full text-left">
+          <div className="p-4 flex items-center justify-between hover:bg-stone-50 cursor-pointer">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                <Wallet className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-medium text-stone-900">계좌 확인</p>
+                <p className="text-xs text-stone-500">모임통장 계좌 정보 및 사용 안내</p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-stone-300" />
+          </div>
+        </button>
+      </div>
 
       {/* 멤버/권한 관리 */}
       {(permissions.canManageMembers || permissions.canAssignRoles) && (
@@ -614,16 +612,7 @@ export function AdminView() {
         </button>
       )}
 
-      {/* 권한 없음 안내 - 일반 회원 */}
-      {userRole === 'member' && (
-        <div className="bg-stone-100 rounded-xl p-6 text-center">
-          <Lock className="w-10 h-10 text-stone-400 mx-auto mb-3" />
-          <p className="font-medium text-stone-700 mb-1">관리 권한이 없습니다</p>
-          <p className="text-sm text-stone-500">
-            모임장, 총무, 운영진만 관리 기능을 사용할 수 있습니다.
-          </p>
-        </div>
-      )}
+
 
       {/* 권한 안내 박스 */}
       {isMultiRole && (
