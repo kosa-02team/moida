@@ -44,8 +44,8 @@ INSERT INTO users
 (user_id, login_id, password, real_name, system_role, simple_password, status, created_at, updated_at, deleted_at, banned_at)
 VALUES
 -- ACTIVE 사용자들
-(1, 'gywjd@naver.com', '$2a$10$xXF72CHMb65eNebwwe1Qc.M2Mm1tRytvzEJI8aZr1GZBEIhUZEGRy', '두효정', 'USER', NULL, 'ACTIVE', NOW(), NOW(), NULL, NULL),
-(2, 'member02@example.com', '$2a$10$xXF72CHMb65eNebwwe1Qc.M2Mm1tRytvzEJI8aZr1GZBEIhUZEGRy', '김민준', 'USER', NULL, 'ACTIVE', NOW(), NOW(), NULL, NULL),
+(27, 'gywjd@naver.com', '$2a$10$xXF72CHMb65eNebwwe1Qc.M2Mm1tRytvzEJI8aZr1GZBEIhUZEGRy', '두효정', 'USER', NULL, 'ACTIVE', NOW(), NOW(), NULL, NULL),
+(28, 'member02@example.com', '$2a$10$xXF72CHMb65eNebwwe1Qc.M2Mm1tRytvzEJI8aZr1GZBEIhUZEGRy', '김민준', 'USER', NULL, 'ACTIVE', NOW(), NOW(), NULL, NULL),
 (3, 'member03@example.com', '$2a$10$xXF72CHMb65eNebwwe1Qc.M2Mm1tRytvzEJI8aZr1GZBEIhUZEGRy', '이서준', 'USER', NULL, 'ACTIVE', NOW(), NOW(), NULL, NULL),
 (4, 'member04@example.com', '$2a$10$xXF72CHMb65eNebwwe1Qc.M2Mm1tRytvzEJI8aZr1GZBEIhUZEGRy', '박지훈', 'USER', NULL, 'ACTIVE', NOW(), NOW(), NULL, NULL),
 (5, 'member05@example.com', '$2a$10$xXF72CHMb65eNebwwe1Qc.M2Mm1tRytvzEJI8aZr1GZBEIhUZEGRy', '최서연', 'USER', NULL, 'ACTIVE', NOW(), NOW(), NULL, NULL),
@@ -82,8 +82,8 @@ INSERT INTO clubs
 (club_id, club_name, owner_id, main_account_id, invite_code, club_type, max_members, category, status, visibility, created_at, updated_at, closed_at)
 VALUES
 -- ACTIVE + PUBLIC + OPERATION_FEE + 각 카테고리
-(1, '운영비스터디모임', 1, UUID(), 'MOIDA0001', 'OPERATION_FEE', 50, 'STUDY', 'ACTIVE', 'PUBLIC', NOW(), NOW(), NULL),
-(2, '운영비운동모임', 2, UUID(), 'MOIDA0002', 'OPERATION_FEE', 30, 'SPORTS', 'ACTIVE', 'PUBLIC', NOW(), NOW(), NULL),
+(1, '운영비스터디모임', 27, UUID(), 'MOIDA0001', 'OPERATION_FEE', 50, 'STUDY', 'ACTIVE', 'PUBLIC', NOW(), NOW(), NULL),
+(2, '운영비운동모임', 28, UUID(), 'MOIDA0002', 'OPERATION_FEE', 30, 'SPORTS', 'ACTIVE', 'PUBLIC', NOW(), NOW(), NULL),
 (3, '운영비친목모임', 3, UUID(), 'MOIDA0003', 'OPERATION_FEE', 100, 'SOCIAL', 'ACTIVE', 'PUBLIC', NOW(), NOW(), NULL),
 (4, '운영비취미모임', 4, UUID(), 'MOIDA0004', 'OPERATION_FEE', 40, 'HOBBY', 'ACTIVE', 'PUBLIC', NOW(), NOW(), NULL),
 (5, '운영비재테크모임', 5, UUID(), 'MOIDA0005', 'OPERATION_FEE', 25, 'FINANCE', 'ACTIVE', 'PUBLIC', NOW(), NOW(), NULL),
@@ -103,7 +103,7 @@ VALUES
 INSERT INTO bank_accounts
 (club_id, bank_code, user_id, bank_id, account_number, depositor_name, deleted_at, created_at, updated_at)
 VALUES
-(1, 'STUB', 1, 10, '111111111', '두효정', NULL, NOW(), NOW()),
+(1, 'STUB', 27, 10, '111111111', '두효정', NULL, NOW(), NOW()),
 (2, 'STUB', 2, 10, '222222222', '김민준', NULL, NOW(), NOW()),
 (3, 'STUB', 3, 10, '333333333', '이서준', NULL, NOW(), NOW()),
 (4, 'STUB', 4, 10, '444444444', '박지훈', NULL, NOW(), NOW()),
@@ -121,7 +121,7 @@ VALUES
 INSERT INTO club_members
 (club_id, user_id, nickname, role, status, joined_at, created_at, updated_at)
 VALUES
-(1, 1, '두효정', 'OWNER', 'ACTIVE', NOW(), NOW(), NOW()),
+(1, 27, '두효정', 'OWNER', 'ACTIVE', NOW(), NOW(), NOW()),
 (1, 2, '김민준', 'ACCOUNTANT', 'ACTIVE', NOW(), NOW(), NOW()),
 (1, 3, '이서준', 'STAFF', 'ACTIVE', NOW(), NOW(), NOW()),
 (1, 4, '박지훈', 'MEMBER', 'ACTIVE', NOW(), NOW(), NOW()),
@@ -245,7 +245,7 @@ VALUES
 (5, 2, 5, 4, NOW()),
 (6, 3, 6, 1, DATE_SUB(NOW(), INTERVAL 8 DAY)),
 (7, 3, 6, 2, DATE_SUB(NOW(), INTERVAL 7 DAY)),
-(8, 4, 8, 1, DATE_SUB(NOW(), INTERVAL 28 DAY)),
+(8, 4, 8, 27, DATE_SUB(NOW(), INTERVAL 28 DAY)),
 (9, 4, 8, 2, DATE_SUB(NOW(), INTERVAL 27 DAY));
 
 -- ============================================================
@@ -326,7 +326,7 @@ VALUES
 (3, 1, 4, NOW()),
 (4, 3, 2, NOW()),
 (5, 3, 3, NOW()),
-(6, 5, 1, DATE_SUB(NOW(), INTERVAL 3 DAY));
+(6, 5, 27, DATE_SUB(NOW(), INTERVAL 3 DAY));
 
 -- ============================================================
 -- 15. 댓글 좋아요 데이터
@@ -336,7 +336,7 @@ INSERT INTO comment_likes
 VALUES
 (1, 1, 3, NOW()),
 (2, 1, 4, NOW()),
-(3, 3, 1, NOW()),
+(3, 3, 27, NOW()),
 (4, 3, 4, NOW()),
 (5, 4, 2, NOW());
 

@@ -49,17 +49,16 @@ public class ClubService {
                 request.getClubName(),
                 ownerId,
                 request.getTypeEnum(),
-                request.getMaxMembers() != null ? request.getMaxMembers() : 100
-        );
+                request.getMaxMembers() != null ? request.getMaxMembers() : 100);
         club.setVisibility(request.getVisibilityEnum());
         club.setCategory(request.getCategoryEnum());
-        
+
         // 이미지 저장 처리
         if (request.getCoverImageUrl() != null && !request.getCoverImageUrl().isEmpty()) {
             String imageUrl = imageService.saveBase64Image(request.getCoverImageUrl());
             club.setCoverImageUrl(imageUrl);
         }
-        
+
         Clubs savedClub = clubRepository.save(club);
         
         // 모임 생성 시 자동으로 가상 계좌 생성 (실패해도 모임 생성은 계속 진행)
@@ -71,9 +70,8 @@ public class ClubService {
                             "STUB", // 기본값으로 STUB 은행 사용 (개발 환경)
                             null, // accountNumber는 null로 하면 자동 생성
                             owner.getRealName() // 예금주명은 모임장 이름
-                    )
-            );
-            
+                    ));
+
             // 생성된 계좌 ID를 모임의 main_account_id에 저장
             savedClub.changeMainAccount(bankAccount.getAccountId().toString());
             clubRepository.save(savedClub);
@@ -102,11 +100,14 @@ public class ClubService {
                 .orElseThrow(ClubException.NotFound::new);
 
         boolean isPublic = club.getVisibility() == Clubs.Visibility.PUBLIC;
-        boolean isMember = viewerId != null && 
+        boolean isMember = viewerId != null &&
                 clubMemberRepository.existsByClubIdAndUserIdAndStatus(clubId, viewerId, ClubMembers.Status.ACTIVE);
 
         // 비공개 모임이고 멤버가 아닌 경우 접근 거부
         if (!isPublic && !isMember) {
+            if (viewerId == null) {
+                throw new ClubException.AuthLoginRequired();
+            }
             throw new ClubException.AuthNotActive();
         }
 
@@ -123,7 +124,7 @@ public class ClubService {
         Clubs club = clubRepository.findById(clubId)
                 .orElseThrow(ClubException.NotFound::new);
 
-        if (!club.getClubName().equals(request.getClubName()) 
+        if (!club.getClubName().equals(request.getClubName())
                 && clubRepository.existsByClubName(request.getClubName())) {
             throw new ClubException.AlreadyExists();
         }
@@ -139,7 +140,7 @@ public class ClubService {
         if (request.getCategory() != null) {
             club.setCategory(request.getCategoryEnum());
         }
-        
+
         // 이미지 업데이트 처리
         if (request.getCoverImageUrl() != null) {
             if (request.getCoverImageUrl().isEmpty()) {
@@ -173,7 +174,8 @@ public class ClubService {
             throw new ClubException(ErrorCode.CLUB_AUTH_NOT_OWNER);
         }
 
-        if (club.getDeletionRequestStatus() != null && club.getDeletionRequestStatus() == Clubs.DeletionRequestStatus.PENDING) {
+        if (club.getDeletionRequestStatus() != null
+                && club.getDeletionRequestStatus() == Clubs.DeletionRequestStatus.PENDING) {
             throw new ClubException(ErrorCode.CLUB_DELETION_ALREADY_REQUESTED);
         }
 
@@ -250,7 +252,8 @@ public class ClubService {
         Clubs club = clubRepository.findById(clubId)
                 .orElseThrow(ClubException.NotFound::new);
 
-        if (club.getDeletionRequestStatus() == null || club.getDeletionRequestStatus() != Clubs.DeletionRequestStatus.PENDING) {
+        if (club.getDeletionRequestStatus() == null
+                || club.getDeletionRequestStatus() != Clubs.DeletionRequestStatus.PENDING) {
             throw new ClubException(ErrorCode.CLUB_DELETION_NOT_REQUESTED);
         }
 
@@ -294,7 +297,8 @@ public class ClubService {
             throw new ClubException(ErrorCode.CLUB_AUTH_NOT_OWNER);
         }
 
-        if (club.getDeletionRequestStatus() == null || club.getDeletionRequestStatus() != Clubs.DeletionRequestStatus.PENDING) {
+        if (club.getDeletionRequestStatus() == null
+                || club.getDeletionRequestStatus() != Clubs.DeletionRequestStatus.PENDING) {
             throw new ClubException(ErrorCode.CLUB_DELETION_NOT_REQUESTED);
         }
 
@@ -376,7 +380,7 @@ public class ClubService {
         } catch (IllegalArgumentException e) {
             throw new ClubException(ErrorCode.CLUB_INVALID_CATEGORY);
         }
-        
+
         return clubRepository.findByCategoryAndStatus(categoryEnum, Clubs.Status.ACTIVE, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
@@ -386,6 +390,9 @@ public class ClubService {
     }
 
     // 카테고리 + 상태별 모임 조회
+    public Page<ClubResponse> getClubsByCategoryAndStatus(Clubs.Category category, Clubs.Status status,
+            Pageable pageable) {
+        return clubRepository.findByCategoryAndStatus(category, status, pageable)
     public Page<ClubResponse> getClubsByCategoryAndStatus(String category, String status, Pageable pageable) {
         Clubs.Category categoryEnum;
         try {
@@ -393,14 +400,14 @@ public class ClubService {
         } catch (IllegalArgumentException e) {
             throw new ClubException(ErrorCode.CLUB_INVALID_CATEGORY);
         }
-        
+
         Clubs.Status statusEnum;
         try {
             statusEnum = Clubs.Status.valueOf(status.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new ClubException(ErrorCode.CLUB_INVALID_STATUS);
         }
-        
+
         return clubRepository.findByCategoryAndStatus(categoryEnum, statusEnum, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
@@ -410,6 +417,10 @@ public class ClubService {
     }
 
     // 카테고리 + 이름 검색 - ACTIVE 상태만 조회
+    public Page<ClubResponse> searchClubsByCategoryAndName(Clubs.Category category, String clubName,
+            Pageable pageable) {
+        return clubRepository
+                .findByCategoryAndStatusAndClubNameContaining(category, Clubs.Status.ACTIVE, clubName, pageable)
     public Page<ClubResponse> searchClubsByCategoryAndName(String category, String clubName, Pageable pageable) {
         Clubs.Category categoryEnum;
         try {
@@ -417,7 +428,7 @@ public class ClubService {
         } catch (IllegalArgumentException e) {
             throw new ClubException(ErrorCode.CLUB_INVALID_CATEGORY);
         }
-        
+
         return clubRepository.findByCategoryAndStatusAndClubNameContaining(categoryEnum, Clubs.Status.ACTIVE, clubName, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
