@@ -265,7 +265,7 @@ export function HomeView() {
                 <Card className="overflow-hidden hover:shadow-md transition-shadow border-stone-100 bg-white">
                   <div className="relative h-32 bg-gradient-to-br from-orange-50 via-stone-50 to-orange-100">
                     {(() => {
-                      const clubImage = localStorage.getItem(`club_image_${club.clubId}`);
+                      const clubImage = club.coverImageUrl || localStorage.getItem(`club_image_${club.clubId}`);
                       return clubImage ? (
                         <img
                           src={clubImage}

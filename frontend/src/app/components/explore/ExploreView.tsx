@@ -102,7 +102,7 @@ export function ExploreView() {
             const groups: PublicGroup[] = filteredContent.map(club => {
                 // 로컬 스토리지에서 이미지 가져오기
                 const imageKey = `club_image_${club.clubId}`;
-                const storedImage = localStorage.getItem(imageKey) || '';
+                const storedImage = club.coverImageUrl || localStorage.getItem(imageKey) || '';
                 if (storedImage) {
                     console.log(`[목록] 클럽 ${club.clubId} 이미지 발견:`, {
                         imageKey,
@@ -285,8 +285,8 @@ export function ExploreView() {
                                     <SlidersHorizontal className="w-5 h-5" />
                                     {activeFilterCount > 0 && (
                                         <span className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 text-white text-xs rounded-full flex items-center justify-center">
-                      {activeFilterCount}
-                    </span>
+                                            {activeFilterCount}
+                                        </span>
                                     )}
                                 </Button>
                             </SheetTrigger>
@@ -354,8 +354,8 @@ export function ExploreView() {
                 ) : publicGroups.length > 0 ? (
                     <div className="space-y-4">
                         {publicGroups.map(group => (
-                            <Link 
-                                to={`/explore/${group.id}`} 
+                            <Link
+                                to={`/explore/${group.id}`}
                                 key={group.id}
                                 onClick={(e) => handleGroupClick(e, group.id)}
                             >

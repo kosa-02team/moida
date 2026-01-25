@@ -21,6 +21,7 @@ export interface MyClubResponse {
   visibility?: string;
   status?: string;
   category?: string;
+  coverImageUrl?: string;
 }
 
 /**
