@@ -33,6 +33,16 @@ public class ClubController {
     private final ClubMemberService clubMemberService;
     private final ClubAuthorization clubAuthorization;
 
+    /**
+     * enum 문자열을 안전하게 변환하는 공통 헬퍼 메서드
+     */
+    private <T extends Enum<T>> T parseEnum(String value, Class<T> enumClass, ErrorCode errorCode) {
+        try {
+            return Enum.valueOf(enumClass, value.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new ClubException(errorCode);
+        }
+    }
 
     @PostMapping
     public ResponseEntity<SuccessResponse<ClubResponse>> createClub(
@@ -138,20 +148,14 @@ public class ClubController {
         return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK));
     }
 
-    // 모든 모임 조회 (페이징)
-    @GetMapping
-    public ResponseEntity<SuccessResponse<Page<ClubResponse>>> getAllClubs(
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        Page<ClubResponse> response = clubService.getAllClubs(pageable);
-        return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK, response));
-    }
-
     // 카테고리별 모임 조회
     @GetMapping("/category/{category}")
     public ResponseEntity<SuccessResponse<Page<ClubResponse>>> getClubsByCategory(
             @PathVariable String category,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        Page<ClubResponse> response = clubService.getClubsByCategory(category, pageable);
+        back.domain.club.Clubs.Category categoryEnum = parseEnum(category, back.domain.club.Clubs.Category.class,
+                ErrorCode.CLUB_INVALID_CATEGORY);
+        Page<ClubResponse> response = clubService.getClubsByCategory(categoryEnum, pageable);
         return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK, response));
     }
 
@@ -161,7 +165,12 @@ public class ClubController {
             @PathVariable String category,
             @PathVariable String status,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        Page<ClubResponse> response = clubService.getClubsByCategoryAndStatus(category, status, pageable);
+        back.domain.club.Clubs.Category categoryEnum = parseEnum(category, back.domain.club.Clubs.Category.class,
+                ErrorCode.CLUB_INVALID_CATEGORY);
+        back.domain.club.Clubs.Status statusEnum = parseEnum(status, back.domain.club.Clubs.Status.class,
+                ErrorCode.CLUB_INVALID_STATUS);
+
+        Page<ClubResponse> response = clubService.getClubsByCategoryAndStatus(categoryEnum, statusEnum, pageable);
         return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK, response));
     }
 
@@ -171,15 +180,19 @@ public class ClubController {
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String clubName,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        
+
         Page<ClubResponse> response;
-        
+
         if (category != null && clubName != null) {
             // 카테고리 + 이름 모두 검색
-            response = clubService.searchClubsByCategoryAndName(category, clubName, pageable);
+            back.domain.club.Clubs.Category categoryEnum = parseEnum(category, back.domain.club.Clubs.Category.class,
+                    ErrorCode.CLUB_INVALID_CATEGORY);
+            response = clubService.searchClubsByCategoryAndName(categoryEnum, clubName, pageable);
         } else if (category != null) {
             // 카테고리만 검색
-            response = clubService.getClubsByCategory(category, pageable);
+            back.domain.club.Clubs.Category categoryEnum = parseEnum(category, back.domain.club.Clubs.Category.class,
+                    ErrorCode.CLUB_INVALID_CATEGORY);
+            response = clubService.getClubsByCategory(categoryEnum, pageable);
         } else if (clubName != null) {
             // 이름만 검색
             response = clubService.searchClubsByName(clubName, pageable);
@@ -187,7 +200,7 @@ public class ClubController {
             // 전체 조회
             response = clubService.getAllClubs(pageable);
         }
-        
+
         return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK, response));
     }
 
@@ -220,7 +233,7 @@ public class ClubController {
             @PathVariable Long memberId,
             @Valid @RequestBody RoleUpdateRequest request) {
         clubAuthorization.requireOwner(clubId, principal);
-        
+
         ClubMemberResponse response = clubMemberService.updateMemberRole(clubId, memberId, request.getRole());
         return ResponseEntity.ok(SuccessResponse.success(HttpStatus.OK, response));
     }

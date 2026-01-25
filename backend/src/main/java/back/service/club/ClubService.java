@@ -22,7 +22,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -60,7 +59,7 @@ public class ClubService {
         }
 
         Clubs savedClub = clubRepository.save(club);
-        
+
         // 모임 생성 시 자동으로 가상 계좌 생성 (실패해도 모임 생성은 계속 진행)
         try {
             BankAccounts bankAccount = bankService.createAccount(
@@ -81,7 +80,7 @@ public class ClubService {
             System.err.println("모임 생성 시 계좌 자동 생성 실패 (clubId: " + savedClub.getClubId() + "): " + e.getMessage());
             e.printStackTrace();
         }
-        
+
         // 모임 생성자를 OWNER로 자동 가입 (사용자 이름을 닉네임으로 사용)
         ClubMembers ownerMember = ClubMembers.builder()
                 .clubId(savedClub.getClubId())
@@ -91,7 +90,7 @@ public class ClubService {
         ownerMember.promoteToOwner(); // OWNER 권한 부여 (approve 전에 먼저 설정)
         ownerMember.approve(); // PENDING -> ACTIVE로 변경 (role은 이미 OWNER로 설정됨)
         clubMemberRepository.save(ownerMember);
-        
+
         return ClubResponse.from(savedClub, 1); // 현재 멤버 수 1명 (owner)
     }
 
@@ -373,15 +372,8 @@ public class ClubService {
     }
 
     // 카테고리별 모임 조회 - ACTIVE 상태만 조회
-    public Page<ClubResponse> getClubsByCategory(String category, Pageable pageable) {
-        Clubs.Category categoryEnum;
-        try {
-            categoryEnum = Clubs.Category.valueOf(category.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new ClubException(ErrorCode.CLUB_INVALID_CATEGORY);
-        }
-
-        return clubRepository.findByCategoryAndStatus(categoryEnum, Clubs.Status.ACTIVE, pageable)
+    public Page<ClubResponse> getClubsByCategory(Clubs.Category category, Pageable pageable) {
+        return clubRepository.findByCategoryAndStatus(category, Clubs.Status.ACTIVE, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
                             club.getClubId(), ClubMembers.Status.ACTIVE);
@@ -393,22 +385,6 @@ public class ClubService {
     public Page<ClubResponse> getClubsByCategoryAndStatus(Clubs.Category category, Clubs.Status status,
             Pageable pageable) {
         return clubRepository.findByCategoryAndStatus(category, status, pageable)
-    public Page<ClubResponse> getClubsByCategoryAndStatus(String category, String status, Pageable pageable) {
-        Clubs.Category categoryEnum;
-        try {
-            categoryEnum = Clubs.Category.valueOf(category.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new ClubException(ErrorCode.CLUB_INVALID_CATEGORY);
-        }
-
-        Clubs.Status statusEnum;
-        try {
-            statusEnum = Clubs.Status.valueOf(status.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new ClubException(ErrorCode.CLUB_INVALID_STATUS);
-        }
-
-        return clubRepository.findByCategoryAndStatus(categoryEnum, statusEnum, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
                             club.getClubId(), ClubMembers.Status.ACTIVE);
@@ -421,15 +397,6 @@ public class ClubService {
             Pageable pageable) {
         return clubRepository
                 .findByCategoryAndStatusAndClubNameContaining(category, Clubs.Status.ACTIVE, clubName, pageable)
-    public Page<ClubResponse> searchClubsByCategoryAndName(String category, String clubName, Pageable pageable) {
-        Clubs.Category categoryEnum;
-        try {
-            categoryEnum = Clubs.Category.valueOf(category.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new ClubException(ErrorCode.CLUB_INVALID_CATEGORY);
-        }
-
-        return clubRepository.findByCategoryAndStatusAndClubNameContaining(categoryEnum, Clubs.Status.ACTIVE, clubName, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
                             club.getClubId(), ClubMembers.Status.ACTIVE);
