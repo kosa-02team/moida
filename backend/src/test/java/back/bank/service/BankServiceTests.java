@@ -23,6 +23,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.junit.jupiter.api.AfterEach;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -65,6 +68,24 @@ class BankServiceTests {
 
         @Mock
         private BankProvider bankProvider;
+
+        @BeforeEach
+        void setUp() {
+                TransactionSynchronizationManager.initSynchronization();
+        }
+
+        @AfterEach
+        void tearDown() {
+                TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        private void triggerAfterCommit() {
+                List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager
+                                .getSynchronizations();
+                for (TransactionSynchronization synchronization : synchronizations) {
+                        synchronization.afterCommit();
+                }
+        }
 
         @Test
         @DisplayName("계좌 생성 성공")
@@ -144,6 +165,8 @@ class BankServiceTests {
 
                 bankService.syncTransactions(clubId, from, to);
 
+                triggerAfterCommit();
+
                 verify(transactionHistoryRepository).save(any());
                 verify(transactionLogRepository).save(any());
                 verify(transactionMatchingService)
@@ -168,6 +191,8 @@ class BankServiceTests {
                                 .willReturn(new java.util.ArrayList<>(List.of()));
 
                 bankService.syncTransactions(clubId, null, null);
+
+                triggerAfterCommit();
 
                 verify(bankProvider).getTransactions(
                                 anyString(),
