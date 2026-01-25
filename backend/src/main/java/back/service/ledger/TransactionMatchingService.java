@@ -57,7 +57,7 @@ public class TransactionMatchingService {
      * 자동 매칭 수행
      * - 새로운 거래내역이 들어올 때 호출
      */
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void autoMatchTransactions(Long clubId, List<BankTransactionHistory> newTransactions,
             Map<Long, TransactionLog> newTransactionLogs) {
         synchronized (clubId.toString().intern()) {

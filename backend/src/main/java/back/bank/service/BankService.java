@@ -20,6 +20,8 @@ import back.repository.ledger.TransactionLogRepository;
 import back.service.ledger.TransactionMatchingService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -53,7 +55,7 @@ public class BankService {
                 this.transactionLogRepository = transactionLogRepository;
                 this.transactionMatchingService = transactionMatchingService;
         }
-        
+
         /**
          * TransactionLog의 실제 거래 날짜를 조회
          * bankHistoryId가 있으면 BankTransactionHistory의 bankTransactionAt을 사용,
@@ -61,21 +63,23 @@ public class BankService {
          */
         private LocalDateTime getActualTransactionDate(TransactionLog log) {
                 if (log.getBankHistoryId() != null) {
-                        Optional<BankTransactionHistory> history = transactionHistoryRepository.findById(log.getBankHistoryId());
+                        Optional<BankTransactionHistory> history = transactionHistoryRepository
+                                        .findById(log.getBankHistoryId());
                         if (history.isPresent()) {
                                 return history.get().getBankTransactionAt();
                         }
                 }
-        return log.getCreatedAt();
+                return log.getCreatedAt();
         }
 
         private BigDecimal calculateRunningBalance(Long clubId, LocalDateTime syncStartDate, Long firstTransactionId) {
                 // 1. 은행 거래 중 syncStartDate/firstTransactionId 이전의 가장 최신 거래 조회
                 // firstTransactionId가 없으면(새로 가져오는 경우) Long.MAX_VALUE로 설정하여 해당 시간의 모든 거래 포함
                 Long cutoffId = (firstTransactionId != null) ? firstTransactionId : Long.MAX_VALUE;
-                
+
                 List<BankTransactionHistory> prevHistories = transactionHistoryRepository
-                                .findPreviousHistory(clubId, syncStartDate, cutoffId, org.springframework.data.domain.PageRequest.of(0, 1));
+                                .findPreviousHistory(clubId, syncStartDate, cutoffId,
+                                                org.springframework.data.domain.PageRequest.of(0, 1));
 
                 TransactionLog lastBankLog = null;
                 LocalDateTime lastBankDate = LocalDateTime.MIN;
@@ -92,8 +96,8 @@ public class BankService {
                 }
 
                 // 2. 수동 거래 중 syncStartDate 이전의 가장 최신 거래 조회
-                // (수동 거래는 은행 거래와 ID 체계가 다르므로 시간으로만 단순 비교하되, 
-                //  syncStartDate와 같으면 은행 거래가 우선이라고 가정하거나 포함)
+                // (수동 거래는 은행 거래와 ID 체계가 다르므로 시간으로만 단순 비교하되,
+                // syncStartDate와 같으면 은행 거래가 우선이라고 가정하거나 포함)
                 Optional<TransactionLog> lastManualLog = transactionLogRepository
                                 .findFirstByClubIdAndBankHistoryIdIsNullAndCreatedAtBeforeOrderByCreatedAtDescTransactionIdDesc(
                                                 clubId, syncStartDate);
@@ -111,14 +115,14 @@ public class BankService {
 
                 // 은행 거래가 수동 거래보다 뒤(최신)이거나 같으면 은행 거래 우선
                 if (lastBankDate.isAfter(lastManualDate) || lastBankDate.isEqual(lastManualDate)) {
-                         // lastBankLog가 null이 아닌 경우에만 여기로 옴 (위에서 체크함)
-                         if (lastBankLog != null) {
+                        // lastBankLog가 null이 아닌 경우에만 여기로 옴 (위에서 체크함)
+                        if (lastBankLog != null) {
                                 System.out.println("💰 [잔액 계산] 은행 거래 기준 시작 잔액: " + lastBankLog.getBalanceAfter()
                                                 + " (Date: " + lastBankDate + ")");
                                 return lastBankLog.getBalanceAfter();
-                         }
+                        }
                 }
-                
+
                 // 수동 거래가 더 최신인 경우
                 if (lastManualLog.isPresent()) {
                         System.out.println("💰 [잔액 계산] 수동 거래 기준 시작 잔액: " + lastManualLog.get().getBalanceAfter()
@@ -253,11 +257,12 @@ public class BankService {
                         // 첫 번째 거래가 이미 DB에 있는지 확인하여 ID를 가져옴 (Re-Sync 경우)
                         // 하지만 bankTransactions는 API에서 가져온 것이라 ID가 아직 없음(실제 DB ID는 저장 후에 생김).
                         // -> Re-Sync라면 이미 저장된 uniqueTxKey로 DB ID를 찾아야 함.
-                        
+
                         // API에서 가져온 첫 거래의 Unique Key
                         String firstTxKey = bankTransactions.get(0).txId();
-                        Optional<BankTransactionHistory> existingFirst = transactionHistoryRepository.findByUniqueTxKey(firstTxKey);
-                        
+                        Optional<BankTransactionHistory> existingFirst = transactionHistoryRepository
+                                        .findByUniqueTxKey(firstTxKey);
+
                         Long firstTxId = existingFirst.map(BankTransactionHistory::getHistoryId).orElse(null);
 
                         runningBalance = calculateRunningBalance(clubId, syncStartDate, firstTxId);
@@ -270,30 +275,35 @@ public class BankService {
                 // 4. 각 거래내역을 BankTransactionHistory와 TransactionLog에 저장 (날짜 순으로 처리)
                 for (BankTransaction tx : bankTransactions) {
                         // 중복 확인 (uniqueTxKey로)
-                        Optional<BankTransactionHistory> existingHistory = transactionHistoryRepository.findByUniqueTxKey(tx.txId());
-                        
+                        Optional<BankTransactionHistory> existingHistory = transactionHistoryRepository
+                                        .findByUniqueTxKey(tx.txId());
+
                         BankTransactionHistory savedHistory;
                         TransactionLog savedLog;
                         if (existingHistory.isPresent()) {
                                 // 이미 저장된 거래내역이 있는 경우
                                 savedHistory = existingHistory.get();
-                                
+
                                 // TransactionLog가 있는지 확인
-                                Optional<TransactionLog> existingLog = transactionLogRepository.findByBankHistoryId(savedHistory.getHistoryId());
-                                
+                                Optional<TransactionLog> existingLog = transactionLogRepository
+                                                .findByBankHistoryId(savedHistory.getHistoryId());
+
                                 if (existingLog.isPresent()) {
                                         // TransactionLog도 이미 존재하면 잔액을 재계산하여 업데이트
-                                        System.out.println("  🔄 거래내역과 TransactionLog 모두 이미 존재: " + tx.txId() + " (잔액 재계산)");
-                                        System.out.println("    → 이전 잔액: " + runningBalance + ", 거래 금액: " + tx.amount());
-                                        
+                                        System.out.println("  🔄 거래내역과 TransactionLog 모두 이미 존재: " + tx.txId()
+                                                        + " (잔액 재계산)");
+                                        System.out.println(
+                                                        "    → 이전 잔액: " + runningBalance + ", 거래 금액: " + tx.amount());
+
                                         // 잔액 재계산: 이전 잔액에 현재 거래 금액을 더함 (한 번만 계산)
                                         BigDecimal calculatedBalance = runningBalance.add(tx.amount());
                                         System.out.println("    → 계산된 잔액: " + calculatedBalance);
-                                        
+
                                         // 잔액이 다르면 업데이트
                                         TransactionLog log = existingLog.get();
                                         if (log.getBalanceAfter().compareTo(calculatedBalance) != 0) {
-                                                System.out.println("    → 잔액 수정: " + log.getBalanceAfter() + " → " + calculatedBalance);
+                                                System.out.println("    → 잔액 수정: " + log.getBalanceAfter() + " → "
+                                                                + calculatedBalance);
                                                 // TransactionLog의 잔액을 업데이트
                                                 log.updateBalanceAfter(calculatedBalance);
                                                 transactionLogRepository.save(log);
@@ -306,13 +316,15 @@ public class BankService {
                                         continue;
                                 } else {
                                         // BankTransactionHistory는 있지만 TransactionLog가 없으면 생성
-                                        System.out.println("  🔄 BankTransactionHistory는 존재하지만 TransactionLog가 없어서 생성: " + tx.txId());
-                                        System.out.println("    → 이전 잔액: " + runningBalance + ", 거래 금액: " + tx.amount());
-                                        
+                                        System.out.println("  🔄 BankTransactionHistory는 존재하지만 TransactionLog가 없어서 생성: "
+                                                        + tx.txId());
+                                        System.out.println(
+                                                        "    → 이전 잔액: " + runningBalance + ", 거래 금액: " + tx.amount());
+
                                         // 잔액 계산: 이전 잔액에 현재 거래 금액을 더함
                                         runningBalance = runningBalance.add(tx.amount());
                                         System.out.println("    → 계산된 잔액: " + runningBalance);
-                                        
+
                                         savedLog = new TransactionLog(
                                                         clubId,
                                                         null, // scheduleId는 매칭 시점에 설정
@@ -327,8 +339,9 @@ public class BankService {
                                         savedLog = transactionLogRepository.save(savedLog);
                                         savedLogs.add(savedLog);
                                         historyToLogMap.put(savedHistory.getHistoryId(), savedLog);
-                                        
-                                        System.out.println("  ✓ 거래 저장: " + tx.printContent() + " (" + tx.amount() + "원), 잔액: " + runningBalance);
+
+                                        System.out.println("  ✓ 거래 저장: " + tx.printContent() + " (" + tx.amount()
+                                                        + "원), 잔액: " + runningBalance);
                                 }
                         } else {
                                 // 새로운 거래내역인 경우
@@ -346,11 +359,11 @@ public class BankService {
                                 // 4-2. TransactionLog에 저장 (회계 원장) - bankHistoryId 연결
                                 System.out.println("  ➕ 새로운 거래 저장: " + tx.printContent());
                                 System.out.println("    → 이전 잔액: " + runningBalance + ", 거래 금액: " + tx.amount());
-                                
+
                                 // 잔액 계산: 이전 잔액에 현재 거래 금액을 더함
                                 runningBalance = runningBalance.add(tx.amount());
                                 System.out.println("    → 계산된 잔액: " + runningBalance);
-                                
+
                                 savedLog = new TransactionLog(
                                                 clubId,
                                                 null, // scheduleId는 매칭 시점에 설정
@@ -364,8 +377,9 @@ public class BankService {
                                 );
                                 savedLog = transactionLogRepository.save(savedLog);
                                 savedLogs.add(savedLog);
-                                
-                                System.out.println("  ✓ 거래 저장: " + tx.printContent() + " (" + tx.amount() + "원), 잔액: " + runningBalance);
+
+                                System.out.println("  ✓ 거래 저장: " + tx.printContent() + " (" + tx.amount() + "원), 잔액: "
+                                                + runningBalance);
 
                                 // 새로 저장된 내역 수집 및 매핑
                                 savedHistories.add(savedHistory);
@@ -373,8 +387,19 @@ public class BankService {
                         }
                 }
 
-                // 5. 자동 매칭 수행 (새로 저장된 거래내역과 입금요청 매칭)
-                transactionMatchingService.autoMatchTransactions(clubId, savedHistories, historyToLogMap);
+                // 5. 자동 매칭 수행 (새로 저장된 거래내역과 입금요청 매칭) - 데드락 방지를 위해 트랜잭션 커밋 후 실행
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                                try {
+                                        transactionMatchingService.autoMatchTransactions(clubId, savedHistories,
+                                                        historyToLogMap);
+                                } catch (Exception e) {
+                                        System.err.println("자동 매칭 중 오류 발생: " + e.getMessage());
+                                        e.printStackTrace();
+                                }
+                        }
+                });
 
                 return savedLogs;
         }
@@ -430,11 +455,12 @@ public class BankService {
                 if (!bankTransactions.isEmpty()) {
                         LocalDateTime syncStartDate = bankTransactions.get(0).occurredAt();
                         // 첫 번째 거래가 이미 DB에 있는지 확인하여 ID를 가져옴 (Re-Sync 경우)
-                        
+
                         // API에서 가져온 첫 거래의 Unique Key
                         String firstTxKey = bankTransactions.get(0).txId();
-                        Optional<BankTransactionHistory> existingFirst = transactionHistoryRepository.findByUniqueTxKey(firstTxKey);
-                        
+                        Optional<BankTransactionHistory> existingFirst = transactionHistoryRepository
+                                        .findByUniqueTxKey(firstTxKey);
+
                         Long firstTxId = existingFirst.map(BankTransactionHistory::getHistoryId).orElse(null);
 
                         runningBalance = calculateRunningBalance(clubId, syncStartDate, firstTxId);
@@ -447,38 +473,43 @@ public class BankService {
                 // 4. 각 거래내역을 BankTransactionHistory와 TransactionLog에 저장 (날짜 순으로 처리)
                 for (BankTransaction tx : bankTransactions) {
                         // 중복 확인 (uniqueTxKey로)
-                        Optional<BankTransactionHistory> existingHistory = transactionHistoryRepository.findByUniqueTxKey(tx.txId());
-                        
+                        Optional<BankTransactionHistory> existingHistory = transactionHistoryRepository
+                                        .findByUniqueTxKey(tx.txId());
+
                         BankTransactionHistory savedHistory;
                         TransactionLog savedLog;
-                        
+
                         if (existingHistory.isPresent()) {
                                 // 이미 저장된 거래내역이 있는 경우
                                 savedHistory = existingHistory.get();
-                                
+
                                 // TransactionLog가 있는지 확인
-                                Optional<TransactionLog> existingLog = transactionLogRepository.findByBankHistoryId(savedHistory.getHistoryId());
-                                
+                                Optional<TransactionLog> existingLog = transactionLogRepository
+                                                .findByBankHistoryId(savedHistory.getHistoryId());
+
                                 if (existingLog.isPresent()) {
                                         // TransactionLog도 이미 존재하면 잔액을 재계산하여 업데이트
-                                        System.out.println("  🔄 거래내역과 TransactionLog 모두 이미 존재: " + tx.txId() + " (잔액 재계산)");
-                                        System.out.println("    → 이전 잔액: " + runningBalance + ", 거래 금액: " + tx.amount());
-                                        
+                                        System.out.println("  🔄 거래내역과 TransactionLog 모두 이미 존재: " + tx.txId()
+                                                        + " (잔액 재계산)");
+                                        System.out.println(
+                                                        "    → 이전 잔액: " + runningBalance + ", 거래 금액: " + tx.amount());
+
                                         // 잔액 재계산: 이전 잔액에 변동 금액을 더함 (입/출금 구분)
                                         BigDecimal change = tx.amount();
                                         if ("WITHDRAW".equalsIgnoreCase(tx.type())) {
-                                            change = change.abs().negate(); // 출금이면 음수로 변환
+                                                change = change.abs().negate(); // 출금이면 음수로 변환
                                         } else {
-                                            change = change.abs(); // 입금이면 양수
+                                                change = change.abs(); // 입금이면 양수
                                         }
-                                        
+
                                         BigDecimal calculatedBalance = runningBalance.add(change);
                                         System.out.println("    → 계산된 잔액: " + calculatedBalance);
-                                        
+
                                         // 잔액이 다르면 업데이트
                                         TransactionLog log = existingLog.get();
                                         if (log.getBalanceAfter().compareTo(calculatedBalance) != 0) {
-                                                System.out.println("    → 잔액 수정: " + log.getBalanceAfter() + " → " + calculatedBalance);
+                                                System.out.println("    → 잔액 수정: " + log.getBalanceAfter() + " → "
+                                                                + calculatedBalance);
                                                 // TransactionLog의 잔액을 업데이트
                                                 log.updateBalanceAfter(calculatedBalance);
                                                 transactionLogRepository.save(log);
@@ -491,20 +522,22 @@ public class BankService {
                                         continue;
                                 } else {
                                         // BankTransactionHistory는 있지만 TransactionLog가 없으면 생성
-                                        System.out.println("  🔄 BankTransactionHistory는 존재하지만 TransactionLog가 없어서 생성: " + tx.txId());
-                                        System.out.println("    → 이전 잔액: " + runningBalance + ", 거래 금액: " + tx.amount());
-                                        
+                                        System.out.println("  🔄 BankTransactionHistory는 존재하지만 TransactionLog가 없어서 생성: "
+                                                        + tx.txId());
+                                        System.out.println(
+                                                        "    → 이전 잔액: " + runningBalance + ", 거래 금액: " + tx.amount());
+
                                         // 잔액 계산: 이전 잔액에 변동 금액을 더함 (입/출금 구분)
                                         BigDecimal change = tx.amount();
                                         if ("WITHDRAW".equalsIgnoreCase(tx.type())) {
-                                            change = change.abs().negate(); // 출금이면 음수로 변환
+                                                change = change.abs().negate(); // 출금이면 음수로 변환
                                         } else {
-                                            change = change.abs(); // 입금이면 양수
+                                                change = change.abs(); // 입금이면 양수
                                         }
-                                        
+
                                         runningBalance = runningBalance.add(change);
                                         System.out.println("    → 계산된 잔액: " + runningBalance);
-                                        
+
                                         savedLog = new TransactionLog(
                                                         clubId,
                                                         null, // scheduleId는 매칭 시점에 설정
@@ -519,8 +552,9 @@ public class BankService {
                                         savedLog = transactionLogRepository.save(savedLog);
                                         savedLogs.add(savedLog);
                                         historyToLogMap.put(savedHistory.getHistoryId(), savedLog);
-                                        
-                                        System.out.println("  ✓ 거래 저장: " + tx.printContent() + " (" + tx.amount() + "원), 잔액: " + runningBalance);
+
+                                        System.out.println("  ✓ 거래 저장: " + tx.printContent() + " (" + tx.amount()
+                                                        + "원), 잔액: " + runningBalance);
                                 }
                         } else {
                                 // 새로운 거래내역인 경우
@@ -538,18 +572,18 @@ public class BankService {
                                 // 4-2. TransactionLog에 저장 (회계 원장) - bankHistoryId 연결
                                 System.out.println("  ➕ 새로운 거래 저장: " + tx.printContent());
                                 System.out.println("    → 이전 잔액: " + runningBalance + ", 거래 금액: " + tx.amount());
-                                
+
                                 // 잔액 계산: 이전 잔액에 변동 금액을 더함 (입/출금 구분)
                                 BigDecimal change = tx.amount();
                                 if ("WITHDRAW".equalsIgnoreCase(tx.type())) {
-                                    change = change.abs().negate(); // 출금이면 음수로 변환
+                                        change = change.abs().negate(); // 출금이면 음수로 변환
                                 } else {
-                                    change = change.abs(); // 입금이면 양수
+                                        change = change.abs(); // 입금이면 양수
                                 }
-                                
+
                                 runningBalance = runningBalance.add(change);
                                 System.out.println("    → 계산된 잔액: " + runningBalance);
-                                
+
                                 savedLog = new TransactionLog(
                                                 clubId,
                                                 null, // scheduleId는 매칭 시점에 설정
@@ -563,8 +597,9 @@ public class BankService {
                                 );
                                 savedLog = transactionLogRepository.save(savedLog);
                                 savedLogs.add(savedLog);
-                                
-                                System.out.println("  ✓ 거래 저장: " + tx.printContent() + " (" + tx.amount() + "원), 잔액: " + runningBalance);
+
+                                System.out.println("  ✓ 거래 저장: " + tx.printContent() + " (" + tx.amount() + "원), 잔액: "
+                                                + runningBalance);
 
                                 // 새로 저장된 내역 수집 및 매핑
                                 savedHistories.add(savedHistory);
@@ -572,8 +607,19 @@ public class BankService {
                         }
                 }
 
-                // 5. 자동 매칭 수행 (새로 저장된 거래내역과 입금요청 매칭)
-                transactionMatchingService.autoMatchTransactions(clubId, savedHistories, historyToLogMap);
+                // 5. 자동 매칭 수행 (새로 저장된 거래내역과 입금요청 매칭) - 데드락 방지를 위해 트랜잭션 커밋 후 실행
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                                try {
+                                        transactionMatchingService.autoMatchTransactions(clubId, savedHistories,
+                                                        historyToLogMap);
+                                } catch (Exception e) {
+                                        System.err.println("자동 매칭(Stub) 중 오류 발생: " + e.getMessage());
+                                        e.printStackTrace();
+                                }
+                        }
+                });
 
                 return savedLogs;
         }
