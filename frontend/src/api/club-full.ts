@@ -16,6 +16,7 @@ export interface ClubDetailResponse {
   visibility: string;
   type: string;
   category: string;
+  coverImageUrl?: string | null;
   maxMembers: number;
   currentMembers: number;
   closedAt: string | null;
@@ -41,17 +42,19 @@ export type VisibilityType = 'PUBLIC' | 'PRIVATE';
 export type CategoryType = 'STUDY' | 'SPORTS' | 'SOCIAL' | 'HOBBY' | 'FINANCE' | 'ETC';
 
 export interface ClubCreateRequest {
-    clubName: string;
-    visibility?: VisibilityType; // 분리한 타입 사용
-    type?: 'OPERATION_FEE' | 'FAIR_SETTLEMENT';
-    maxMembers?: number;
-    category?: CategoryType;    // 분리한 타입 사용
+  clubName: string;
+  visibility?: VisibilityType; // 분리한 타입 사용
+  type?: 'OPERATION_FEE' | 'FAIR_SETTLEMENT';
+  maxMembers?: number;
+  category?: CategoryType;    // 분리한 타입 사용
+  coverImage?: string;
 }
 
 export interface ClubUpdateRequest {
-    clubName?: string;
-    visibility?: VisibilityType;
-    category?: CategoryType;
+  clubName?: string;
+  visibility?: VisibilityType;
+  category?: CategoryType;
+  coverImage?: string;
 }
 
 // ==================== API Functions ====================

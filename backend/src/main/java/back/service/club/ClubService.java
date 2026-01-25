@@ -14,6 +14,7 @@ import back.exception.response.ErrorCode;
 import back.repository.UserRepository;
 import back.repository.club.ClubMemberRepository;
 import back.repository.club.ClubRepository;
+import back.service.post.ImageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +33,7 @@ public class ClubService {
     private final ClubMemberRepository clubMemberRepository;
     private final UserRepository userRepository;
     private final BankService bankService;
+    private final ImageService imageService;
 
     @Transactional
     public ClubResponse createClub(ClubRequest request, Long ownerId) {
@@ -47,12 +49,17 @@ public class ClubService {
                 request.getClubName(),
                 ownerId,
                 request.getTypeEnum(),
-                request.getMaxMembers() != null ? request.getMaxMembers() : 100
-        );
+                request.getMaxMembers() != null ? request.getMaxMembers() : 100);
         club.setVisibility(request.getVisibilityEnum());
         club.setCategory(request.getCategoryEnum());
+
+        if (request.getCoverImage() != null && !request.getCoverImage().isEmpty()) {
+            String imageUrl = imageService.saveBase64Image(request.getCoverImage());
+            club.updateCoverImage(imageUrl);
+        }
+
         Clubs savedClub = clubRepository.save(club);
-        
+
         // 모임 생성 시 자동으로 가상 계좌 생성 (실패해도 모임 생성은 계속 진행)
         try {
             BankAccounts bankAccount = bankService.createAccount(
@@ -62,9 +69,8 @@ public class ClubService {
                             "STUB", // 기본값으로 STUB 은행 사용 (개발 환경)
                             null, // accountNumber는 null로 하면 자동 생성
                             owner.getRealName() // 예금주명은 모임장 이름
-                    )
-            );
-            
+                    ));
+
             // 생성된 계좌 ID를 모임의 main_account_id에 저장
             savedClub.changeMainAccount(bankAccount.getAccountId().toString());
             clubRepository.save(savedClub);
@@ -74,7 +80,7 @@ public class ClubService {
             System.err.println("모임 생성 시 계좌 자동 생성 실패 (clubId: " + savedClub.getClubId() + "): " + e.getMessage());
             e.printStackTrace();
         }
-        
+
         // 모임 생성자를 OWNER로 자동 가입 (사용자 이름을 닉네임으로 사용)
         ClubMembers ownerMember = ClubMembers.builder()
                 .clubId(savedClub.getClubId())
@@ -84,7 +90,7 @@ public class ClubService {
         ownerMember.promoteToOwner(); // OWNER 권한 부여 (approve 전에 먼저 설정)
         ownerMember.approve(); // PENDING -> ACTIVE로 변경 (role은 이미 OWNER로 설정됨)
         clubMemberRepository.save(ownerMember);
-        
+
         return ClubResponse.from(savedClub, 1); // 현재 멤버 수 1명 (owner)
     }
 
@@ -93,7 +99,7 @@ public class ClubService {
                 .orElseThrow(ClubException.NotFound::new);
 
         boolean isPublic = club.getVisibility() == Clubs.Visibility.PUBLIC;
-        boolean isMember = viewerId != null && 
+        boolean isMember = viewerId != null &&
                 clubMemberRepository.existsByClubIdAndUserIdAndStatus(clubId, viewerId, ClubMembers.Status.ACTIVE);
 
         // 비공개 모임이고 멤버가 아닌 경우 접근 거부
@@ -114,7 +120,7 @@ public class ClubService {
         Clubs club = clubRepository.findById(clubId)
                 .orElseThrow(ClubException.NotFound::new);
 
-        if (!club.getClubName().equals(request.getClubName()) 
+        if (!club.getClubName().equals(request.getClubName())
                 && clubRepository.existsByClubName(request.getClubName())) {
             throw new ClubException.AlreadyExists();
         }
@@ -129,6 +135,11 @@ public class ClubService {
         }
         if (request.getCategory() != null) {
             club.setCategory(request.getCategoryEnum());
+        }
+
+        if (request.getCoverImage() != null && !request.getCoverImage().isEmpty()) {
+            String imageUrl = imageService.saveBase64Image(request.getCoverImage());
+            club.updateCoverImage(imageUrl);
         }
 
         Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(clubId, ClubMembers.Status.ACTIVE);
@@ -152,7 +163,8 @@ public class ClubService {
             throw new ClubException(ErrorCode.CLUB_AUTH_NOT_OWNER);
         }
 
-        if (club.getDeletionRequestStatus() != null && club.getDeletionRequestStatus() == Clubs.DeletionRequestStatus.PENDING) {
+        if (club.getDeletionRequestStatus() != null
+                && club.getDeletionRequestStatus() == Clubs.DeletionRequestStatus.PENDING) {
             throw new ClubException(ErrorCode.CLUB_DELETION_ALREADY_REQUESTED);
         }
 
@@ -229,7 +241,8 @@ public class ClubService {
         Clubs club = clubRepository.findById(clubId)
                 .orElseThrow(ClubException.NotFound::new);
 
-        if (club.getDeletionRequestStatus() == null || club.getDeletionRequestStatus() != Clubs.DeletionRequestStatus.PENDING) {
+        if (club.getDeletionRequestStatus() == null
+                || club.getDeletionRequestStatus() != Clubs.DeletionRequestStatus.PENDING) {
             throw new ClubException(ErrorCode.CLUB_DELETION_NOT_REQUESTED);
         }
 
@@ -273,7 +286,8 @@ public class ClubService {
             throw new ClubException(ErrorCode.CLUB_AUTH_NOT_OWNER);
         }
 
-        if (club.getDeletionRequestStatus() == null || club.getDeletionRequestStatus() != Clubs.DeletionRequestStatus.PENDING) {
+        if (club.getDeletionRequestStatus() == null
+                || club.getDeletionRequestStatus() != Clubs.DeletionRequestStatus.PENDING) {
             throw new ClubException(ErrorCode.CLUB_DELETION_NOT_REQUESTED);
         }
 
@@ -358,7 +372,8 @@ public class ClubService {
     }
 
     // 카테고리 + 상태별 모임 조회
-    public Page<ClubResponse> getClubsByCategoryAndStatus(Clubs.Category category, Clubs.Status status, Pageable pageable) {
+    public Page<ClubResponse> getClubsByCategoryAndStatus(Clubs.Category category, Clubs.Status status,
+            Pageable pageable) {
         return clubRepository.findByCategoryAndStatus(category, status, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
@@ -368,8 +383,10 @@ public class ClubService {
     }
 
     // 카테고리 + 이름 검색 - ACTIVE 상태만 조회
-    public Page<ClubResponse> searchClubsByCategoryAndName(Clubs.Category category, String clubName, Pageable pageable) {
-        return clubRepository.findByCategoryAndStatusAndClubNameContaining(category, Clubs.Status.ACTIVE, clubName, pageable)
+    public Page<ClubResponse> searchClubsByCategoryAndName(Clubs.Category category, String clubName,
+            Pageable pageable) {
+        return clubRepository
+                .findByCategoryAndStatusAndClubNameContaining(category, Clubs.Status.ACTIVE, clubName, pageable)
                 .map(club -> {
                     Integer currentMembers = (int) clubMemberRepository.countByClubIdAndStatus(
                             club.getClubId(), ClubMembers.Status.ACTIVE);

@@ -11,7 +11,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "clubs", uniqueConstraints = {
-    @UniqueConstraint(name = "uk_club_name", columnNames = {"club_name"})
+        @UniqueConstraint(name = "uk_club_name", columnNames = { "club_name" })
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -53,6 +53,9 @@ public class Clubs extends BaseEntity {
     @Column(name = "category", length = 20, nullable = false)
     private Category category = Category.ETC;
 
+    @Column(name = "cover_image_url")
+    private String coverImageUrl;
+
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
 
@@ -68,9 +71,9 @@ public class Clubs extends BaseEntity {
     }
 
     public enum DeletionRequestStatus {
-        NONE,        // 삭제 요청 없음
-        PENDING,     // 삭제 요청 중 (운영진 동의 대기)
-        APPROVED     // 모든 운영진 동의 완료 (삭제 가능)
+        NONE, // 삭제 요청 없음
+        PENDING, // 삭제 요청 중 (운영진 동의 대기)
+        APPROVED // 모든 운영진 동의 완료 (삭제 가능)
     }
 
     public enum Visibility {
@@ -83,12 +86,12 @@ public class Clubs extends BaseEntity {
     }
 
     public enum Category {
-        STUDY,      // 스터디
-        SPORTS,     // 운동
-        SOCIAL,     // 친목
-        HOBBY,      // 취미
-        FINANCE,    // 재테크
-        ETC         // 기타
+        STUDY, // 스터디
+        SPORTS, // 운동
+        SOCIAL, // 친목
+        HOBBY, // 취미
+        FINANCE, // 재테크
+        ETC // 기타
     }
 
     public Clubs(String clubName, Long ownerId, Type type, Integer maxMembers) {
@@ -100,6 +103,7 @@ public class Clubs extends BaseEntity {
         this.type = type;
         this.maxMembers = maxMembers;
     }
+
     // 기본값 생성자 (테스트용)
     public Clubs(String clubName, Long ownerId) {
         this(clubName, ownerId, Type.OPERATION_FEE, 100);
@@ -178,6 +182,10 @@ public class Clubs extends BaseEntity {
         if (category != null) {
             this.category = category;
         }
+    }
+
+    public void updateCoverImage(String coverImageUrl) {
+        this.coverImageUrl = coverImageUrl;
     }
 
     private static String generateUUID() {

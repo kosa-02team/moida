@@ -33,7 +33,7 @@ export function GroupMainView() {
   useEffect(() => {
     async function fetchData() {
       if (!club?.clubId) return;
-      
+
       // 다음 일정 가져오기
       try {
         setSchedulesLoading(true);
@@ -78,12 +78,12 @@ export function GroupMainView() {
     const now = new Date();
     const diffTime = date.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) return `오늘 ${date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`;
     if (diffDays === 1) return `내일 ${date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`;
-    
-    return date.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' }) + 
-           ' ' + date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+    return date.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' }) +
+      ' ' + date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
   };
 
   if (loading) {
@@ -113,9 +113,12 @@ export function GroupMainView() {
         <div className="flex items-start gap-4">
           <Avatar className="w-20 h-20 rounded-2xl border-2 border-white shadow-md" draggable={false}>
             {(() => {
-              const clubImage = localStorage.getItem(`club_image_${club.clubId}`);
-              return clubImage ? (
-                <img src={clubImage} alt={club.clubName} className="w-full h-full object-cover rounded-2xl" />
+              return club.coverImageUrl ? (
+                <img
+                  src={club.coverImageUrl.startsWith('http') ? club.coverImageUrl : `http://localhost:8080${club.coverImageUrl}`}
+                  alt={club.clubName}
+                  className="w-full h-full object-cover rounded-2xl"
+                />
               ) : (
                 <AvatarFallback className="text-2xl bg-orange-100 text-orange-600">
                   {club.clubName[0]}
@@ -226,9 +229,9 @@ export function GroupMainView() {
                     <div className="flex gap-3">
                       {post.imagesUrl && post.imagesUrl.length > 0 && (
                         <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-stone-100">
-                          <img 
-                            src={post.imagesUrl[0].startsWith('http') ? post.imagesUrl[0] : `http://localhost:8080${post.imagesUrl[0]}`} 
-                            alt="" 
+                          <img
+                            src={post.imagesUrl[0].startsWith('http') ? post.imagesUrl[0] : `http://localhost:8080${post.imagesUrl[0]}`}
+                            alt=""
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
